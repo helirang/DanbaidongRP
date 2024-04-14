@@ -53,6 +53,21 @@ namespace UnityEngine.Rendering.Universal
             [Reload("Shaders/PreIntegratedFGD/PreIntegratedFGD_CharlieFabricLambert.shader")]
             public Shader preIntegratedFGD_CharlieFabricLambertPS;
 
+            /// <summary>
+            /// GPU lights list compute shader.
+            /// </summary>
+            [Reload("Shaders/Lights/GPULightsClearLists.compute")]
+            public ComputeShader gpuLightsClearLists;
+
+            [Reload("Shaders/Lights/GPULightsCoarseCulling.compute")]
+            public ComputeShader gpuLightsCoarseCullingCS;
+
+            [Reload("Shaders/Lights/GPULightsFPTL.compute")]
+            public ComputeShader gpuLightsFPTL;
+
+            [Reload("Shaders/Lights/GPULightsCluster.compute")]
+            public ComputeShader gpuLightsCluster;
+
 #if UNITY_EDITOR
             // Iterator to retrieve all compute shaders in reflection so we don't have to keep a list of
             // used compute shaders up to date (prefer editor-only usage)

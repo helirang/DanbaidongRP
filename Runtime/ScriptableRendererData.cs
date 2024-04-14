@@ -35,6 +35,12 @@ namespace UnityEngine.Rendering.Universal
             /// </summary>
             [Reload("Shaders/Debug/HDRDebugView.shader")]
             public Shader hdrDebugViewPS;
+
+            /// <summary>
+            /// Debug shader used to show tile and cluster.
+            /// </summary>
+            [Reload("Shaders/Debug/DebugViewTiles.shader")]
+            public Shader tileClusterDebugPS;
         }
 
         /// <summary>

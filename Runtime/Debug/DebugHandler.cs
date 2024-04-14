@@ -35,6 +35,7 @@ namespace UnityEngine.Rendering.Universal
         // Lighting settings...
         static readonly int k_DebugLightingModeId = Shader.PropertyToID("_DebugLightingMode");
         static readonly int k_DebugLightingFeatureFlagsId = Shader.PropertyToID("_DebugLightingFeatureFlags");
+        static readonly int k_DebugTileClusterModeId = Shader.PropertyToID("_DebugTileClusterMode");
 
         static readonly int k_DebugValidateAlbedoMinLuminanceId = Shader.PropertyToID("_DebugValidateAlbedoMinLuminance");
         static readonly int k_DebugValidateAlbedoMaxLuminanceId = Shader.PropertyToID("_DebugValidateAlbedoMaxLuminance");
@@ -53,8 +54,10 @@ namespace UnityEngine.Rendering.Universal
 
         readonly Material m_ReplacementMaterial;
         readonly Material m_HDRDebugViewMaterial;
+        readonly Material m_TileClusterDebugMaterial;
 
         HDRDebugViewPass m_HDRDebugViewPass;
+        TileClusterDebugPass m_TileClusterDebugPass;
         RTHandle m_DebugScreenColorHandle;
         RTHandle m_DebugScreenDepthHandle;
 
@@ -96,11 +99,18 @@ namespace UnityEngine.Rendering.Universal
         internal ref RTHandle DebugScreenColorHandle => ref m_DebugScreenColorHandle;
         internal ref RTHandle DebugScreenDepthHandle => ref m_DebugScreenDepthHandle;
         internal HDRDebugViewPass hdrDebugViewPass => m_HDRDebugViewPass;
+        internal TileClusterDebugPass tileClusterDebugPass => m_TileClusterDebugPass;
 
         internal bool HDRDebugViewIsActive(ref CameraData cameraData)
         {
             // HDR debug views should only apply to the last camera in the stack
             return DebugDisplaySettings.lightingSettings.hdrDebugMode != HDRDebugMode.None && cameraData.resolveFinalTarget;
+        }
+
+        internal bool TileClusterDebugIsActive(ref CameraData cameraData)
+        {
+            // TileC luster debug views should only apply to the last camera in the stack
+            return DebugDisplaySettings.lightingSettings.tileClusterDebugMode != DebugTileClusterMode.None && cameraData.resolveFinalTarget;
         }
 
         internal bool WriteToDebugScreenTexture(ref CameraData cameraData)
@@ -130,20 +140,25 @@ namespace UnityEngine.Rendering.Universal
         {
             Shader debugReplacementShader = scriptableRendererData.debugShaders.debugReplacementPS;
             Shader hdrDebugViewShader = scriptableRendererData.debugShaders.hdrDebugViewPS;
+            Shader tileClusterDebugShader = scriptableRendererData.debugShaders.tileClusterDebugPS;
 
             m_DebugDisplaySettings = UniversalRenderPipelineDebugDisplaySettings.Instance;
 
             m_ReplacementMaterial = (debugReplacementShader == null) ? null : CoreUtils.CreateEngineMaterial(debugReplacementShader);
             m_HDRDebugViewMaterial = (hdrDebugViewShader == null) ? null : CoreUtils.CreateEngineMaterial(hdrDebugViewShader);
+            m_TileClusterDebugMaterial = (tileClusterDebugShader == null) ? null : CoreUtils.CreateEngineMaterial(tileClusterDebugShader);
 
             m_HDRDebugViewPass = new HDRDebugViewPass(m_HDRDebugViewMaterial);
+            m_TileClusterDebugPass = new TileClusterDebugPass(m_TileClusterDebugMaterial);
         }
 
         public void Dispose()
         {
             m_HDRDebugViewPass.Dispose();
+            m_TileClusterDebugPass.Dispose();
             m_DebugScreenColorHandle?.Release();
             m_DebugScreenDepthHandle?.Release();
+            CoreUtils.Destroy(m_TileClusterDebugMaterial);
             CoreUtils.Destroy(m_HDRDebugViewMaterial);
             CoreUtils.Destroy(m_ReplacementMaterial);
         }
@@ -341,6 +356,7 @@ namespace UnityEngine.Rendering.Universal
                 // Lighting settings...
                 cmd.SetGlobalFloat(k_DebugLightingModeId, (int)LightingSettings.lightingDebugMode);
                 cmd.SetGlobalInteger(k_DebugLightingFeatureFlagsId, (int)LightingSettings.lightingFeatureFlags);
+                cmd.SetGlobalFloat(k_DebugTileClusterModeId, (int)LightingSettings.tileClusterDebugMode);
 
                 // Set-up any other persistent properties...
                 cmd.SetGlobalColor(k_DebugColorInvalidModePropertyId, Color.red);

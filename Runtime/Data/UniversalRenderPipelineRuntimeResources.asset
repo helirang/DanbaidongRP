@@ -23,6 +23,12 @@ MonoBehaviour:
       type: 3}
     preIntegratedFGD_CharlieFabricLambertPS: {fileID: 4800000, guid: 793c3c6faf5715045856b508462930c6,
       type: 3}
+    gpuLightsClearLists: {fileID: 7200000, guid: b90d433dd91165045968b77352c54900,
+      type: 3}
+    gpuLightsCoarseCullingCS: {fileID: 7200000, guid: c776f34e3c14caf45bdd2e2134d7218e,
+      type: 3}
+    gpuLightsFPTL: {fileID: 7200000, guid: 5a058a6e8d672fd4cb004ad5c00e25a5, type: 3}
+    gpuLightsCluster: {fileID: 7200000, guid: f225c7a61afdc554e95cbceeb452ef78, type: 3}
   materials:
     lit: {fileID: 2100000, guid: 4c19d03af4d77ae49a8fd7cc69e444d9, type: 2}
   textures:

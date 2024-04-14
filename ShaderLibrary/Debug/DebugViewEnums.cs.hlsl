@@ -70,6 +70,14 @@
 #define DEBUGMATERIALMODE_SPRITE_MASK (11)
 
 //
+// UnityEngine.Rendering.Universal.DebugTileClusterMode:  static fields
+//
+#define DEBUGTILECLUSTERMODE_NONE (0)
+#define DEBUGTILECLUSTERMODE_COARSE_CULLING (1)
+#define DEBUGTILECLUSTERMODE_CLUSTER_FOR_OPAQUE (2)
+#define DEBUGTILECLUSTERMODE_CLUSTER_FOR_TILE (3)
+
+//
 // UnityEngine.Rendering.Universal.DebugLightingFeatureFlags:  static fields
 //
 #define DEBUGLIGHTINGFEATUREFLAGS_NONE (0)

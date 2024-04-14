@@ -1370,10 +1370,19 @@ namespace UnityEngine.Rendering.Universal
                 desc.width = scaledWidth;
                 desc.height = scaledHeight;
 
-                if (camera.cameraType == CameraType.SceneView && !isHdrEnabled)
+                //if (camera.cameraType == CameraType.SceneView && !isHdrEnabled)
+                //{
+                //    desc.graphicsFormat = SystemInfo.GetGraphicsFormat(DefaultFormat.LDR);
+                //}
+
+                // Enhancing sceneView quality: Without this adjustment, if no game camera is available,
+                // the sceneView target will default to the baseCamera target type, which is R8G8B8A8.
+                if (camera.cameraType == CameraType.SceneView)
                 {
-                    desc.graphicsFormat = SystemInfo.GetGraphicsFormat(DefaultFormat.LDR);
+                    if (RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R16G16B16A16_SFloat, FormatUsage.Linear | FormatUsage.Render))
+                        desc.graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
                 }
+
                 // SystemInfo.SupportsRenderTextureFormat(camera.targetTexture.descriptor.colorFormat)
                 // will assert on R8_SINT since it isn't a valid value of RenderTextureFormat.
                 // If this is fixed then we can implement debug statement to the user explaining why some
@@ -1689,6 +1698,8 @@ namespace UnityEngine.Rendering.Universal
         RenderCameraStack,
 
         // GPU
+        GPULights,
+        BuildGPULightsData,
         AdditionalLightsShadow,
         ColorGradingLUT,
         CopyColor,

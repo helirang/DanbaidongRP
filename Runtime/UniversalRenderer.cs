@@ -150,6 +150,9 @@ namespace UnityEngine.Rendering.Universal
         internal RTHandle m_MotionVectorColor;
         internal RTHandle m_MotionVectorDepth;
 
+        internal GPULightsDataBuildSystem m_GPULightsDataBuildSystem;
+
+        GPULights m_GPULights;
         ForwardLights m_ForwardLights;
         DeferredLights m_DeferredLights;
         RenderingMode m_RenderingMode;
@@ -227,6 +230,8 @@ namespace UnityEngine.Rendering.Universal
             this.stripAdditionalLightOffVariants = !PlatformAutoDetect.isXRMobile;
 #endif
 #endif
+            m_GPULights = new GPULights(data.defaultRuntimeReources.shaders, RenderPassEvent.AfterRenderingGbuffer);
+            m_GPULightsDataBuildSystem = new GPULightsDataBuildSystem();
 
             ForwardLights.InitParams forwardInitParams;
             forwardInitParams.lightCookieManager = m_LightCookieManager;
@@ -372,6 +377,7 @@ namespace UnityEngine.Rendering.Universal
         /// <inheritdoc />
         protected override void Dispose(bool disposing)
         {
+            m_GPULightsDataBuildSystem.Cleanup();
             m_ForwardLights.Cleanup();
             m_GBufferPass?.Dispose();
             m_ColorPyramidPass?.Dispose();
@@ -533,6 +539,28 @@ namespace UnityEngine.Rendering.Universal
         /// <inheritdoc />
         public override void Setup(ScriptableRenderContext context, ref RenderingData renderingData)
         {
+            bool generateGPULightsFPTLAndCluster = renderingData.lightData.additionalLightsCount > 0;
+            if (generateGPULightsFPTLAndCluster)
+            {
+                using (new ProfilingScope(renderingData.commandBuffer, ProfilingSampler.Get(URPProfileId.BuildGPULightsData)))
+                {
+                    var punctualLightCount = renderingData.lightData.additionalLightsCount;
+                    var reflectionProbes = renderingData.cullResults.visibleReflectionProbes;
+                    var reflectionProbeCount = Mathf.Min(reflectionProbes.Length, UniversalRenderPipeline.maxVisibleReflectionProbes);
+                    m_GPULightsDataBuildSystem.NewFrame(renderingData.cameraData, punctualLightCount + reflectionProbeCount, m_AdditionalLightsShadowCasterPass, m_LightCookieManager);
+                    m_GPULightsDataBuildSystem.BuildGPULightList(renderingData.commandBuffer, renderingData);
+                }
+
+                m_GPULights.PreSetup(ref renderingData, m_GPULightsDataBuildSystem);
+                EnqueuePass(m_GPULights);
+            }
+            else
+            {
+                m_GPULights.ClearSetup();
+                EnqueuePass(m_GPULights);
+            }
+            
+
             m_ForwardLights.PreSetup(ref renderingData);
 
             ref CameraData cameraData = ref renderingData.cameraData;
@@ -561,6 +589,13 @@ namespace UnityEngine.Rendering.Universal
                     {
                         DebugHandler.hdrDebugViewPass.Setup(ref cameraData, DebugHandler.DebugDisplaySettings.lightingSettings.hdrDebugMode);
                         EnqueuePass(DebugHandler.hdrDebugViewPass);
+                    }
+
+                    if (DebugHandler.TileClusterDebugIsActive(ref cameraData))
+                    {
+                        DebugHandler.tileClusterDebugPass.Setup(ref cameraData, DebugHandler.DebugDisplaySettings.lightingSettings.tileClusterDebugMode, 
+                                                            DebugHandler.DebugDisplaySettings.lightingSettings.clusterDebugID, m_GPULights.lightCBuffer);
+                        EnqueuePass(DebugHandler.tileClusterDebugPass);
                     }
                 }
             }
@@ -937,7 +972,7 @@ namespace UnityEngine.Rendering.Universal
                     if (forceReallocHistorySystem)
                     {
                         curCameraHistoryRTSystem.Dispose();
-                        curCameraHistoryRTSystem = HistoryFrameRTSystem.GetOrCreate(camera);
+                        curCameraHistoryRTSystem = HistoryFrameRTSystem.ReCreate(camera);
                     }
                     else
                     {
@@ -1391,6 +1426,8 @@ namespace UnityEngine.Rendering.Universal
         /// <inheritdoc />
         public override void SetupLights(ScriptableRenderContext context, ref RenderingData renderingData)
         {
+            m_GPULights.Setup(context, ref renderingData);
+
             m_ForwardLights.Setup(context, ref renderingData);
 
             if (this.renderingModeActual == RenderingMode.Deferred)

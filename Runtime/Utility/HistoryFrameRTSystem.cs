@@ -113,6 +113,30 @@ namespace UnityEngine.Rendering.Universal
         }
 
         /// <summary>
+        /// ForceReallocHistorySystem
+        /// </summary>
+        /// <param name="camera"></param>
+        /// <param name="xrMultipassId"></param>
+        /// <returns></returns>
+        public static HistoryFrameRTSystem ReCreate(Camera camera, int xrMultipassId = 0)
+        {
+            HistoryFrameRTSystem historyFrameRTSystem;
+
+            s_Cameras.TryGetValue((camera, xrMultipassId), out historyFrameRTSystem);
+
+            if (historyFrameRTSystem != null)
+            {
+                historyFrameRTSystem.Dispose();
+            }
+
+            historyFrameRTSystem = new HistoryFrameRTSystem(camera);
+            s_Cameras.Remove((camera, xrMultipassId));
+            s_Cameras.Add((camera, xrMultipassId), historyFrameRTSystem);
+
+            return historyFrameRTSystem;
+        }
+
+        /// <summary>
         /// Set the RTHandle scale to the actual camera size (can be scaled)
         /// </summary>
         /// <param name="actualWidth"></param>
@@ -172,7 +196,7 @@ namespace UnityEngine.Rendering.Universal
         }
 
         internal static void ClearAll()
-        {
+        { 
             foreach (var cameraKey in s_Cameras)
             {
                 cameraKey.Value.ReleaseAllHistoryFrameRT();
@@ -216,7 +240,6 @@ namespace UnityEngine.Rendering.Universal
 
             foreach (var cam in s_Cleanup)
             {
-                Debug.Log("Clean cameras: " + cam);
                 s_Cameras[cam].Dispose();
                 s_Cameras.Remove(cam);
             }

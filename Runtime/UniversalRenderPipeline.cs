@@ -301,6 +301,8 @@ namespace UnityEngine.Rendering.Universal
             s_RenderGraph.Cleanup();
             s_RenderGraph = null;
 
+            ComputeBufferSystem.ClearAll();
+
             HistoryFrameRTSystem.ClearAll();
 
 #if UNITY_EDITOR
@@ -310,6 +312,9 @@ namespace UnityEngine.Rendering.Universal
             CameraCaptureBridge.enabled = false;
 
             DisposeAdditionalCameraData();
+
+            // Resolve leak detected, add by Danbaidong 20240403.
+            ConstantBuffer.ReleaseAll();
         }
 
         // If the URP gets destroyed, we must clean up all the added URP specific camera data and

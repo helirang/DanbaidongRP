@@ -1,10 +1,13 @@
 using System;
 using System.Runtime.InteropServices;
+using UnityEngine.Rendering.Universal.Internal;
 
 namespace UnityEngine.Rendering.Universal
 {
     /// <summary>
     /// Use it as compute buffer system.(Danbaidong, 20240317)
+    /// Change computeBuffer Dispose() to CoreUtils.SafeRelease(). (Danbaidong, 20240403)
+    /// !!!!!!Obsolete!!!!!! Use ComputeBufferSystem instead
     /// </summary>
     class ShaderData : IDisposable
     {
@@ -18,6 +21,10 @@ namespace UnityEngine.Rendering.Universal
         // SSR Compute Buffer
         ComputeBuffer m_SSRDispatchIndirectBuffer = null;
         ComputeBuffer m_SSRTileListBuffer = null;
+
+        // GPU Lights Compute Buffer
+        ComputeBuffer m_GPULightsConvexBoundsBuffer = null;
+        ComputeBuffer m_GPULightsLightVolumeDataBuffer = null;
 
         ShaderData()
         {
@@ -42,6 +49,9 @@ namespace UnityEngine.Rendering.Universal
             DisposeBuffer(ref m_AdditionalLightShadowSliceMatricesStructuredBuffer);
             DisposeBuffer(ref m_SSRDispatchIndirectBuffer);
             DisposeBuffer(ref m_SSRTileListBuffer);
+
+            DisposeBuffer(ref m_GPULightsConvexBoundsBuffer);
+            DisposeBuffer(ref m_GPULightsLightVolumeDataBuffer);
         }
 
         internal ComputeBuffer GetLightDataBuffer(int size)
@@ -74,6 +84,16 @@ namespace UnityEngine.Rendering.Universal
             return GetOrUpdateBuffer<uint>(ref m_SSRTileListBuffer, size);
         }
 
+        internal ComputeBuffer GetGPULightsBoundsBuffer(int size)
+        {
+            return GetOrUpdateBuffer<SFiniteLightBound>(ref m_GPULightsConvexBoundsBuffer, size);
+        }
+
+        internal ComputeBuffer GetGPULightsVolumeDataBuffer(int size)
+        {
+            return GetOrUpdateBuffer<LightVolumeData>(ref m_GPULightsLightVolumeDataBuffer, size);
+        }
+
         ComputeBuffer GetOrUpdateBuffer<T>(ref ComputeBuffer buffer, int size, ComputeBufferType bufferType = ComputeBufferType.Default) where T : struct
         {
             if (buffer == null)
@@ -82,7 +102,7 @@ namespace UnityEngine.Rendering.Universal
             }
             else if (size > buffer.count)
             {
-                buffer.Dispose();
+                CoreUtils.SafeRelease(buffer);
                 buffer = new ComputeBuffer(size, Marshal.SizeOf<T>(), bufferType);
             }
 
@@ -93,7 +113,7 @@ namespace UnityEngine.Rendering.Universal
         {
             if (buffer != null)
             {
-                buffer.Dispose();
+                CoreUtils.SafeRelease(buffer);
                 buffer = null;
             }
         }
