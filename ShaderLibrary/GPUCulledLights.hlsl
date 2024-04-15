@@ -3,6 +3,9 @@
 
 #include "Packages/com.unity.render-pipelines.danbaidong/Runtime/Lights/GPULights.cs.hlsl"
 
+#ifdef _GPU_LIGHTS_CLUSTER
+#define USE_GPULIGHTS_CLUSTER
+#endif /* _GPU_LIGHTS_CLUSTER */
 
 //--------------------------------------------------------------------------------------------------
 // Helpers

@@ -990,7 +990,7 @@ namespace UnityEngine.Rendering.Universal
                         {
                             curCameraHistoryRTSystem.AllocHistoryFrameRT((int)HistoryFrameType.ColorBufferMipChain, cameraData.camera.name,
                                                                         HistoryBufferAllocatorFunction, cameraTargetDescriptor.graphicsFormat, numColorPyramidBuffersRequired);
-                            Debug.Log("AllocHistoryFrameRT " + cameraData.cameraType + ": " + cameraTargetDescriptor.graphicsFormat + ", buffers:" + numColorPyramidBuffersRequired);
+                            //Debug.Log("AllocHistoryFrameRT " + cameraData.cameraType + ": " + cameraTargetDescriptor.graphicsFormat + ", buffers:" + numColorPyramidBuffersRequired);
                         }
 
                     }

@@ -3,7 +3,7 @@
 
 #include "Packages/com.unity.render-pipelines.danbaidong/Runtime/Lights/GPULights.cs.hlsl"
 
-// Used to index into our SFiniteLightBound (g_data) and
+// Used to index into our SFiniteLightBound (g_LightBounds) and
 // LightVolumeData (_LightVolumeData) buffers.
 uint GenerateLightCullDataIndex(uint lightIndex, uint numVisibleLights, uint eyeIndex)
 {

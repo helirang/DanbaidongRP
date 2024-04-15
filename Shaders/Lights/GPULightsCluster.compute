@@ -27,7 +27,7 @@
 
 StructuredBuffer<float4> g_vBoundsBuffer                : register(t1);
 StructuredBuffer<LightVolumeData> g_LightVolumeData     : register(t2);
-StructuredBuffer<SFiniteLightBound> g_data              : register(t3);
+StructuredBuffer<SFiniteLightBound> g_LightBounds       : register(t3);
 StructuredBuffer<uint> g_CoarseLightList                : register(t4);
 
 
@@ -176,7 +176,7 @@ int SphericalIntersectionTests(uint threadID, int iNrCoarseLights, float2 screen
     for(int l=threadID; l<iNrCoarseLights; l+=NR_THREADS)
     {
         const int lightBoundIndex = GenerateLightCullDataIndex(gs_coarseList[l], g_iNrVisibLights, eyeIndex);
-        SFiniteLightBound lgtDat = g_data[lightBoundIndex];
+        SFiniteLightBound lgtDat = g_LightBounds[lightBoundIndex];
 
         if( !DoesSphereOverlapTile(V, halfTileSizeAtZDistOne, lgtDat.center.xyz, lgtDat.radius, g_isOrthographic!=0) )
             gs_coarseList[l]=UINT_MAX;
@@ -258,7 +258,7 @@ int CullByExactEdgeTests(uint threadID, int iNrCoarseLights, uint2 coordBoundLL,
         const int lightCullIndex = GenerateLightCullDataIndex(gs_coarseList[l], g_iNrVisibLights, eyeIndex);
         UNITY_BRANCH if (g_LightVolumeData[lightCullIndex].lightVolume != LIGHTVOLUMETYPE_SPHERE)        // don't bother doing edge tests for sphere lights since these have camera aligned bboxes.
         {
-            SFiniteLightBound lgtDat = g_data[lightCullIndex];
+            SFiniteLightBound lgtDat = g_LightBounds[lightCullIndex];
 
             const float3 boxX = lgtDat.boxAxisX.xyz;
             const float3 boxY = lgtDat.boxAxisY.xyz;
@@ -325,7 +325,7 @@ int CullByExactEdgeTests(uint threadID, int iNrCoarseLights, uint2 coordBoundLL,
 float4 FetchPlane(int l, int p, uint eyeIndex)
 {
     const int lightBoundIndex = GenerateLightCullDataIndex(gs_coarseList[l], g_iNrVisibLights, eyeIndex);
-    SFiniteLightBound lgtDat = g_data[lightBoundIndex];
+    SFiniteLightBound lgtDat = g_LightBounds[lightBoundIndex];
 
     const float3 boxX = lgtDat.boxAxisX.xyz;
     const float3 boxY = lgtDat.boxAxisY.xyz;

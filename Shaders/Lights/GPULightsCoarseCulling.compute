@@ -22,13 +22,13 @@
 //--------------------------------------------------------------------------------------------------
 
 #if defined(GPULIGHTS_SCREENAABB)
-    StructuredBuffer<SFiniteLightBound> g_data          : register(t0);
+    StructuredBuffer<SFiniteLightBound> g_LightBounds   : register(t0);
     
     RWStructuredBuffer<float4> g_vBoundsBuffer          : register(u0);
 #elif defined(GPULIGHTS_COARSECULLING)
     StructuredBuffer<float4> g_vBoundsBuffer            : register(t1);
     StructuredBuffer<LightVolumeData> g_LightVolumeData : register(t2);
-    StructuredBuffer<SFiniteLightBound> g_data          : register(t3);
+    StructuredBuffer<SFiniteLightBound> g_LightBounds   : register(t3);
 
     RWStructuredBuffer<uint> g_vLightList               : register(u0);
 #endif
@@ -573,7 +573,7 @@ void ScreenSpaceAABB(uint threadID : SV_GroupIndex, uint3 groupID : SV_GroupID)
     const uint baseVertexOffset     = intraGroupLightIndex * NUM_VERTS;
 
     const uint eyeAdjustedInputOffset = GenerateLightCullDataIndex(globalLightIndex, g_iNrVisibLights, eyeIndex);
-    const SFiniteLightBound  cullData = g_data[eyeAdjustedInputOffset];
+    const SFiniteLightBound  cullData = g_LightBounds[eyeAdjustedInputOffset];
 
     const float4x4 projMat    = g_mProjectionArr;
     const float4x4 invProjMat = g_mInvProjectionArr;
@@ -949,7 +949,7 @@ void SphericalIntersectionTests(uint threadID, int iNrCoarseLights, float2 scree
     for(int l=threadID; l<iNrCoarseLights; l+=NR_THREADS)
     {
         const int boundIndex = GenerateLightCullDataIndex(gs_LightsListLDS[l], g_iNrVisibLights, 0);
-        SFiniteLightBound lgtDat = g_data[boundIndex];
+        SFiniteLightBound lgtDat = g_LightBounds[boundIndex];
 
         if( !DoesSphereOverlapTile(V, halfTileSizeAtZDistOne, lgtDat.center.xyz, lgtDat.radius, g_isOrthographic!=0) )
             gs_LightsListLDS[l]=UINT_MAX;
@@ -1013,7 +1013,7 @@ void CullByExactEdgeTests(uint threadID, int iNrCoarseLights, uint2 viTilLL, uin
         if(canEnter) canEnter = g_LightVolumeData[bufIdxCoarse].lightVolume != LIGHTVOLUMETYPE_SPHERE;       // don't bother doing edge tests for sphere lights since these have camera aligned bboxes.
         UNITY_BRANCH if(canEnter)
         {
-            SFiniteLightBound lgtDat = g_data[bufIdxCoarse];
+            SFiniteLightBound lgtDat = g_LightBounds[bufIdxCoarse];
 
             const float3 boxX = lgtDat.boxAxisX.xyz;
             const float3 boxY = lgtDat.boxAxisY.xyz;

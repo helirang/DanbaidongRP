@@ -208,15 +208,6 @@ namespace UnityEngine.Rendering.Universal.Internal
     //unsafe struct ShaderVariablesLightList
     struct ShaderVariablesLightList
     {
-        //[HLSLArray(1, typeof(Matrix4x4))]
-        //public fixed float g_mInvScrProjectionArr[16];
-        //[HLSLArray(1, typeof(Matrix4x4))]
-        //public fixed float g_mScrProjectionArr[16];
-        //[HLSLArray(1, typeof(Matrix4x4))]
-        //public fixed float g_mInvProjectionArr[16];
-        //[HLSLArray(1, typeof(Matrix4x4))]
-        //public fixed float g_mProjectionArr[16];
-
         public Matrix4x4 g_mInvScrProjectionArr;
         public Matrix4x4 g_mScrProjectionArr;
         public Matrix4x4 g_mInvProjectionArr;
@@ -286,10 +277,6 @@ namespace UnityEngine.Rendering.Universal.Internal
     /// </summary>
     public class GPULights : ScriptableRenderPass
     {
-        // Profiling tag
-        //private static string m_ProfilerTag = "ScreenSpaceShadows";
-        //private static ProfilingSampler m_ProfilingSampler = new ProfilingSampler(m_ProfilerTag);
-
         // Public Variables
         internal ShaderVariablesLightList lightCBuffer;
 
@@ -308,8 +295,8 @@ namespace UnityEngine.Rendering.Universal.Internal
         private int m_CoarseCullingLightsKernel;
         private int m_ClusterCullingLightsKernel;
 
-        private ComputeBuffer m_ConvexBoundsBuffer;
-        private ComputeBuffer m_lightVolumeDataBuffer;
+        private ComputeBuffer m_LightBoundsBuffer;
+        private ComputeBuffer m_LightVolumeDataBuffer;
         private ComputeBuffer m_AABBBoundsBuffer;
         private ComputeBuffer m_CoarseLightList;
 
@@ -457,8 +444,8 @@ namespace UnityEngine.Rendering.Universal.Internal
             m_nrBigTilesY = RenderingUtils.DivRoundUp(height, 64);
 
             var bufferSystem = ComputeBufferSystem.instance;
-            m_ConvexBoundsBuffer = bufferSystem.GetComputeBuffer<SFiniteLightBound>(ComputeBufferSystemBufferID.GPULightsConvexBoundsBuffer, m_MaxLightOnScreen);
-            m_lightVolumeDataBuffer = bufferSystem.GetComputeBuffer<LightVolumeData>(ComputeBufferSystemBufferID.GPULightsLightVolumeDataBuffer, m_MaxLightOnScreen);
+            m_LightBoundsBuffer = bufferSystem.GetComputeBuffer<SFiniteLightBound>(ComputeBufferSystemBufferID.GPULightsConvexBoundsBuffer, m_MaxLightOnScreen);
+            m_LightVolumeDataBuffer = bufferSystem.GetComputeBuffer<LightVolumeData>(ComputeBufferSystemBufferID.GPULightsLightVolumeDataBuffer, m_MaxLightOnScreen);
 
             m_AABBBoundsBuffer = bufferSystem.GetComputeBuffer<float4>(ComputeBufferSystemBufferID.GPULightsAABBBounds, m_MaxLightOnScreen);
 
@@ -537,15 +524,15 @@ namespace UnityEngine.Rendering.Universal.Internal
             var cmd = renderingData.commandBuffer;
             using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.GPULights)))
             {
-                m_ConvexBoundsBuffer.SetData(m_GPULightsDataBuildSystem.lightBounds, 0, 0, m_GPULightsDataBuildSystem.boundsCount);
-                m_lightVolumeDataBuffer.SetData(m_GPULightsDataBuildSystem.lightVolumes, 0, 0, m_GPULightsDataBuildSystem.boundsCount);
+                m_LightBoundsBuffer.SetData(m_GPULightsDataBuildSystem.lightBounds, 0, 0, m_GPULightsDataBuildSystem.boundsCount);
+                m_LightVolumeDataBuffer.SetData(m_GPULightsDataBuildSystem.lightVolumes, 0, 0, m_GPULightsDataBuildSystem.boundsCount);
 
                 // GenerateLightsScreenSpaceAABBs
                 {
-                    cmd.SetComputeBufferParam(m_gpuLightsCS_CoarseCulling, m_ScreenSpaceAABBKernel, "g_data", m_ConvexBoundsBuffer);
-                    cmd.SetComputeBufferParam(m_gpuLightsCS_CoarseCulling, m_ScreenSpaceAABBKernel, "g_vBoundsBuffer", m_AABBBoundsBuffer);
+                    cmd.SetComputeBufferParam(m_gpuLightsCS_CoarseCulling, m_ScreenSpaceAABBKernel, ShaderConstants.g_LightBounds, m_LightBoundsBuffer);
+                    cmd.SetComputeBufferParam(m_gpuLightsCS_CoarseCulling, m_ScreenSpaceAABBKernel, ShaderConstants.g_vBoundsBuffer, m_AABBBoundsBuffer);
 
-                    ConstantBuffer.Push(cmd, lightCBuffer, m_gpuLightsCS_CoarseCulling, Shader.PropertyToID("ShaderVariablesLightList"));
+                    ConstantBuffer.Push(cmd, lightCBuffer, m_gpuLightsCS_CoarseCulling, ShaderConstants.ShaderVariablesLightList);
 
                     const int threadsPerLight = 4;  // Shader: THREADS_PER_LIGHT (4)
                     const int threadsPerGroup = 64; // Shader: THREADS_PER_GROUP (64)
@@ -557,56 +544,52 @@ namespace UnityEngine.Rendering.Universal.Internal
 
                 // CoarseCullingLights
                 {
-                    cmd.SetComputeBufferParam(m_gpuLightsCS_CoarseCulling, m_CoarseCullingLightsKernel, "g_vBoundsBuffer", m_AABBBoundsBuffer);
-                    cmd.SetComputeBufferParam(m_gpuLightsCS_CoarseCulling, m_CoarseCullingLightsKernel, "g_LightVolumeData", m_lightVolumeDataBuffer);
-                    cmd.SetComputeBufferParam(m_gpuLightsCS_CoarseCulling, m_CoarseCullingLightsKernel, "g_data", m_ConvexBoundsBuffer);
+                    cmd.SetComputeBufferParam(m_gpuLightsCS_CoarseCulling, m_CoarseCullingLightsKernel, ShaderConstants.g_vBoundsBuffer, m_AABBBoundsBuffer);
+                    cmd.SetComputeBufferParam(m_gpuLightsCS_CoarseCulling, m_CoarseCullingLightsKernel, ShaderConstants.g_LightVolumeData, m_LightVolumeDataBuffer);
+                    cmd.SetComputeBufferParam(m_gpuLightsCS_CoarseCulling, m_CoarseCullingLightsKernel, ShaderConstants.g_LightBounds, m_LightBoundsBuffer);
 
-                    cmd.SetComputeBufferParam(m_gpuLightsCS_CoarseCulling, m_CoarseCullingLightsKernel, "g_vLightList", m_CoarseLightList);
+                    cmd.SetComputeBufferParam(m_gpuLightsCS_CoarseCulling, m_CoarseCullingLightsKernel, ShaderConstants.g_vLightList, m_CoarseLightList);
 
-                    ConstantBuffer.Push(cmd, lightCBuffer, m_gpuLightsCS_CoarseCulling, Shader.PropertyToID("ShaderVariablesLightList"));
+                    ConstantBuffer.Push(cmd, lightCBuffer, m_gpuLightsCS_CoarseCulling, ShaderConstants.ShaderVariablesLightList);
 
                     cmd.DispatchCompute(m_gpuLightsCS_CoarseCulling, m_CoarseCullingLightsKernel, m_nrBigTilesX, m_nrBigTilesY, 1);
-
-                    // TODO: Delete
-                    cmd.SetGlobalBuffer("g_CoarseLightList", m_CoarseLightList);
                 }
 
                 // FPTLLights
                 {
-
+                    // no implementation
 
                 }
 
                 // ClusterLights
                 {
-                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, "g_vBoundsBuffer", m_AABBBoundsBuffer);
-                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, "g_LightVolumeData", m_lightVolumeDataBuffer);
-                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, "g_data", m_ConvexBoundsBuffer);
-                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, "g_CoarseLightList", m_CoarseLightList);
+                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, ShaderConstants.g_vBoundsBuffer, m_AABBBoundsBuffer);
+                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, ShaderConstants.g_LightVolumeData, m_LightVolumeDataBuffer);
+                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, ShaderConstants.g_LightBounds, m_LightBoundsBuffer);
+                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, ShaderConstants.g_CoarseLightList, m_CoarseLightList);
 
 
-                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, "g_vLayeredLightList", m_PerVoxelLightLists);
-                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, "g_LayeredOffset", m_PerVoxelOffset);
-                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, "g_LayeredSingleIdxBuffer", m_GlobalLightListAtomic);
-                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, "g_logBaseBuffer", m_PerTileLogBaseTweak);
+                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, ShaderConstants.g_vLayeredLightList, m_PerVoxelLightLists);
+                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, ShaderConstants.g_LayeredOffset, m_PerVoxelOffset);
+                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, ShaderConstants.g_LayeredSingleIdxBuffer, m_GlobalLightListAtomic);
+                    cmd.SetComputeBufferParam(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, ShaderConstants.g_logBaseBuffer, m_PerTileLogBaseTweak);
 
-                    ConstantBuffer.Push(cmd, lightCBuffer, m_gpuLightsCS_Cluster, Shader.PropertyToID("ShaderVariablesLightList"));
+                    ConstantBuffer.Push(cmd, lightCBuffer, m_gpuLightsCS_Cluster, ShaderConstants.ShaderVariablesLightList);
 
                     cmd.DispatchCompute(m_gpuLightsCS_Cluster, m_ClusterCullingLightsKernel, m_nrClustersX, m_nrClustersY, 1);
-
-                    // TODO: Delete
-                    cmd.SetGlobalBuffer("g_vLightListCluster", m_PerVoxelLightLists);
-                    cmd.SetGlobalBuffer("g_vLayeredOffsetsBuffer", m_PerVoxelOffset);
-                    cmd.SetGlobalBuffer("g_logBaseBuffer", m_PerTileLogBaseTweak);
-
-
                 }
 
                 // Resolve
                 {
                     m_GPULightsDataBuildSystem.ReBuildGPULightsDataBuffer(renderingData);
                     m_GPULightsData.SetData(m_GPULightsDataBuildSystem.gpuLightsData, 0, 0, m_GPULightsDataBuildSystem.lightsCount);
-                    cmd.SetGlobalBuffer("g_GPULightDatas", m_GPULightsData);
+
+                    cmd.SetGlobalBuffer(ShaderConstants.g_CoarseLightList, m_CoarseLightList);
+                    cmd.SetGlobalBuffer(ShaderConstants.g_GPULightDatas, m_GPULightsData);
+
+                    cmd.SetGlobalBuffer(ShaderConstants.g_vLightListCluster, m_PerVoxelLightLists);
+                    cmd.SetGlobalBuffer(ShaderConstants.g_vLayeredOffsetsBuffer, m_PerVoxelOffset);
+                    cmd.SetGlobalBuffer(ShaderConstants.g_logBaseBuffer, m_PerTileLogBaseTweak);
                 }
 
             }
@@ -628,6 +611,23 @@ namespace UnityEngine.Rendering.Universal.Internal
         public void Dispose()
         {
             //m_RenderTarget?.Release();
+        }
+
+        static class ShaderConstants
+        {
+            public static readonly int g_LightBounds            = Shader.PropertyToID("g_LightBounds");
+            public static readonly int g_vBoundsBuffer          = Shader.PropertyToID("g_vBoundsBuffer");
+            public static readonly int g_LightVolumeData        = Shader.PropertyToID("g_LightVolumeData");
+            public static readonly int g_vLightList             = Shader.PropertyToID("g_vLightList");
+            public static readonly int ShaderVariablesLightList = Shader.PropertyToID("ShaderVariablesLightList");
+            public static readonly int g_CoarseLightList        = Shader.PropertyToID("g_CoarseLightList");
+            public static readonly int g_vLayeredLightList      = Shader.PropertyToID("g_vLayeredLightList");
+            public static readonly int g_LayeredOffset          = Shader.PropertyToID("g_LayeredOffset");
+            public static readonly int g_LayeredSingleIdxBuffer = Shader.PropertyToID("g_LayeredSingleIdxBuffer");
+            public static readonly int g_vLightListCluster      = Shader.PropertyToID("g_vLightListCluster");
+            public static readonly int g_vLayeredOffsetsBuffer  = Shader.PropertyToID("g_vLayeredOffsetsBuffer");
+            public static readonly int g_logBaseBuffer          = Shader.PropertyToID("g_logBaseBuffer");
+            public static readonly int g_GPULightDatas          = Shader.PropertyToID("g_GPULightDatas");
         }
     }
 

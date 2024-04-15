@@ -240,6 +240,7 @@ namespace UnityEngine.Rendering.Universal
 
             foreach (var cam in s_Cleanup)
             {
+                //Debug.Log("Clean cameras: " + cam);
                 s_Cameras[cam].Dispose();
                 s_Cameras.Remove(cam);
             }

@@ -69,8 +69,6 @@ namespace UnityEngine.Rendering.Universal
             int id = (int)bufferId;
             if (!s_ComputeBuffers.ContainsKey(id))
             {
-                Debug.Log("ComputeBufferSystem: create buffer " + bufferId);
-
                 var buffer = new ComputeBuffer(desc.count, desc.stride, desc.type);
                 s_ComputeBuffers.Add(id, buffer);
                 return buffer;

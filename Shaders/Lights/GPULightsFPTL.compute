@@ -26,7 +26,7 @@
 
 // StructuredBuffer<float4> g_vBoundsBuffer            : register(t1);
 // StructuredBuffer<LightVolumeData> g_LightVolumeData : register(t2);
-// StructuredBuffer<SFiniteLightBound> g_data          : register(t3);
+// StructuredBuffer<SFiniteLightBound> g_LightBounds          : register(t3);
 // StructuredBuffer<uint> g_vBigTileLightList          : register(t4);
 
 // RWStructuredBuffer<uint> g_vLightList : register( u0 );
@@ -153,7 +153,7 @@
 //     for(l=threadID; l<iNrCoarseLights; l+=NR_THREADS)
 //     {
 //         const int lightBoundIndex = GenerateLightCullDataIndex(gs_prunedList[l], g_iNrVisibLights, unity_StereoEyeIndex);
-//         SFiniteLightBound lightData = g_data[lightBoundIndex];
+//         SFiniteLightBound lightData = g_LightBounds[lightBoundIndex];
 
 //         if( DoesSphereOverlapTile(V, halfTileSizeAtZDistOne, lightData.center.xyz, lightData.radius, g_isOrthographic!=0) )
 //         {
