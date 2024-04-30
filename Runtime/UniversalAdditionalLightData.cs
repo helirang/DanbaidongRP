@@ -149,6 +149,14 @@ namespace UnityEngine.Rendering.Universal
             set { m_RenderingLayers = value; }
         }
 
+        [SerializeField] float m_AngularDiameter = 0.5f;
+        public float angularDiameter
+        {
+            get => m_AngularDiameter;
+            set { m_AngularDiameter = value; }
+        }
+
+
         [SerializeField] bool m_CustomShadowLayers = false;
 
         /// <summary>

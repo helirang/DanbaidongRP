@@ -163,6 +163,10 @@ struct DirectionalLightData
     float4 lightAttenuation;
     float3 lightDirection;
     int shadowlightIndex;
+    float minRoughness;
+    float lightDimmer;
+    float diffuseDimmer;
+    float specularDimmer;
 };
 
 //

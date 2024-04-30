@@ -128,6 +128,15 @@ namespace UnityEngine.Rendering.Universal.Internal
                     //directionalLightData.shadowlightIndex = shadowLightIndex;
                     directionalLightData.lightLayerMask = lightLayerMask;
 
+                    //Value of max smoothness is derived from AngularDiameter. Formula results from eyeballing. Angular diameter of 0 results in 1 and angular diameter of 80 results in 0.
+                    float maxSmoothness = Mathf.Clamp01(1.35f / (1.0f + Mathf.Pow(1.15f * (0.0315f * additionalLightData.angularDiameter + 0.4f), 2f)) - 0.11f);
+                    // Value of max smoothness is from artists point of view, need to convert from perceptual smoothness to roughness
+                    directionalLightData.minRoughness = (1.0f - maxSmoothness) * (1.0f - maxSmoothness);
+                    directionalLightData.lightDimmer = 1;
+                    directionalLightData.diffuseDimmer = 1;
+                    directionalLightData.specularDimmer = 1;
+
+
                     m_DirectionalLightsData[i] = directionalLightData;
                 }
                 else

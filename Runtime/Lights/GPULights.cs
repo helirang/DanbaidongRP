@@ -285,6 +285,11 @@ namespace UnityEngine.Rendering.Universal.Internal
 
         public Vector3 lightDirection;
         public int shadowlightIndex;
+
+        public float minRoughness;
+        public float lightDimmer;       //TODO: make it used
+        public float diffuseDimmer;     //TODO: make it used
+        public float specularDimmer;    //TODO: make it used
     };
 
     //-----------------------------------------------------------------------------

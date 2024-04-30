@@ -45,6 +45,9 @@ namespace UnityEditor.Rendering.Universal
                 k_ExpandedState,
                 DrawGeneralContent),
             CED.Conditional(
+                (serializedLight, editor) => !serializedLight.settings.lightType.hasMultipleDifferentValues && serializedLight.settings.light.type == LightType.Directional,
+                CED.FoldoutGroup(LightUI.Styles.shapeHeader, Expandable.Shape, k_ExpandedState, DrawDirectionalShadpeContent)),
+            CED.Conditional(
                 (serializedLight, editor) => !serializedLight.settings.lightType.hasMultipleDifferentValues && serializedLight.settings.light.type == LightType.Spot,
                 CED.FoldoutGroup(LightUI.Styles.shapeHeader, Expandable.Shape, k_ExpandedState, DrawSpotShapeContent)),
             CED.Conditional(
@@ -191,6 +194,17 @@ namespace UnityEditor.Rendering.Universal
                 Light target = lightTarget as Light;
                 if (target.renderingLayerMask != serialized.intValue)
                     target.renderingLayerMask = serialized.intValue;
+            }
+        }
+
+        static void DrawDirectionalShadpeContent(UniversalRenderPipelineSerializedLight serializedLight, Editor owner)
+        {
+            EditorGUI.BeginChangeCheck();
+            EditorGUILayout.PropertyField(serializedLight.angularDiameter, Styles.AngularDiameter);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(serializedLight.settings.light, "Adjust Directional Light Shape");
+                serializedLight.angularDiameter.floatValue = Mathf.Clamp(serializedLight.angularDiameter.floatValue, 0, 90);
             }
         }
 

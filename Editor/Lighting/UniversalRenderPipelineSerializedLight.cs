@@ -29,6 +29,9 @@ namespace UnityEditor.Rendering.Universal
         public SerializedProperty customShadowLayers { get; }
         public SerializedProperty shadowRenderingLayers { get; }
 
+        // Shape Directional
+        public SerializedProperty angularDiameter { get; }
+
         /// <summary>Method that updates the <see cref="SerializedObject"/> of the Light and the Additional Light Data</summary>
         public void Update()
         {
@@ -70,6 +73,8 @@ namespace UnityEditor.Rendering.Universal
             renderingLayers = serializedAdditionalDataObject.FindProperty("m_RenderingLayers");
             customShadowLayers = serializedAdditionalDataObject.FindProperty("m_CustomShadowLayers");
             shadowRenderingLayers = serializedAdditionalDataObject.FindProperty("m_ShadowRenderingLayers");
+
+            angularDiameter = serializedAdditionalDataObject.FindProperty("m_AngularDiameter");
 
             settings.ApplyModifiedProperties();
         }

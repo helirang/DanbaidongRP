@@ -284,8 +284,8 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, float4 gbuffer0, flo
     uint   materialFlags   = UnpackMaterialFlags(gbuffer0.a);
 
     float perceptualRoughness = PerceptualSmoothnessToPerceptualRoughness(smoothness);
-    float roughness           = max(PerceptualRoughnessToRoughness(perceptualRoughness), HALF_MIN_SQRT); // TODO: We need to change this with Angular Diameter, which result in minRoughness.
-    float roughness2          = max(roughness * roughness, HALF_MIN);
+    float roughness           = PerceptualRoughnessToRoughness(perceptualRoughness); // We need to max this with Angular Diameter, which result in minRoughness.
+    float roughness2          = max(roughness * roughness, FLT_MIN);
     
     float3 diffuseColor = ComputeDiffuseColor(albedo, metallic);
     float3 fresnel0 = ComputeFresnel0(albedo, metallic, DEFAULT_SPECULAR_VALUE);
@@ -317,13 +317,14 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, float4 gbuffer0, flo
         float NdotL = dot(normalWS, lightDirWS);
         
         float clampedNdotL = saturate(NdotL);
+        float clampedRoughness = max(roughness, dirLight.minRoughness);
 
         float LdotV, NdotH, LdotH, invLenLV;
         GetBSDFAngle(viewDirWS, lightDirWS, NdotL, NdotV, LdotV, NdotH, LdotH, invLenLV);
 
 
         float3 F = F_Schlick(fresnel0, LdotH);
-        float DV = DV_SmithJointGGX(NdotH, abs(NdotL), clampedNdotV, roughness);
+        float DV = DV_SmithJointGGX(NdotH, abs(NdotL), clampedNdotV, clampedRoughness);
         float3 specTerm = F * DV;
         float diffTerm = DisneyDiffuse(clampedNdotV, abs(NdotL), LdotV, perceptualRoughness);
 
@@ -340,7 +341,7 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, float4 gbuffer0, flo
     shadowAttenuation = min(shadowAttenuation, LoadPerObjectScreenSpaceShadowmap(posInput.positionSS));
     #endif
     directDiffuse *= shadowAttenuation;
-
+    directSpecular *= shadowAttenuation;
 
 
 
@@ -359,6 +360,14 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, float4 gbuffer0, flo
 
 
     float3 reflectDirWS = reflect(-viewDirWS, normalWS);
+    // Env is cubemap
+    {
+        float3 specDominantDirWS = GetSpecularDominantDir(normalWS, reflectDirWS, perceptualRoughness, clampedNdotV);
+        // When we are rough, we tend to see outward shifting of the reflection when at the boundary of the projection volume
+        // Also it appear like more sharp. To avoid these artifact and at the same time get better match to reference we lerp to original unmodified reflection.
+        // Formula is empirical.
+        reflectDirWS = lerp(specDominantDirWS, reflectDirWS, saturate(smoothstep(0, 1, roughness2)));
+    }
     float3 envReflection = GlossyEnvironmentReflection(reflectDirWS, perceptualRoughness, occlusion);// TODO: reflection is so different from HDRP
     indirectSpecular += specularFGD * envReflection;
 
@@ -369,7 +378,6 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, float4 gbuffer0, flo
     lightOutput.diffuseLighting = directDiffuse + indirectDiffuse;
     lightOutput.specularLighting = directSpecular + indirectSpecular;
     lightOutput.specularLighting *= 1.0 + fresnel0 * energyCompensation;
-
 
     return lightOutput;
 }
