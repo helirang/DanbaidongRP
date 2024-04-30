@@ -277,8 +277,10 @@ namespace UnityEngine.Rendering.Universal
                 var deferredInitParams = new DeferredLights.InitParams();
                 deferredInitParams.stencilDeferredMaterial = m_StencilDeferredMaterial;
                 deferredInitParams.lightCookieManager = m_LightCookieManager;
+                deferredInitParams.runtimeResources = data.defaultRuntimeReources;
                 m_DeferredLights = new DeferredLights(deferredInitParams, useRenderPassEnabled);
                 m_DeferredLights.AccurateGbufferNormals = data.accurateGbufferNormals;
+                m_DeferredLights.UseComputeDeferredLighting = data.computeDeferredLighting;
 
                 m_GBufferPass = new GBufferPass(RenderPassEvent.BeforeRenderingGbuffer, RenderQueueRange.opaque, data.opaqueLayerMask, m_DefaultStencilState, stencilData.stencilReference, m_DeferredLights, data.insertedGbufferPasses);
                 // Forward-only pass only runs if deferred renderer is enabled.
@@ -385,6 +387,7 @@ namespace UnityEngine.Rendering.Universal
             m_FinalBlitPass?.Dispose();
             m_DrawOffscreenUIPass?.Dispose();
             m_DrawOverlayUIPass?.Dispose();
+            m_DeferredPass?.Dispose();
 
             m_XRTargetHandleAlias?.Release();
 
@@ -539,8 +542,7 @@ namespace UnityEngine.Rendering.Universal
         /// <inheritdoc />
         public override void Setup(ScriptableRenderContext context, ref RenderingData renderingData)
         {
-            bool generateGPULightsFPTLAndCluster = renderingData.lightData.additionalLightsCount > 0;
-            if (generateGPULightsFPTLAndCluster)
+            // GPULights
             {
                 using (new ProfilingScope(renderingData.commandBuffer, ProfilingSampler.Get(URPProfileId.BuildGPULightsData)))
                 {
@@ -554,11 +556,7 @@ namespace UnityEngine.Rendering.Universal
                 m_GPULights.PreSetup(ref renderingData, m_GPULightsDataBuildSystem);
                 EnqueuePass(m_GPULights);
             }
-            else
-            {
-                m_GPULights.ClearSetup();
-                EnqueuePass(m_GPULights);
-            }
+
             
 
             m_ForwardLights.PreSetup(ref renderingData);

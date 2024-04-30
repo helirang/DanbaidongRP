@@ -238,7 +238,9 @@ namespace UnityEngine.Rendering.Universal.Internal
 
         public uint _NumTileClusteredX;
         public uint _NumTileClusteredY;
-        //public int _EnvSliceSize;
+        public uint _DirectionalLightCount;
+        public int _EnvSliceSize; // Unused
+
         //public uint _EnableDecalLayers;
     }
 
@@ -268,6 +270,23 @@ namespace UnityEngine.Rendering.Universal.Internal
 
     };
 
+    [GenerateHLSL(PackingRules.Exact, false)]
+    struct DirectionalLightData
+    {
+        // Packing order depends on chronological access to avoid cache misses
+        // Make sure to respect the 16-byte alignment
+        public Vector3 lightPosWS;
+        public uint lightLayerMask;
+
+        public Vector3 lightColor;
+        public int lightFlags;
+
+        public Vector4 lightAttenuation;
+
+        public Vector3 lightDirection;
+        public int shadowlightIndex;
+    };
+
     //-----------------------------------------------------------------------------
     // render pass
     //-----------------------------------------------------------------------------
@@ -283,7 +302,7 @@ namespace UnityEngine.Rendering.Universal.Internal
         private int m_MaxDirectionalLightsOnScreen = 16;
         private int m_MaxPunctualLightsOnScreen = 512;
         // TODO: change to m_MaxDirectionalLightsOnScreen + m_MaxPunctualLightsOnScreen(512) + m_MaxAreaLightsOnScreen + m_MaxEnvLightsOnScreen
-        private int m_MaxLightOnScreen = 512;
+        private int m_MaxLightOnScreen = 16 + 512;
 
         // Private Variables
         private ComputeShader m_gpulightsCS_ClearLists;
@@ -308,6 +327,7 @@ namespace UnityEngine.Rendering.Universal.Internal
 
         // LightsDataBuffer
         private ComputeBuffer m_GPULightsData;
+        private ComputeBuffer m_DirectionalLightsData;
         //private ComputeBuffer m_EnvLightsData;
 
         private GPULightsDataBuildSystem m_GPULightsDataBuildSystem;
@@ -318,7 +338,6 @@ namespace UnityEngine.Rendering.Universal.Internal
         private int m_nrClustersX;
         private int m_nrClustersY;
 
-        private bool m_DoClearLightList;
         // Constants
         private const int k_Log2NumClusters = 6; // accepted range is from 0 to 6 (NR_THREADS is set to 64). NumClusters is 1<<g_iLog2NumClusters
         private const float k_ClustLogBase = 1.02f;     // each slice 2% bigger than the previous
@@ -351,9 +370,6 @@ namespace UnityEngine.Rendering.Universal.Internal
         /// <returns></returns>
         internal bool Setup(ScriptableRenderContext context, ref RenderingData renderingData)
         {
-            //var visibleLights = renderingData.lightData.visibleLights;
-            //Debug.Log(renderingData.cameraData.camera.name + " Setup, " + visibleLights.Length);
-            m_DoClearLightList = false;
             return true;
         }
 
@@ -404,6 +420,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             }
 
             lightCBuffer.g_iNrVisibLights = lightData.additionalLightsCount;
+            lightCBuffer._DirectionalLightCount = (uint)lightData.directionalLightsCount;
 
             /// <see cref="ScriptableRenderer"/> cmd.SetGlobalVector(ShaderPropertyId.screenSize...
             lightCBuffer.g_screenSize = new Vector4(scaledCameraWidth, scaledCameraHeight, 1.0f / scaledCameraWidth, 1.0f / scaledCameraHeight);
@@ -428,11 +445,6 @@ namespace UnityEngine.Rendering.Universal.Internal
             lightCBuffer.g_isLogBaseBufferEnabled = 1;// Need depth
             lightCBuffer._NumTileClusteredX = (uint)RenderingUtils.DivRoundUp(width, LightDefinitions.s_TileSizeClustered);
             lightCBuffer._NumTileClusteredY = (uint)RenderingUtils.DivRoundUp(height, LightDefinitions.s_TileSizeClustered);
-        }
-
-        internal void ClearSetup()
-        {
-            m_DoClearLightList = true;
         }
 
         /// <inheritdoc />
@@ -463,6 +475,7 @@ namespace UnityEngine.Rendering.Universal.Internal
 
             // LightsData buffers
             m_GPULightsData = bufferSystem.GetComputeBuffer<GPULightData>(ComputeBufferSystemBufferID.GPULightsData, m_MaxPunctualLightsOnScreen);
+            m_DirectionalLightsData = bufferSystem.GetComputeBuffer<DirectionalLightData>(ComputeBufferSystemBufferID.DirectionalLightsData, m_MaxDirectionalLightsOnScreen);
         }
 
         /// <summary>
@@ -509,6 +522,23 @@ namespace UnityEngine.Rendering.Universal.Internal
             }
         }
 
+        internal void ResolveGPULightsData(CommandBuffer cmd, ref RenderingData renderingData)
+        {
+            m_GPULightsDataBuildSystem.ReBuildGPULightsDataBuffer(renderingData);
+            m_GPULightsData.SetData(m_GPULightsDataBuildSystem.gpuLightsData, 0, 0, m_GPULightsDataBuildSystem.lightsCount);
+            m_DirectionalLightsData.SetData(m_GPULightsDataBuildSystem.directionalLightsData, 0, 0, m_GPULightsDataBuildSystem.directionalLightCount);
+
+            ConstantBuffer.PushGlobal(cmd, lightCBuffer, ShaderConstants.ShaderVariablesLightList);
+
+            cmd.SetGlobalBuffer(ShaderConstants.g_CoarseLightList, m_CoarseLightList);
+            cmd.SetGlobalBuffer(ShaderConstants.g_GPULightDatas, m_GPULightsData);
+            cmd.SetGlobalBuffer(ShaderConstants.g_DirectionalLightDatas, m_DirectionalLightsData);
+
+            cmd.SetGlobalBuffer(ShaderConstants.g_vLightListCluster, m_PerVoxelLightLists);
+            cmd.SetGlobalBuffer(ShaderConstants.g_vLayeredOffsetsBuffer, m_PerVoxelOffset);
+            cmd.SetGlobalBuffer(ShaderConstants.g_logBaseBuffer, m_PerTileLogBaseTweak);
+        }
+
         /// <inheritdoc/>
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
@@ -517,6 +547,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             if (totalLightCount == 0)
             {
                 ClearAllLightLists(renderingData.commandBuffer);
+                ResolveGPULightsData(renderingData.commandBuffer, ref renderingData);
                 return;
             }
 
@@ -581,15 +612,7 @@ namespace UnityEngine.Rendering.Universal.Internal
 
                 // Resolve
                 {
-                    m_GPULightsDataBuildSystem.ReBuildGPULightsDataBuffer(renderingData);
-                    m_GPULightsData.SetData(m_GPULightsDataBuildSystem.gpuLightsData, 0, 0, m_GPULightsDataBuildSystem.lightsCount);
-
-                    cmd.SetGlobalBuffer(ShaderConstants.g_CoarseLightList, m_CoarseLightList);
-                    cmd.SetGlobalBuffer(ShaderConstants.g_GPULightDatas, m_GPULightsData);
-
-                    cmd.SetGlobalBuffer(ShaderConstants.g_vLightListCluster, m_PerVoxelLightLists);
-                    cmd.SetGlobalBuffer(ShaderConstants.g_vLayeredOffsetsBuffer, m_PerVoxelOffset);
-                    cmd.SetGlobalBuffer(ShaderConstants.g_logBaseBuffer, m_PerTileLogBaseTweak);
+                    ResolveGPULightsData(cmd, ref renderingData);
                 }
 
             }
@@ -628,6 +651,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             public static readonly int g_vLayeredOffsetsBuffer  = Shader.PropertyToID("g_vLayeredOffsetsBuffer");
             public static readonly int g_logBaseBuffer          = Shader.PropertyToID("g_logBaseBuffer");
             public static readonly int g_GPULightDatas          = Shader.PropertyToID("g_GPULightDatas");
+            public static readonly int g_DirectionalLightDatas  = Shader.PropertyToID("g_DirectionalLightDatas");
         }
     }
 

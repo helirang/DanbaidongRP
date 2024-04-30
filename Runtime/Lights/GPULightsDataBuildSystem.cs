@@ -24,9 +24,9 @@ namespace UnityEngine.Rendering.Universal.Internal
         private int m_LightCapacity = 0;
         private int m_LightCount = 0;
 
-        //private NativeArray<DirectionalLightData> m_DirectionalLights;
-        //private int m_DirectionalLightCapacity = 0;
-        //private int m_DirectionalLightCount = 0;
+        private NativeArray<DirectionalLightData> m_DirectionalLightsData;
+        private int m_DirectionalLightCapacity = 0;
+        private int m_DirectionalLightCount = 0;
 
         private AdditionalLightsShadowCasterPass m_AdditionalLightsShadowCasterPass;
         private LightCookieManager m_LightCookieManager;
@@ -35,8 +35,10 @@ namespace UnityEngine.Rendering.Universal.Internal
         public NativeArray<SFiniteLightBound> lightBounds => m_LightBounds;
         public NativeArray<LightVolumeData> lightVolumes => m_LightVolumes;
         public NativeArray<GPULightData> gpuLightsData => m_GPULightsData;
+        public NativeArray<DirectionalLightData> directionalLightsData => m_DirectionalLightsData;
 
         public int lightsCount => m_LightCount;
+        public int directionalLightCount => m_DirectionalLightCount;
         public int boundsCount => m_boundsCount;
 
         //Preallocates number of lights for bounds arrays and resets all internal counters. Must be called once per frame per view always.
@@ -69,13 +71,13 @@ namespace UnityEngine.Rendering.Universal.Internal
             }
             m_LightCount = lightCount;
 
-            //int requestedDurectinalCount = Math.Max(1, directionalLightCount);
-            //if (requestedDurectinalCount > m_DirectionalLightCapacity)
-            //{
-            //    m_DirectionalLightCapacity = Math.Max(Math.Max(m_DirectionalLightCapacity * 2, requestedDurectinalCount), ArrayCapacity);
-            //    m_DirectionalLights.ResizeArray(m_DirectionalLightCapacity);
-            //}
-            //m_DirectionalLightCount = directionalLightCount;
+            int requestedDurectinalCount = Math.Max(1, directionalLightCount);
+            if (requestedDurectinalCount > m_DirectionalLightCapacity)
+            {
+                m_DirectionalLightCapacity = Math.Max(Math.Max(m_DirectionalLightCapacity * 2, requestedDurectinalCount), ArrayCapacity);
+                m_DirectionalLightsData.ResizeArray(m_DirectionalLightCapacity);
+            }
+            m_DirectionalLightCount = directionalLightCount;
         }
 
         //Adds bounds for a new light type. Reflection probes / decals add their bounds here.
@@ -92,48 +94,73 @@ namespace UnityEngine.Rendering.Universal.Internal
         /// <param name="renderingData"></param>
         public void ReBuildGPULightsDataBuffer(in RenderingData renderingData)
         {
-            var lightCount = renderingData.lightData.visibleLights.Length;
-            var lightOffset = 0;
-            while (lightOffset < lightCount && renderingData.lightData.visibleLights[lightOffset].lightType == LightType.Directional)
+            var visibleLights = renderingData.lightData.visibleLights;
+            var lightCount = visibleLights.Length;
+            var dirlightOffset = renderingData.lightData.directionalLightsCount;
+            AllocateGPULightsData(lightCount - dirlightOffset, dirlightOffset);
+
+            for (int i = 0; i < lightCount; i++)
             {
-                lightOffset++;
-            }
-            lightCount -= lightOffset;
-            var visibleAdditionalLights = renderingData.lightData.visibleLights.GetSubArray(lightOffset, lightCount);
-            AllocateGPULightsData(lightCount, 0);
-
-            for (int i = 0; i < visibleAdditionalLights.Length; i++)
-            {
-                var visLightIndex = lightOffset + i;
-                var light = visibleAdditionalLights[i].light;
-                var additionalLightData = light.GetUniversalAdditionalLightData();
-
-                var gpuLightsData = new GPULightData();
-
-                Vector4 lightPos, lightColor, lightAttenuation, lightSpotDir, lightOcclusionChannel;
-                UniversalRenderPipeline.InitializeLightConstants_Common(visibleAdditionalLights, i, out lightPos, out lightColor, out lightAttenuation, out lightSpotDir, out lightOcclusionChannel);
-                uint lightLayerMask = RenderingLayerUtils.ToValidRenderingLayers(additionalLightData.renderingLayers);
-
-                int lightFlags = 0;
-                if (light.bakingOutput.lightmapBakeType == LightmapBakeType.Mixed)
-                    lightFlags |= (int)LightFlag.SubtractiveMixedLighting;
-                int shadowLightIndex = m_AdditionalLightsShadowCasterPass != null ? m_AdditionalLightsShadowCasterPass.GetShadowLightIndexFromLightIndex(visLightIndex) : -1;
-
-                if (m_LightCookieManager != null)
+                var visLightIndex = dirlightOffset + i;
+                var light = visibleLights[i].light;
+                if (visibleLights[i].lightType == LightType.Directional)
                 {
-                    int cookieLightIndex = m_LightCookieManager.GetLightCookieShaderDataIndex(visLightIndex);
-                    gpuLightsData.cookieLightIndex = cookieLightIndex;
+                    var additionalLightData = light.GetUniversalAdditionalLightData();
+
+                    var directionalLightData = new DirectionalLightData();
+
+                    Vector4 lightPos, lightColor, lightAttenuation, lightSpotDir, lightOcclusionChannel;
+                    // Directional lightPos is direction
+                    UniversalRenderPipeline.InitializeLightConstants_Common(visibleLights, i, out lightPos, out lightColor, out lightAttenuation, out lightSpotDir, out lightOcclusionChannel);
+                    uint lightLayerMask = RenderingLayerUtils.ToValidRenderingLayers(additionalLightData.renderingLayers);
+
+                    int lightFlags = 0;
+                    if (light.bakingOutput.lightmapBakeType == LightmapBakeType.Mixed)
+                        lightFlags |= (int)LightFlag.SubtractiveMixedLighting;
+
+                    // As we said before.
+                    directionalLightData.lightPosWS = visibleLights[i].GetPosition();
+                    directionalLightData.lightDirection = lightPos;
+                    directionalLightData.lightColor = lightColor;
+                    directionalLightData.lightAttenuation = lightAttenuation;
+                    //directionalLightData.lightOcclusionProbInfo = lightOcclusionChannel;
+                    directionalLightData.lightFlags = lightFlags;
+                    //directionalLightData.shadowlightIndex = shadowLightIndex;
+                    directionalLightData.lightLayerMask = lightLayerMask;
+
+                    m_DirectionalLightsData[i] = directionalLightData;
                 }
+                else
+                {
+                    var additionalLightData = light.GetUniversalAdditionalLightData();
 
-                gpuLightsData.lightPosWS = lightPos;
-                gpuLightsData.lightColor = lightColor;
-                gpuLightsData.lightAttenuation = lightAttenuation;
-                gpuLightsData.lightOcclusionProbInfo = lightOcclusionChannel;
-                gpuLightsData.lightFlags = lightFlags;
-                gpuLightsData.shadowlightIndex = shadowLightIndex;
-                gpuLightsData.lightLayerMask = lightLayerMask;
+                    var gpuLightsData = new GPULightData();
 
-                m_GPULightsData[i] = gpuLightsData;
+                    Vector4 lightPos, lightColor, lightAttenuation, lightSpotDir, lightOcclusionChannel;
+                    UniversalRenderPipeline.InitializeLightConstants_Common(visibleLights, i, out lightPos, out lightColor, out lightAttenuation, out lightSpotDir, out lightOcclusionChannel);
+                    uint lightLayerMask = RenderingLayerUtils.ToValidRenderingLayers(additionalLightData.renderingLayers);
+
+                    int lightFlags = 0;
+                    if (light.bakingOutput.lightmapBakeType == LightmapBakeType.Mixed)
+                        lightFlags |= (int)LightFlag.SubtractiveMixedLighting;
+                    int shadowLightIndex = m_AdditionalLightsShadowCasterPass != null ? m_AdditionalLightsShadowCasterPass.GetShadowLightIndexFromLightIndex(visLightIndex) : -1;
+
+                    if (m_LightCookieManager != null)
+                    {
+                        int cookieLightIndex = m_LightCookieManager.GetLightCookieShaderDataIndex(visLightIndex);
+                        gpuLightsData.cookieLightIndex = cookieLightIndex;
+                    }
+
+                    gpuLightsData.lightPosWS = lightPos;
+                    gpuLightsData.lightColor = lightColor;
+                    gpuLightsData.lightAttenuation = lightAttenuation;
+                    gpuLightsData.lightOcclusionProbInfo = lightOcclusionChannel;
+                    gpuLightsData.lightFlags = lightFlags;
+                    gpuLightsData.shadowlightIndex = shadowLightIndex;
+                    gpuLightsData.lightLayerMask = lightLayerMask;
+
+                    m_GPULightsData[i - dirlightOffset] = gpuLightsData;
+                }
             }
         }
 
@@ -204,6 +231,9 @@ namespace UnityEngine.Rendering.Universal.Internal
         {
             if (m_GPULightsData.IsCreated)
                 m_GPULightsData.Dispose();
+
+            if (m_DirectionalLightsData.IsCreated)
+                m_DirectionalLightsData.Dispose();
 
             if (m_LightBounds.IsCreated)
                 m_LightBounds.Dispose();

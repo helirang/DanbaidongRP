@@ -32,7 +32,7 @@
     #define GBUFFER_LIGHT_LAYERS GBuffer5
 #endif //#if OUTPUT_SHADOWMASK && defined(_WRITE_RENDERING_LAYERS)
 #else
-    #define GBUFFER_OPTIONAL_SLOT_1_TYPE half4
+    #define GBUFFER_OPTIONAL_SLOT_1_TYPE float4
 #if OUTPUT_SHADOWMASK && (defined(_WRITE_RENDERING_LAYERS) || defined(_LIGHT_LAYERS))
     #define GBUFFER_OPTIONAL_SLOT_1 GBuffer4
     #define GBUFFER_OPTIONAL_SLOT_2 GBuffer5
@@ -70,19 +70,19 @@
 
 struct FragmentOutput
 {
-    half4 GBuffer0 : SV_Target0;
-    half4 GBuffer1 : SV_Target1;
-    half4 GBuffer2 : SV_Target2;
-    half4 GBuffer3 : SV_Target3; // Camera color attachment
+    float4 GBuffer0 : SV_Target0;
+    float4 GBuffer1 : SV_Target1;
+    float4 GBuffer2 : SV_Target2;
+    float4 GBuffer3 : SV_Target3; // Camera color attachment
 
     #ifdef GBUFFER_OPTIONAL_SLOT_1
     GBUFFER_OPTIONAL_SLOT_1_TYPE GBuffer4 : SV_Target4;
     #endif
     #ifdef GBUFFER_OPTIONAL_SLOT_2
-    half4 GBuffer5 : SV_Target5;
+    float4 GBuffer5 : SV_Target5;
     #endif
     #ifdef GBUFFER_OPTIONAL_SLOT_3
-    half4 GBuffer6 : SV_Target6;
+    float4 GBuffer6 : SV_Target6;
     #endif
 };
 
@@ -97,18 +97,18 @@ uint UnpackMaterialFlags(float packedMaterialFlags)
 }
 
 #ifdef _GBUFFER_NORMALS_OCT
-half3 PackNormal(half3 n)
+float3 PackNormal(float3 n)
 {
     float2 octNormalWS = PackNormalOctQuadEncode(n);                  // values between [-1, +1], must use fp32 on some platforms.
     float2 remappedOctNormalWS = saturate(octNormalWS * 0.5 + 0.5);   // values between [ 0, +1]
-    return half3(PackFloat2To888(remappedOctNormalWS));               // values between [ 0, +1]
+    return float3(PackFloat2To888(remappedOctNormalWS));               // values between [ 0, +1]
 }
 
-half3 UnpackNormal(half3 pn)
+float3 UnpackNormal(float3 pn)
 {
-    half2 remappedOctNormalWS = half2(Unpack888ToFloat2(pn));          // values between [ 0, +1]
-    half2 octNormalWS = remappedOctNormalWS.xy * half(2.0) - half(1.0);// values between [-1, +1]
-    return half3(UnpackNormalOctQuadEncode(octNormalWS));              // values between [-1, +1]
+    float2 remappedOctNormalWS = float2(Unpack888ToFloat2(pn));          // values between [ 0, +1]
+    float2 octNormalWS = remappedOctNormalWS.xy * 2.0 - 1.0;// values between [-1, +1]
+    return float3(UnpackNormalOctQuadEncode(octNormalWS));              // values between [-1, +1]
 }
 
 float3 DecodeNormal(float3 pn)
@@ -119,10 +119,10 @@ float3 DecodeNormal(float3 pn)
 }
 
 #else
-half3 PackNormal(half3 n)
+float3 PackNormal(float3 n)
 { return n; }                                                         // values between [-1, +1]
 
-half3 UnpackNormal(half3 pn)
+float3 UnpackNormal(float3 pn)
 { return pn; }                                                        // values between [-1, +1]
 
 float3 DecodeNormal(float3 pn)
@@ -130,9 +130,9 @@ float3 DecodeNormal(float3 pn)
 #endif
 
 // This will encode SurfaceData into GBuffer
-FragmentOutput SurfaceDataToGbuffer(SurfaceData surfaceData, InputData inputData, half3 globalIllumination, int lightingMode)
+FragmentOutput SurfaceDataToGbuffer(SurfaceData surfaceData, InputData inputData, float3 globalIllumination, int lightingMode)
 {
-    half3 packedNormalWS = PackNormal(inputData.normalWS);
+    float3 packedNormalWS = PackNormal(inputData.normalWS);
 
     uint materialFlags = 0;
 
@@ -147,10 +147,10 @@ FragmentOutput SurfaceDataToGbuffer(SurfaceData surfaceData, InputData inputData
     #endif
 
     FragmentOutput output;
-    output.GBuffer0 = half4(surfaceData.albedo.rgb, PackMaterialFlags(materialFlags));   // albedo          albedo          albedo          materialFlags   (sRGB rendertarget)
-    output.GBuffer1 = half4(surfaceData.specular.rgb, surfaceData.occlusion);            // specular        specular        specular        occlusion
-    output.GBuffer2 = half4(packedNormalWS, surfaceData.smoothness);                     // encoded-normal  encoded-normal  encoded-normal  smoothness
-    output.GBuffer3 = half4(globalIllumination, 1);                                      // GI              GI              GI              unused          (lighting buffer)
+    output.GBuffer0 = float4(surfaceData.albedo.rgb, PackMaterialFlags(materialFlags));   // albedo          albedo          albedo          materialFlags   (sRGB rendertarget)
+    output.GBuffer1 = float4(surfaceData.specular.rgb, surfaceData.occlusion);            // specular        specular        specular        occlusion
+    output.GBuffer2 = float4(packedNormalWS, surfaceData.smoothness);                     // encoded-normal  encoded-normal  encoded-normal  smoothness
+    output.GBuffer3 = float4(globalIllumination, 1);                                      // GI              GI              GI              unused          (lighting buffer)
     #if _RENDER_PASS_ENABLED
     output.GBuffer4 = inputData.positionCS.z;
     #endif
@@ -166,7 +166,7 @@ FragmentOutput SurfaceDataToGbuffer(SurfaceData surfaceData, InputData inputData
 }
 
 // This decodes the Gbuffer into a SurfaceData struct
-SurfaceData SurfaceDataFromGbuffer(half4 gbuffer0, half4 gbuffer1, half4 gbuffer2, int lightingMode)
+SurfaceData SurfaceDataFromGbuffer(float4 gbuffer0, float4 gbuffer1, float4 gbuffer2, int lightingMode)
 {
     SurfaceData surfaceData;
 
@@ -174,22 +174,22 @@ SurfaceData SurfaceDataFromGbuffer(half4 gbuffer0, half4 gbuffer1, half4 gbuffer
     uint materialFlags = UnpackMaterialFlags(gbuffer0.a);
     surfaceData.occlusion = 1.0; // Not used by SimpleLit material.
     surfaceData.specular = gbuffer1.rgb;
-    half smoothness = gbuffer2.a;
+    float smoothness = gbuffer2.a;
 
     surfaceData.metallic = 0.0; // Not used by SimpleLit material.
     surfaceData.alpha = 1.0; // gbuffer only contains opaque materials
     surfaceData.smoothness = smoothness;
 
-    surfaceData.emission = (half3)0; // Note: this is not made available at lighting pass in this renderer - emission contribution is included (with GI) in the value GBuffer3.rgb, that is used as a renderTarget during lighting
-    surfaceData.normalTS = (half3)0; // Note: does this normalTS member need to be in SurfaceData? It looks like an intermediate value
+    surfaceData.emission = (float3)0; // Note: this is not made available at lighting pass in this renderer - emission contribution is included (with GI) in the value GBuffer3.rgb, that is used as a renderTarget during lighting
+    surfaceData.normalTS = (float3)0; // Note: does this normalTS member need to be in SurfaceData? It looks like an intermediate value
 
     return surfaceData;
 }
 
 // This will encode SurfaceData into GBuffer
-FragmentOutput BRDFDataToGbuffer(BRDFData brdfData, InputData inputData, half smoothness, half3 globalIllumination, half occlusion = 1.0)
+FragmentOutput BRDFDataToGbuffer(BRDFData brdfData, InputData inputData, float smoothness, float3 globalIllumination, float occlusion = 1.0)
 {
-    half3 packedNormalWS = PackNormal(inputData.normalWS);
+    float3 packedNormalWS = PackNormal(inputData.normalWS);
 
     uint materialFlags = 0;
 
@@ -197,7 +197,7 @@ FragmentOutput BRDFDataToGbuffer(BRDFData brdfData, InputData inputData, half sm
     materialFlags |= kMaterialFlagReceiveShadowsOff;
     #endif
 
-    half3 packedSpecular;
+    float3 packedSpecular;
 
     #ifdef _SPECULAR_SETUP
     materialFlags |= kMaterialFlagSpecularSetup;
@@ -220,10 +220,10 @@ FragmentOutput BRDFDataToGbuffer(BRDFData brdfData, InputData inputData, half sm
     #endif
 
     FragmentOutput output;
-    output.GBuffer0 = half4(brdfData.albedo.rgb, PackMaterialFlags(materialFlags));  // diffuse           diffuse         diffuse         materialFlags   (sRGB rendertarget)
-    output.GBuffer1 = half4(packedSpecular, occlusion);                              // metallic/specular specular        specular        occlusion
-    output.GBuffer2 = half4(packedNormalWS, smoothness);                             // encoded-normal    encoded-normal  encoded-normal  smoothness
-    output.GBuffer3 = half4(globalIllumination, 1);                                  // GI                GI              GI              unused          (lighting buffer)
+    output.GBuffer0 = float4(brdfData.albedo.rgb, PackMaterialFlags(materialFlags));  // diffuse           diffuse         diffuse         materialFlags   (sRGB rendertarget)
+    output.GBuffer1 = float4(packedSpecular, occlusion);                              // metallic/specular specular        specular        occlusion
+    output.GBuffer2 = float4(packedNormalWS, smoothness);                             // encoded-normal    encoded-normal  encoded-normal  smoothness
+    output.GBuffer3 = float4(globalIllumination, 1);                                  // GI                GI              GI              unused          (lighting buffer)
     #if _RENDER_PASS_ENABLED
     output.GBuffer4 = inputData.positionCS.z;
     #endif
@@ -239,26 +239,26 @@ FragmentOutput BRDFDataToGbuffer(BRDFData brdfData, InputData inputData, half sm
 }
 
 // This decodes the Gbuffer into a SurfaceData struct
-BRDFData BRDFDataFromGbuffer(half4 gbuffer0, half4 gbuffer1, half4 gbuffer2)
+BRDFData BRDFDataFromGbuffer(float4 gbuffer0, float4 gbuffer1, float4 gbuffer2)
 {
-    half3 albedo = gbuffer0.rgb;
-    half3 specular = gbuffer1.rgb;
+    float3 albedo = gbuffer0.rgb;
+    float3 specular = gbuffer1.rgb;
     uint materialFlags = UnpackMaterialFlags(gbuffer0.a);
-    half smoothness = gbuffer2.a;
+    float smoothness = gbuffer2.a;
 
     BRDFData brdfData = (BRDFData)0;
-    half alpha = half(1.0); // NOTE: alpha can get modfied, forward writes it out (_ALPHAPREMULTIPLY_ON).
+    float alpha = float(1.0); // NOTE: alpha can get modfied, forward writes it out (_ALPHAPREMULTIPLY_ON).
 
-    half3 brdfDiffuse;
-    half3 brdfSpecular;
-    half reflectivity;
-    half oneMinusReflectivity;
+    float3 brdfDiffuse;
+    float3 brdfSpecular;
+    float reflectivity;
+    float oneMinusReflectivity;
 
     if ((materialFlags & kMaterialFlagSpecularSetup) != 0)
     {
         // Specular setup
         reflectivity = ReflectivitySpecular(specular);
-        oneMinusReflectivity = half(1.0) - reflectivity;
+        oneMinusReflectivity = float(1.0) - reflectivity;
         brdfDiffuse = albedo * oneMinusReflectivity;
         brdfSpecular = specular;
     }
@@ -267,7 +267,7 @@ BRDFData BRDFDataFromGbuffer(half4 gbuffer0, half4 gbuffer1, half4 gbuffer2)
         // Metallic setup
         reflectivity = specular.r;
         oneMinusReflectivity = 1.0 - reflectivity;
-        half metallic = MetallicFromReflectivity(reflectivity);
+        float metallic = MetallicFromReflectivity(reflectivity);
         brdfDiffuse = albedo * oneMinusReflectivity;
         brdfSpecular = lerp(kDieletricSpec.rgb, albedo, metallic);
     }
@@ -276,7 +276,7 @@ BRDFData BRDFDataFromGbuffer(half4 gbuffer0, half4 gbuffer1, half4 gbuffer2)
     return brdfData;
 }
 
-InputData InputDataFromGbufferAndWorldPosition(half4 gbuffer2, float3 wsPos)
+InputData InputDataFromGbufferAndWorldPosition(float4 gbuffer2, float3 wsPos)
 {
     InputData inputData = (InputData)0;
 
@@ -287,22 +287,22 @@ InputData InputDataFromGbufferAndWorldPosition(half4 gbuffer2, float3 wsPos)
 
     // TODO: pass this info?
     inputData.shadowCoord     = (float4)0;
-    inputData.fogCoord        = (half  )0;
-    inputData.vertexLighting  = (half3 )0;
+    inputData.fogCoord        = (float  )0;
+    inputData.vertexLighting  = (float3 )0;
 
-    inputData.bakedGI = (half3)0; // Note: this is not made available at lighting pass in this renderer - bakedGI contribution is included (with emission) in the value GBuffer3.rgb, that is used as a renderTarget during lighting
+    inputData.bakedGI = (float3)0; // Note: this is not made available at lighting pass in this renderer - bakedGI contribution is included (with emission) in the value GBuffer3.rgb, that is used as a renderTarget during lighting
 
     return inputData;
 }
 
 
-half3 PackColorToR8G8B8(half3 color)
+float3 PackColorToR8G8B8(float3 color)
 {
     color /= 15.0;
     color = sqrt(color);
     return color;
 }
-half3 UnPackColorFromR8G8B8(half3 color)
+float3 UnPackColorFromR8G8B8(float3 color)
 {
     color = color * color;
     color *= 15;
@@ -311,22 +311,22 @@ half3 UnPackColorFromR8G8B8(half3 color)
 
 struct CharacterData
 {
-    half3 albedo;
-    half3 directColor;
+    float3 albedo;
+    float3 directColor;
 
-    half3 normalWS;
-    half rimStrength;
-    half useShadow;
-    half metallic;
-    half smoothness;
+    float3 normalWS;
+    float rimStrength;
+    float useShadow;
+    float metallic;
+    float smoothness;
     uint materialFlags;
 };
 
 // This will encode SurfaceData into GBuffer
-FragmentOutput CharacterDataToGbuffer(half3 albedo, half3 directColor, half3 indirectColor, half smoothness, half metallic, float3 normalWS, half isFace = 0.0, half isOutLine = 0.0)
+FragmentOutput CharacterDataToGbuffer(float3 albedo, float3 directColor, float3 indirectColor, float smoothness, float metallic, float3 normalWS, float isFace = 0.0, float isOutLine = 0.0)
 {
     // Pack normal
-    half3 packedNormalWS = PackNormal(normalWS);
+    float3 packedNormalWS = PackNormal(normalWS);
 
     // Pack directColor
     directColor = PackColorToR8G8B8(directColor);
@@ -345,29 +345,29 @@ FragmentOutput CharacterDataToGbuffer(half3 albedo, half3 directColor, half3 ind
 
     // GBuffer3: ColorAttachment format is precisely, no need to pack.
     FragmentOutput output;
-    output.GBuffer0 = half4(albedo.rgb, PackMaterialFlags(materialFlags));  // diffuse              diffuse             diffuse             materialFlags   (sRGB albedo will used for additional lighting)
-    output.GBuffer1 = half4(directColor.rgb, metallic);                     // direct               direct              direct              metallic        (directLightColor will mul shadow in defered shading)
-    output.GBuffer2 = half4(packedNormalWS, smoothness);                    // encoded-normal       encoded-normal      encoded-normal      smoothness      (normal1212)
-    output.GBuffer3 = half4(indirectColor, 1);                              // indirect             indirect            indirect            unused          (shadowColor with occlusion applied)
+    output.GBuffer0 = float4(albedo.rgb, PackMaterialFlags(materialFlags));  // diffuse              diffuse             diffuse             materialFlags   (sRGB albedo will used for additional lighting)
+    output.GBuffer1 = float4(directColor.rgb, metallic);                     // direct               direct              direct              metallic        (directLightColor will mul shadow in defered shading)
+    output.GBuffer2 = float4(packedNormalWS, smoothness);                    // encoded-normal       encoded-normal      encoded-normal      smoothness      (normal1212)
+    output.GBuffer3 = float4(indirectColor, 1);                              // indirect             indirect            indirect            unused          (shadowColor with occlusion applied)
 
     return output;
 }
 
 // This decodes the Gbuffer into a SurfaceData struct
-CharacterData CharacterDataFromGbuffer(half4 gbuffer0, half4 gbuffer1, half4 gbuffer2)
+CharacterData CharacterDataFromGbuffer(float4 gbuffer0, float4 gbuffer1, float4 gbuffer2)
 {
-    half3 albedo = gbuffer0.rgb;
-    half3 directColor = gbuffer1.rgb;
+    float3 albedo = gbuffer0.rgb;
+    float3 directColor = gbuffer1.rgb;
 
     uint materialFlags = UnpackMaterialFlags(gbuffer0.a);
-    half metallic = gbuffer1.a;
-    half smoothness = gbuffer2.a;
+    float metallic = gbuffer1.a;
+    float smoothness = gbuffer2.a;
 
-    half3 normalWS = normalize(UnpackNormal(gbuffer2.xyz));
+    float3 normalWS = normalize(UnpackNormal(gbuffer2.xyz));
 
     // materialFlags
-    half useShadow = 1.0;
-    half rimStrength = 1.0;
+    float useShadow = 1.0;
+    float rimStrength = 1.0;
     if ((materialFlags & kCharacterMaterialFlagFace) != 0 )
     {
         useShadow = 0.0;

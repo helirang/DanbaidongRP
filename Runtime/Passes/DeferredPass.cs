@@ -2,6 +2,7 @@ using UnityEngine.Experimental.GlobalIllumination;
 using UnityEngine.Profiling;
 using Unity.Collections;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
+using UnityEngine.Experimental.Rendering;
 
 // cleanup code
 // listMinDepth and maxDepth should be stored in a different uniform block?
@@ -16,6 +17,7 @@ namespace UnityEngine.Rendering.Universal.Internal
     internal class DeferredPass : ScriptableRenderPass
     {
         DeferredLights m_DeferredLights;
+        private RTHandle m_LightingTexture;
 
         public DeferredPass(RenderPassEvent evt, DeferredLights deferredLights)
         {
@@ -24,6 +26,20 @@ namespace UnityEngine.Rendering.Universal.Internal
             m_DeferredLights = deferredLights;
         }
 
+        public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
+        {
+            var desc = renderingData.cameraData.cameraTargetDescriptor;
+            desc.depthBufferBits = 0;
+            desc.msaaSamples = 1;
+            desc.graphicsFormat = GraphicsFormat.R16G16_UNorm;
+            desc.enableRandomWrite = true;
+
+            var lightingDesc = desc;
+            lightingDesc.graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
+            RenderingUtils.ReAllocateIfNeeded(ref m_LightingTexture, lightingDesc, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_LightingTexture");
+
+            m_DeferredLights.SetupDeferredLightingBuffer(cmd, ref renderingData);
+        }
         // ScriptableRenderPass
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescripor)
         {
@@ -39,7 +55,14 @@ namespace UnityEngine.Rendering.Universal.Internal
         // ScriptableRenderPass
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
-            m_DeferredLights.ExecuteDeferredPass(context, ref renderingData);
+            if (m_DeferredLights.UseComputeDeferredLighting)
+            {
+                m_DeferredLights.ComputeDeferredLighting(context, ref renderingData, m_DeferredLights.GbufferAttachments[m_DeferredLights.GBufferLightingIndex], m_DeferredLights.DepthAttachmentHandle);
+            }
+            else
+            {
+                m_DeferredLights.ExecuteDeferredPass(context, ref renderingData);
+            }
         }
 
         private class PassData
@@ -79,6 +102,14 @@ namespace UnityEngine.Rendering.Universal.Internal
         public override void OnCameraCleanup(CommandBuffer cmd)
         {
             m_DeferredLights.OnCameraCleanup(cmd);
+        }
+
+        /// <summary>
+        /// Clean up resources used by this pass.
+        /// </summary>
+        public void Dispose()
+        {
+            m_LightingTexture?.Release();
         }
     }
 }

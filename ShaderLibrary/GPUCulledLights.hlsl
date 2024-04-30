@@ -230,5 +230,11 @@ GPULightData FetchLight(uint index)
     return g_GPULightDatas[index];
 }
 
+//--------------------------------------------------------------------------------------------------
+// Directional light data
+//--------------------------------------------------------------------------------------------------
+StructuredBuffer<DirectionalLightData> g_DirectionalLightDatas;
+
+
 
 #endif /* GPU_CULLED_LIGHTS_INCLUDED */

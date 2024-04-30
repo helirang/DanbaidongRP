@@ -199,6 +199,12 @@ namespace UnityEngine.Rendering.Universal.Internal
             get { return m_AccurateGbufferNormals; }
             set { m_AccurateGbufferNormals = value || !RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R8G8B8A8_SNorm, FormatUsage.Render); }
         }
+        private bool m_UseComputeDeferredLighting;
+        internal bool UseComputeDeferredLighting
+        {
+            get { return m_UseComputeDeferredLighting; }
+            set { m_UseComputeDeferredLighting = value; }
+        }
         // We browse all visible lights and found the mixed lighting setup every frame.
         internal MixedLightingSetup MixedLightingSetup { get; set; }
         //
@@ -256,6 +262,8 @@ namespace UnityEngine.Rendering.Universal.Internal
             public Material stencilDeferredMaterial;
 
             public LightCookieManager lightCookieManager;
+
+            public UniversalRenderPipelineRuntimeResources runtimeResources;
         }
 
         internal DeferredLights(InitParams initParams, bool useNativeRenderPass = false)
@@ -278,6 +286,9 @@ namespace UnityEngine.Rendering.Universal.Internal
             this.UseJobSystem = true;
             this.UseRenderPass = useNativeRenderPass;
             m_LightCookieManager = initParams.lightCookieManager;
+
+            // Compute Deferred Lighting
+            InitDeferredLightingComputes(ref initParams);
         }
 
         internal void SetupLights(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -1190,6 +1201,116 @@ namespace UnityEngine.Rendering.Universal.Internal
 
             return mesh;
         }
+
+
+
+
+
+
+
+
+        //--------------------------------------------------------------------------------------------------
+        // Compute Deferred Lighting
+        //--------------------------------------------------------------------------------------------------
+        // Public Variables
+
+        // Private Variables
+        private ComputeShader m_DeferredLightingCS;
+        private int m_DeferredClassifyTilesKernel;
+        private int m_DeferredLightingKernel;
+
+        private ComputeBuffer m_DispatchIndirectBuffer;
+        private ComputeBuffer m_TileListBuffer;
+
+        private int m_NumTilesX;
+        private int m_NumTilesY;
+        // Constants
+        private const int c_deferredLightingTileSize = 16;
+
+        // Statics
+
+        void InitDeferredLightingComputes(ref InitParams initParams)
+        {
+            m_DeferredLightingCS = initParams.runtimeResources.shaders.deferredLighting;
+
+            m_DeferredClassifyTilesKernel = m_DeferredLightingCS.FindKernel("DeferredClassifyTiles");
+            m_DeferredLightingKernel = m_DeferredLightingCS.FindKernel("DeferredLighting0");
+        }
+
+        /// <summary>
+        /// Called in OnCameraSetup
+        /// </summary>
+        /// <param name="cmd"></param>
+        /// <param name="renderingData"></param>
+        internal void SetupDeferredLightingBuffer(CommandBuffer cmd, ref RenderingData renderingData)
+        {
+            var width = renderingData.cameraData.cameraTargetDescriptor.width;
+            var height = renderingData.cameraData.cameraTargetDescriptor.height;
+            m_NumTilesX = RenderingUtils.DivRoundUp(width, c_deferredLightingTileSize);
+            m_NumTilesY = RenderingUtils.DivRoundUp(height, c_deferredLightingTileSize);
+
+            var bufferSystem = ComputeBufferSystem.instance;
+
+            m_DispatchIndirectBuffer = bufferSystem.GetComputeBuffer<uint>(ComputeBufferSystemBufferID.DeferredLightingIndirect, (int)ShadingModels.CurModelsNum * 3, ComputeBufferType.IndirectArguments);
+            m_TileListBuffer = bufferSystem.GetComputeBuffer<uint>(ComputeBufferSystemBufferID.DeferredLightingTileList, (int)ShadingModels.CurModelsNum * m_NumTilesX * m_NumTilesY);
+        }
+
+        internal void ComputeDeferredLighting(ScriptableRenderContext context, ref RenderingData renderingData, RTHandle lightingHandle, RTHandle stencilHandle)
+        {
+            var cmd = renderingData.commandBuffer;
+            using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.DeferredLighting)))
+            {
+                cmd.SetRenderTarget(lightingHandle);
+                cmd.ClearRenderTarget(RTClearFlags.Color, new Color(0, 0, 0, 0), 0, 0);
+
+                // BuildIndirect
+                {
+                    cmd.SetComputeTextureParam(m_DeferredLightingCS, m_DeferredClassifyTilesKernel, "_StencilTexture", stencilHandle, 0, RenderTextureSubElement.Stencil);
+
+                    cmd.SetComputeBufferParam(m_DeferredLightingCS, m_DeferredClassifyTilesKernel, "g_DispatchIndirectBuffer", m_DispatchIndirectBuffer);
+                    cmd.SetComputeBufferParam(m_DeferredLightingCS, m_DeferredClassifyTilesKernel, "g_TileList", m_TileListBuffer);
+
+                    cmd.DispatchCompute(m_DeferredLightingCS, m_DeferredClassifyTilesKernel, m_NumTilesX, m_NumTilesY, 1);
+                }
+
+                // Lighting
+                {
+                    // Bind PreIntegratedFGD before deferred shading.
+                    PreIntegratedFGD.instance.Bind(cmd, PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse);
+
+                    var SHValues = new SHCoefficients(RenderSettings.ambientProbe);
+                    cmd.SetComputeVectorParam(m_DeferredLightingCS, "unity_SHAr", SHValues.SHAr);
+                    cmd.SetComputeVectorParam(m_DeferredLightingCS, "unity_SHAg", SHValues.SHAg);
+                    cmd.SetComputeVectorParam(m_DeferredLightingCS, "unity_SHAb", SHValues.SHAb);
+                    cmd.SetComputeVectorParam(m_DeferredLightingCS, "unity_SHBr", SHValues.SHBr);
+                    cmd.SetComputeVectorParam(m_DeferredLightingCS, "unity_SHBg", SHValues.SHBg);
+                    cmd.SetComputeVectorParam(m_DeferredLightingCS, "unity_SHBb", SHValues.SHBb);
+                    cmd.SetComputeVectorParam(m_DeferredLightingCS, "unity_SHC", SHValues.SHC);
+
+
+                    for (int modelIndex = 0; modelIndex < (int)ShadingModels.CurModelsNum; modelIndex++)
+                    {
+                        var kernelIndex = m_DeferredLightingKernel + modelIndex;
+                        cmd.SetComputeIntParam(m_DeferredLightingCS, "_ShadingModelIndex", modelIndex);
+                        cmd.SetComputeVectorParam(m_DeferredLightingCS, "_TilesNum", new Vector2(m_NumTilesX, m_NumTilesY));
+
+                        cmd.SetComputeBufferParam(m_DeferredLightingCS, kernelIndex, "g_TileList", m_TileListBuffer);
+                        cmd.SetComputeTextureParam(m_DeferredLightingCS, kernelIndex, "_LightingTexture", lightingHandle);
+                        cmd.SetComputeTextureParam(m_DeferredLightingCS, kernelIndex, "_StencilTexture", stencilHandle, 0, RenderTextureSubElement.Stencil);
+
+                        cmd.SetComputeTextureParam(m_DeferredLightingCS, kernelIndex, "unity_SpecCube0", ReflectionProbe.defaultTexture);
+                        cmd.SetComputeVectorParam(m_DeferredLightingCS, "unity_SpecCube0_HDR", ReflectionProbe.defaultTextureHDRDecodeValues);
+
+
+                        cmd.DispatchCompute(m_DeferredLightingCS, kernelIndex, m_DispatchIndirectBuffer, (uint)modelIndex * 3 * sizeof(uint));
+                    }
+                }
+            }
+
+        }
+
+
+
     }
 
     /*

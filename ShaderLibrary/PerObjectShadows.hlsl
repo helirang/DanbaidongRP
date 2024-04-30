@@ -4,9 +4,11 @@
 
 float4 _PerObjectShadowmapTexture_TexelSize;
 TEXTURE2D_SHADOW(_PerObjectShadowmapTexture);
+SCREENSPACE_TEXTURE(_PerObjectScreenSpaceShadowmapTexture);
 
 // x: softShadowQuality
 // y: shadowStrength
+// z: downSampleScale screenspacePerObjectShadowmap 0:none 1:2x 2:4x
 half4 _PerObjectShadowParams;
 
 float4 TransformWorldToPerObjectShadowCoord(float3 positionWS, float4x4 worldToShadowMatrix)
@@ -109,6 +111,21 @@ half PerObjectRealtimeShadow(float4 shadowCoord)
 {
     half4 perObjectShadowParams = GetPerObjectShadowParams();
     return SamplePerObjectShadowmap(TEXTURE2D_ARGS(_PerObjectShadowmapTexture, sampler_LinearClampCompare), shadowCoord, perObjectShadowParams);
+}
+
+float SamplePerObjectScreenSpaceShadowmap(float2 screenUV)
+{
+    float attenuation = SAMPLE_TEXTURE2D(_PerObjectScreenSpaceShadowmapTexture, sampler_PointClamp, screenUV).x;
+
+    return attenuation;
+}
+
+float LoadPerObjectScreenSpaceShadowmap(uint2 coordSS)
+{
+    uint2 scaledCoordSS = coordSS >> (int)_PerObjectShadowParams.z;
+    float attenuation = LOAD_TEXTURE2D(_PerObjectScreenSpaceShadowmapTexture, scaledCoordSS).x;
+
+    return attenuation;
 }
 
 #endif /* PER_OBJECT_SHADOWS_INCLUDED */

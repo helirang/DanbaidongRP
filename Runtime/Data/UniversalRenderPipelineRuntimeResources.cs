@@ -68,6 +68,12 @@ namespace UnityEngine.Rendering.Universal
             [Reload("Shaders/Lights/GPULightsCluster.compute")]
             public ComputeShader gpuLightsCluster;
 
+            /// <summary>
+            /// Deferred lighting compute shader.
+            /// </summary>
+            [Reload("Shaders/Lighting/DeferredLighting.compute")]
+            public ComputeShader deferredLighting;
+
 #if UNITY_EDITOR
             // Iterator to retrieve all compute shaders in reflection so we don't have to keep a list of
             // used compute shaders up to date (prefer editor-only usage)

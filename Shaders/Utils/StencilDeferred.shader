@@ -343,15 +343,6 @@ Shader "Hidden/Universal Render Pipeline/StencilDeferred"
             #endif
             BRDFData brdfData = BRDFDataFromGbuffer(gbuffer0, gbuffer1, gbuffer2);
             color = LightingPhysicallyBased(brdfData, unityLight, inputData.normalWS, inputData.viewDirectionWS, materialSpecularHighlightsOff);
-
-            // TODO: Test code, remove.
-            float NdotV = saturate(dot(inputData.normalWS, inputData.viewDirectionWS));
-            float3 specularFGD;
-            float diffuseFGD;
-            float reflectivity;
-            GetPreIntegratedFGDGGXAndDisneyDiffuse(NdotV, brdfData.perceptualRoughness, 0, specularFGD, diffuseFGD, reflectivity);
-            color += diffuseFGD * 0.0001f;
-
         #elif defined(_SIMPLELIT)
             SurfaceData surfaceData = SurfaceDataFromGbuffer(gbuffer0, gbuffer1, gbuffer2, kLightingSimpleLit);
             half3 attenuatedLightColor = unityLight.color * (unityLight.distanceAttenuation * unityLight.shadowAttenuation);

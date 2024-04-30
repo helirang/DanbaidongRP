@@ -1518,6 +1518,14 @@ namespace UnityEngine.Rendering.Universal
 
             lightData.mainLightIndex = mainLightIndex;
 
+            var lightCount = visibleLights.Length;
+            var dirlightOffset = 0;
+            while (dirlightOffset < lightCount && visibleLights[dirlightOffset].lightType == LightType.Directional)
+            {
+                dirlightOffset++;
+            }
+            lightData.directionalLightsCount = dirlightOffset;
+
             if (settings.additionalLightsRenderingMode != LightRenderingMode.Disabled)
             {
                 lightData.additionalLightsCount =

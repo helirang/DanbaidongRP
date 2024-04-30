@@ -88,7 +88,8 @@ namespace UnityEngine.Rendering.Universal
                 // Params
                 float softShadowQuality = (float)m_CurrentSettings.GetSoftShadowQuality();
                 float shadowStrength = 1.0f;
-                cmd.SetGlobalVector(PerObjectShadowProjectorConstant._PerObjectShadowParams, new Vector4(softShadowQuality, shadowStrength, 0, 0));
+                int downSampleScale = m_CurrentSettings.GetScreenSpaceShadowTexScale();
+                cmd.SetGlobalVector(PerObjectShadowProjectorConstant._PerObjectShadowParams, new Vector4(softShadowQuality, shadowStrength, downSampleScale, 0));
 
                 CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.PerObjectScreenSpaceShadow, true);
 

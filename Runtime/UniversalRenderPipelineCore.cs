@@ -148,6 +148,11 @@ namespace UnityEngine.Rendering.Universal
         public int mainLightIndex;
 
         /// <summary>
+        /// The number of directional lights visible by the camera.
+        /// </summary>
+        public int directionalLightsCount;
+
+        /// <summary>
         /// The number of additional lights visible by the camera.
         /// </summary>
         public int additionalLightsCount;
@@ -1710,6 +1715,9 @@ namespace UnityEngine.Rendering.Universal
         DepthNormalPrepass,
         DepthPrepass,
         UpdateReflectionProbeAtlas,
+
+        // Deferred Lighting
+        DeferredLighting,
 
         // DrawObjectsPass
         DrawOpaqueObjects,

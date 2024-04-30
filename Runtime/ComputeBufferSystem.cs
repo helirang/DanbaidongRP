@@ -26,6 +26,10 @@ namespace UnityEngine.Rendering.Universal
         GPULightsPerTileLogBaseTweak,
         GPULightsGlobalLightLIstAtomic,
         GPULightsData,
+        DirectionalLightsData,
+        /// <summary>Deferred Lighting Compute Buffer.</summary>
+        DeferredLightingIndirect,
+        DeferredLightingTileList,
     }
 
 
@@ -99,7 +103,23 @@ namespace UnityEngine.Rendering.Universal
         {
             var desc = new ComputeBufferDesc(size, Marshal.SizeOf<T>(), bufferType);
 
-            return GetComputeBuffer(bufferId, desc);
+            var buffer = GetComputeBuffer(bufferId, desc);
+            if (bufferType == ComputeBufferType.IndirectArguments)
+            {
+                InitIndirectComputeBufferValue(buffer);
+            }
+
+            return buffer;
+        }
+
+        internal void InitIndirectComputeBufferValue(ComputeBuffer buffer)
+        {
+            uint[] array = new uint[buffer.count];
+            for (int i = 0; i < array.Length; i++)
+            {
+                array[i] = (i % 3) == 0 ? 0u : 1u;
+            }
+            buffer.SetData(array);
         }
 
         /// <summary>

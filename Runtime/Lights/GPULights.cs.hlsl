@@ -5,6 +5,23 @@
 #ifndef GPULIGHTS_CS_HLSL
 #define GPULIGHTS_CS_HLSL
 //
+// UnityEngine.Rendering.Universal.Internal.LightVolumeType:  static fields
+//
+#define LIGHTVOLUMETYPE_CONE (0)
+#define LIGHTVOLUMETYPE_SPHERE (1)
+#define LIGHTVOLUMETYPE_BOX (2)
+#define LIGHTVOLUMETYPE_COUNT (3)
+
+//
+// UnityEngine.Rendering.Universal.Internal.GPULightType:  static fields
+//
+#define GPULIGHTTYPE_DIRECTIONAL (0)
+#define GPULIGHTTYPE_POINT (1)
+#define GPULIGHTTYPE_SPOT (2)
+#define GPULIGHTTYPE_PROJECTOR_PYRAMID (3)
+#define GPULIGHTTYPE_PROJECTOR_BOX (4)
+
+//
 // UnityEngine.Rendering.Universal.Internal.LightCategory:  static fields
 //
 #define LIGHTCATEGORY_PUNCTUAL (0)
@@ -12,14 +29,6 @@
 #define LIGHTCATEGORY_ENV (2)
 #define LIGHTCATEGORY_DECAL (3)
 #define LIGHTCATEGORY_COUNT (4)
-
-//
-// UnityEngine.Rendering.Universal.Internal.LightVolumeType:  static fields
-//
-#define LIGHTVOLUMETYPE_CONE (0)
-#define LIGHTVOLUMETYPE_SPHERE (1)
-#define LIGHTVOLUMETYPE_BOX (2)
-#define LIGHTVOLUMETYPE_COUNT (3)
 
 //
 // UnityEngine.Rendering.Universal.Internal.LightFeatureFlags:  static fields
@@ -31,15 +40,6 @@
 #define LIGHTFEATUREFLAGS_SKY (65536)
 #define LIGHTFEATUREFLAGS_SSREFRACTION (131072)
 #define LIGHTFEATUREFLAGS_SSREFLECTION (262144)
-
-//
-// UnityEngine.Rendering.Universal.Internal.GPULightType:  static fields
-//
-#define GPULIGHTTYPE_DIRECTIONAL (0)
-#define GPULIGHTTYPE_POINT (1)
-#define GPULIGHTTYPE_SPOT (2)
-#define GPULIGHTTYPE_PROJECTOR_PYRAMID (3)
-#define GPULIGHTTYPE_PROJECTOR_BOX (4)
 
 //
 // UnityEngine.Rendering.Universal.Internal.LightDefinitions:  static fields
@@ -74,33 +74,6 @@
 #define CONTACT_SHADOW_MASK_BITS (24)
 #define CONTACT_SHADOW_FADE_MASK (255)
 #define CONTACT_SHADOW_MASK_MASK (16777215)
-
-// Generated from UnityEngine.Rendering.Universal.Internal.ShaderVariablesLightList
-// PackingRules = Exact
-CBUFFER_START(ShaderVariablesLightList)
-    float4x4 g_mInvScrProjectionArr;
-    float4x4 g_mScrProjectionArr;
-    float4x4 g_mInvProjectionArr;
-    float4x4 g_mProjectionArr;
-    float4 g_screenSize;
-    int2 g_viDimensions;
-    int g_iNrVisibLights;
-    uint g_isOrthographic;
-    uint g_BaseFeatureFlags;
-    int g_iNumSamplesMSAA;
-    uint _EnvLightIndexShift;
-    uint _DecalIndexShift;
-    uint _NumTileFtplX;
-    uint _NumTileFtplY;
-    float g_fClustScale;
-    float g_fClustBase;
-    float g_fNearPlane;
-    float g_fFarPlane;
-    int g_iLog2NumClusters;
-    uint g_isLogBaseBufferEnabled;
-    uint _NumTileClusteredX;
-    uint _NumTileClusteredY;
-CBUFFER_END
 
 // Generated from UnityEngine.Rendering.Universal.Internal.LightVolumeData
 // PackingRules = Exact
@@ -148,6 +121,48 @@ struct GPULightData
     float __unused0__;
     float __unused1__;
     float __unused2__;
+};
+
+// Generated from UnityEngine.Rendering.Universal.Internal.ShaderVariablesLightList
+// PackingRules = Exact
+CBUFFER_START(ShaderVariablesLightList)
+    float4x4 g_mInvScrProjectionArr;
+    float4x4 g_mScrProjectionArr;
+    float4x4 g_mInvProjectionArr;
+    float4x4 g_mProjectionArr;
+    float4 g_screenSize;
+    int2 g_viDimensions;
+    int g_iNrVisibLights;
+    uint g_isOrthographic;
+    uint g_BaseFeatureFlags;
+    int g_iNumSamplesMSAA;
+    uint _EnvLightIndexShift;
+    uint _DecalIndexShift;
+    uint _NumTileFtplX;
+    uint _NumTileFtplY;
+    float g_fClustScale;
+    float g_fClustBase;
+    float g_fNearPlane;
+    float g_fFarPlane;
+    int g_iLog2NumClusters;
+    uint g_isLogBaseBufferEnabled;
+    uint _NumTileClusteredX;
+    uint _NumTileClusteredY;
+    uint _DirectionalLightCount;
+    int _EnvSliceSize;
+CBUFFER_END
+
+// Generated from UnityEngine.Rendering.Universal.Internal.DirectionalLightData
+// PackingRules = Exact
+struct DirectionalLightData
+{
+    float3 lightPosWS;
+    uint lightLayerMask;
+    float3 lightColor;
+    int lightFlags;
+    float4 lightAttenuation;
+    float3 lightDirection;
+    int shadowlightIndex;
 };
 
 //

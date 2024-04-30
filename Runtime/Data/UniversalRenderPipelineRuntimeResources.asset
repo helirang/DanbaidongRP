@@ -29,6 +29,7 @@ MonoBehaviour:
       type: 3}
     gpuLightsFPTL: {fileID: 7200000, guid: 5a058a6e8d672fd4cb004ad5c00e25a5, type: 3}
     gpuLightsCluster: {fileID: 7200000, guid: f225c7a61afdc554e95cbceeb452ef78, type: 3}
+    deferredLighting: {fileID: 7200000, guid: b2c9162d60cfacb4094a5ca06efb9d09, type: 3}
   materials:
     lit: {fileID: 2100000, guid: 4c19d03af4d77ae49a8fd7cc69e444d9, type: 2}
   textures:

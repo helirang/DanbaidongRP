@@ -223,6 +223,7 @@ namespace UnityEngine.Rendering.Universal
         [ShaderKeywordFilter.RemoveIf(false, keywordNames: ShaderKeywordStrings._GBUFFER_NORMALS_OCT)]
 #endif
         [SerializeField] bool m_AccurateGbufferNormals = true;
+        [SerializeField] bool m_ComputeDeferredLighting = true;
         [SerializeField] IntermediateTextureMode m_IntermediateTextureMode = IntermediateTextureMode.Always;
 
         [SerializeField] List<InsertedGBufferPassSetting> m_InsertedGbufferPasses = new List<InsertedGBufferPassSetting>();
@@ -339,6 +340,19 @@ namespace UnityEngine.Rendering.Universal
             {
                 SetDirty();
                 m_AccurateGbufferNormals = value;
+            }
+        }
+
+        /// <summary>
+        /// Use compute shader for deferred lighting
+        /// </summary>
+        public bool computeDeferredLighting
+        {
+            get => m_ComputeDeferredLighting;
+            set
+            {
+                SetDirty();
+                m_ComputeDeferredLighting = value;
             }
         }
 

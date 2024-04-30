@@ -94,6 +94,8 @@ namespace UnityEngine.Rendering.Universal.Internal
         public void SetCameraSettings(RenderTextureDescriptor desc, FilterMode filterMode)
         {
             desc.depthBufferBits = 0;
+            // Change camera color target to UAV for compute shader. Danbaidong 20240416.
+            desc.enableRandomWrite = true;
             m_Desc = desc;
             m_FilterMode = filterMode;
 
