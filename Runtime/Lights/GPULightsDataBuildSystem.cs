@@ -95,15 +95,13 @@ namespace UnityEngine.Rendering.Universal.Internal
         public void ReBuildGPULightsDataBuffer(in RenderingData renderingData)
         {
             var visibleLights = renderingData.lightData.visibleLights;
-            var lightCount = visibleLights.Length;
-            var dirlightOffset = renderingData.lightData.directionalLightsCount;
-            AllocateGPULightsData(lightCount - dirlightOffset, dirlightOffset);
+            var dirlightCount = renderingData.lightData.directionalLightsCount;
+            AllocateGPULightsData(visibleLights.Length - dirlightCount, dirlightCount);
 
-            for (int i = 0; i < lightCount; i++)
+            for (int visLightIndex = 0; visLightIndex < visibleLights.Length; visLightIndex++)
             {
-                var visLightIndex = dirlightOffset + i;
-                var light = visibleLights[i].light;
-                if (visibleLights[i].lightType == LightType.Directional)
+                var light = visibleLights[visLightIndex].light;
+                if (visibleLights[visLightIndex].lightType == LightType.Directional)
                 {
                     var additionalLightData = light.GetUniversalAdditionalLightData();
 
@@ -111,7 +109,7 @@ namespace UnityEngine.Rendering.Universal.Internal
 
                     Vector4 lightPos, lightColor, lightAttenuation, lightSpotDir, lightOcclusionChannel;
                     // Directional lightPos is direction
-                    UniversalRenderPipeline.InitializeLightConstants_Common(visibleLights, i, out lightPos, out lightColor, out lightAttenuation, out lightSpotDir, out lightOcclusionChannel);
+                    UniversalRenderPipeline.InitializeLightConstants_Common(visibleLights, visLightIndex, out lightPos, out lightColor, out lightAttenuation, out lightSpotDir, out lightOcclusionChannel);
                     uint lightLayerMask = RenderingLayerUtils.ToValidRenderingLayers(additionalLightData.renderingLayers);
 
                     int lightFlags = 0;
@@ -119,7 +117,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                         lightFlags |= (int)LightFlag.SubtractiveMixedLighting;
 
                     // As we said before.
-                    directionalLightData.lightPosWS = visibleLights[i].GetPosition();
+                    directionalLightData.lightPosWS = visibleLights[visLightIndex].GetPosition();
                     directionalLightData.lightDirection = lightPos;
                     directionalLightData.lightColor = lightColor;
                     directionalLightData.lightAttenuation = lightAttenuation;
@@ -137,7 +135,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                     directionalLightData.specularDimmer = 1;
 
 
-                    m_DirectionalLightsData[i] = directionalLightData;
+                    m_DirectionalLightsData[visLightIndex] = directionalLightData;
                 }
                 else
                 {
@@ -146,7 +144,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                     var gpuLightsData = new GPULightData();
 
                     Vector4 lightPos, lightColor, lightAttenuation, lightSpotDir, lightOcclusionChannel;
-                    UniversalRenderPipeline.InitializeLightConstants_Common(visibleLights, i, out lightPos, out lightColor, out lightAttenuation, out lightSpotDir, out lightOcclusionChannel);
+                    UniversalRenderPipeline.InitializeLightConstants_Common(visibleLights, visLightIndex, out lightPos, out lightColor, out lightAttenuation, out lightSpotDir, out lightOcclusionChannel);
                     uint lightLayerMask = RenderingLayerUtils.ToValidRenderingLayers(additionalLightData.renderingLayers);
 
                     int lightFlags = 0;
@@ -165,10 +163,15 @@ namespace UnityEngine.Rendering.Universal.Internal
                     gpuLightsData.lightAttenuation = lightAttenuation;
                     gpuLightsData.lightOcclusionProbInfo = lightOcclusionChannel;
                     gpuLightsData.lightFlags = lightFlags;
-                    gpuLightsData.shadowlightIndex = shadowLightIndex;
+                    gpuLightsData.shadowLightIndex = shadowLightIndex;
+                    gpuLightsData.shadowType = (int)light.shadows;
                     gpuLightsData.lightLayerMask = lightLayerMask;
+                    //Value of max smoothness is derived from Radius. Formula results from eyeballing. Radius of 0 results in 1 and radius of 2.5 results in 0.
+                    float maxSmoothness = Mathf.Clamp01(1.1725f / (1.01f + Mathf.Pow(1.0f * (additionalLightData.shapeRadius + 0.1f), 2f)) - 0.15f);
+                    // Value of max smoothness is from artists point of view, need to convert from perceptual smoothness to roughness
+                    gpuLightsData.minRoughness = (1.0f - maxSmoothness) * (1.0f - maxSmoothness);
 
-                    m_GPULightsData[i - dirlightOffset] = gpuLightsData;
+                    m_GPULightsData[visLightIndex - dirlightCount] = gpuLightsData;
                 }
             }
         }

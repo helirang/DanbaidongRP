@@ -259,13 +259,13 @@ namespace UnityEngine.Rendering.Universal.Internal
         public Vector4 lightAttenuation;
 
         public Vector3 lightDirection;
-        public int shadowlightIndex;
+        public int shadowLightIndex;
 
         public Vector4 lightOcclusionProbInfo;
         
         public int cookieLightIndex;
-        public float __unused0__;
-        public float __unused1__;
+        public int shadowType;
+        public float minRoughness;
         public float __unused2__;
 
     };
@@ -542,6 +542,8 @@ namespace UnityEngine.Rendering.Universal.Internal
             cmd.SetGlobalBuffer(ShaderConstants.g_vLightListCluster, m_PerVoxelLightLists);
             cmd.SetGlobalBuffer(ShaderConstants.g_vLayeredOffsetsBuffer, m_PerVoxelOffset);
             cmd.SetGlobalBuffer(ShaderConstants.g_logBaseBuffer, m_PerTileLogBaseTweak);
+
+            CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.GPULightsCluster, true);
         }
 
         /// <inheritdoc/>
@@ -630,7 +632,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                 throw new ArgumentNullException("cmd");
 
             // Clean Keyword if need
-            //CoreUtils.SetKeyword(cmd, ShaderKeywordStrings, false);
+            //CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.GPULightsCluster, false);
         }
 
         /// <summary>

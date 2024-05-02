@@ -115,11 +115,11 @@ struct GPULightData
     int lightFlags;
     float4 lightAttenuation;
     float3 lightDirection;
-    int shadowlightIndex;
+    int shadowLightIndex;
     float4 lightOcclusionProbInfo;
     int cookieLightIndex;
-    float __unused0__;
-    float __unused1__;
+    int shadowType;
+    float minRoughness;
     float __unused2__;
 };
 

@@ -1,7 +1,7 @@
 // Definitions
 //--------------------------------------------------------------------------------------------------
 
-#pragma enable_d3d11_debug_symbols
+// #pragma enable_d3d11_debug_symbols
 #pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal
 // Note that DanbaidongRP don't care with switch platform(which need to handle with PLATFORM_LANE_COUNT).
 
@@ -12,8 +12,12 @@
 #pragma kernel DeferredLighting2            DEFERRED_LIGHTING           DEFERRED_COMPUTE_ENTRY=DeferredLighting2        DEFERRED_CHARACTER
 
 #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
+#pragma multi_compile _ _SHADOWS_SOFT
+#pragma multi_compile _ _LIGHT_LAYERS
 #pragma multi_compile _ _PEROBJECT_SCREEN_SPACE_SHADOW
 #pragma multi_compile _ _GBUFFER_NORMALS_OCT
+#pragma multi_compile _ _GPU_LIGHTS_CLUSTER
 //--------------------------------------------------------------------------------------------------
 // Included headers
 //--------------------------------------------------------------------------------------------------
@@ -31,6 +35,7 @@
 #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareDepthTexture.hlsl"
 #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/PreIntegratedFGD.hlsl"
 #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/GPUCulledLights.hlsl"
+#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityGBuffer.hlsl"
 #endif
 //--------------------------------------------------------------------------------------------------
 // Inputs & outputs
@@ -45,9 +50,19 @@ RWStructuredBuffer<uint> g_TileList;
 
 StructuredBuffer<uint> g_TileList;
 Texture2D<uint2> _StencilTexture;
-TEXTURE2D_X_FLOAT(_GBuffer0);
-TEXTURE2D_X_FLOAT(_GBuffer1);
-TEXTURE2D_X_FLOAT(_GBuffer2);
+TEXTURE2D_X(_GBuffer0);
+TEXTURE2D_X(_GBuffer1);
+TEXTURE2D_X(_GBuffer2);
+// Optional gbuffer, accroding to UnityGBuffer.hlsl defined
+#ifdef GBUFFER_OPTIONAL_SLOT_1
+TEXTURE2D_X(_GBuffer4);
+#endif
+#ifdef GBUFFER_OPTIONAL_SLOT_2
+TEXTURE2D_X(_GBuffer5);
+#endif
+#ifdef GBUFFER_OPTIONAL_SLOT_3
+TEXTURE2D_X(_GBuffer6);
+#endif
 
 RWTexture2D<float4> _LightingTexture;
 #endif
@@ -144,7 +159,7 @@ void InitializeDispatchThreadIdFromTileList(uint groupId, uint2 gThreadId, out u
 #endif
 
 //--------------------------------------------------------------------------------------------------
-// Implementation
+// Implementation Classify Tiles
 //--------------------------------------------------------------------------------------------------
 
 #if defined(DEFERRED_CLASSIFY_TILES)
@@ -224,71 +239,83 @@ void DeferredClassifyTiles(uint3 dispatchThreadId : SV_DispatchThreadID, uint gr
 }
 
 
+
 #elif defined(DEFERRED_LIGHTING)
 
-// struct PositionInputs
-// {
-//     float3 positionWS;  // World space position (could be camera-relative)
-//     float2 positionNDC; // Normalized screen coordinates within the viewport    : [0, 1) (with the half-pixel offset)
-//     uint2  positionSS;  // Screen space pixel coordinates                       : [0, NumPixels)
-//     uint2  tileCoord;   // Screen tile coordinates                              : [0, NumTiles)
-//     float  deviceDepth; // Depth from the depth buffer                          : [0, 1] (typically reversed)
-//     float  linearDepth; // View space Z coordinate                              : [Near, Far]
-// };
-// struct BRDFData
-// {
-//     float3 albedo;
-//     float3 diffuse;
-//     float3 specular;
-//     float reflectivity;
-//     float perceptualRoughness;
-//     float roughness;
-//     float roughness2;
-//     float grazingTerm;
 
-//     // We save some light invariant BRDF terms so we don't have to recompute
-//     // them in the light loop. Take a look at DirectBRDF function for detailed explaination.
-//     float normalizationTerm;     // roughness * 4.0 + 2.0
-//     float roughness2MinusOne;    // roughness^2 - 1.0
-// };
-// struct DirectionalLightData
-// {
-//     float3 lightPosWS;
-//     uint lightLayerMask;
-//     float3 lightColor;
-//     int lightFlags;
-//     float4 lightAttenuation;
-//     float3 lightDirection;
-//     int shadowlightIndex;
-// };
+#if defined(DEFERRED_LIT)
+//--------------------------------------------------------------------------------------------------
+// Implementation Shading Models: Lit
+//--------------------------------------------------------------------------------------------------
 
-DeferredLightingOutput DeferredLit(PositionInputs posInput, float4 gbuffer0, float4 gbuffer1, float4 gbuffer2)
+// Shading data decode from gbuffer
+struct ShadingData
 {
+    float3 normalWS;
 
-    DeferredLightingOutput lightOutput;
-    ZERO_INITIALIZE(DeferredLightingOutput, lightOutput);
+    float3 albedo;
+    float metallic;
+    float occlusion;
+    float smoothness;
+    uint materialFlags;
+
+    float perceptualRoughness;
+    float roughness;
+    float roughness2;
+
+    float3 diffuseColor;
+    float3 fresnel0;
+
+#ifdef _LIGHT_LAYERS
+    uint meshRenderingLayers;
+#endif
+};
+
+ShadingData DecodeShadingDataFromGBuffer(PositionInputs posInput)
+{
+    ShadingData shadingData;
+    ZERO_INITIALIZE(ShadingData, shadingData);
+
+    float4 gbuffer0 = LOAD_TEXTURE2D_X(_GBuffer0, posInput.positionSS);
+    float4 gbuffer1 = LOAD_TEXTURE2D_X(_GBuffer1, posInput.positionSS);
+    float4 gbuffer2 = LOAD_TEXTURE2D_X(_GBuffer2, posInput.positionSS);
 
     // Unpack GBuffer informations. Init datas.
     // See UnityGBuffer for more information.
     // GBuffer0: diffuse           diffuse         diffuse         materialFlags   (sRGB rendertarget)
     // GBuffer1: metallic/specular specular        specular        occlusion
     // GBuffer2: encoded-normal    encoded-normal  encoded-normal  smoothness
-    float3 positionWS       = posInput.positionWS;
-    float3 normalWS         = normalize(UnpackNormal(gbuffer2.xyz));
-    float3 viewDirWS        = GetWorldSpaceNormalizeViewDir(positionWS);
+    shadingData.normalWS            = normalize(UnpackNormal(gbuffer2.xyz));
 
-    float3 albedo          = gbuffer0.rgb;
-    float  metallic        = MetallicFromReflectivity(gbuffer1.r); // TODO: handle with Specular Metallic and setup.
-    float  occlusion       = gbuffer1.a;
-    float  smoothness      = gbuffer2.a;
-    uint   materialFlags   = UnpackMaterialFlags(gbuffer0.a);
+    shadingData.albedo              = gbuffer0.rgb;
+    shadingData.metallic            = MetallicFromReflectivity(gbuffer1.r); // TODO: handle with Specular Metallic and setup.
+    shadingData.occlusion           = gbuffer1.a;
+    shadingData.smoothness          = gbuffer2.a;
+    shadingData.materialFlags       = UnpackMaterialFlags(gbuffer0.a);
 
-    float perceptualRoughness = PerceptualSmoothnessToPerceptualRoughness(smoothness);
-    float roughness           = PerceptualRoughnessToRoughness(perceptualRoughness); // We need to max this with Angular Diameter, which result in minRoughness.
-    float roughness2          = max(roughness * roughness, FLT_MIN);
+    shadingData.perceptualRoughness = PerceptualSmoothnessToPerceptualRoughness(shadingData.smoothness);
+    shadingData.roughness           = PerceptualRoughnessToRoughness(shadingData.perceptualRoughness); // We need to max this with Angular Diameter, which result in minRoughness.
+    shadingData.roughness2          = max(shadingData.roughness * shadingData.roughness, FLT_MIN);
     
-    float3 diffuseColor = ComputeDiffuseColor(albedo, metallic);
-    float3 fresnel0 = ComputeFresnel0(albedo, metallic, DEFAULT_SPECULAR_VALUE);
+    shadingData.diffuseColor        = ComputeDiffuseColor(shadingData.albedo, shadingData.metallic);
+    shadingData.fresnel0            = ComputeFresnel0(shadingData.albedo, shadingData.metallic, DEFAULT_SPECULAR_VALUE);
+
+#ifdef _LIGHT_LAYERS
+    float4 renderingLayers = LOAD_TEXTURE2D_X(MERGE_NAME(_, GBUFFER_LIGHT_LAYERS), posInput.positionSS);
+    shadingData.meshRenderingLayers = DecodeMeshRenderingLayer(renderingLayers.r);
+#endif
+
+    return shadingData;
+}
+
+DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingData)
+{
+    DeferredLightingOutput lightOutput;
+    ZERO_INITIALIZE(DeferredLightingOutput, lightOutput);
+
+    float3 positionWS       = posInput.positionWS;
+    float3 normalWS         = shadingData.normalWS;
+    float3 viewDirWS        = GetWorldSpaceNormalizeViewDir(positionWS);
 
 
     float  NdotV = dot(normalWS, viewDirWS);
@@ -296,7 +323,7 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, float4 gbuffer0, flo
     float3 specularFGD;
     float  diffuseFGD;
     float  reflectivity;
-    GetPreIntegratedFGDGGXAndDisneyDiffuse(clampedNdotV, perceptualRoughness, fresnel0, specularFGD, diffuseFGD, reflectivity);
+    GetPreIntegratedFGDGGXAndDisneyDiffuse(clampedNdotV, shadingData.perceptualRoughness, shadingData.fresnel0, specularFGD, diffuseFGD, reflectivity);
     float energyCompensation = 1.0 / reflectivity - 1.0;
 
     float3 directDiffuse = 0;
@@ -307,43 +334,114 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, float4 gbuffer0, flo
     // Shading
 
     // Accumulate Direct (Directional Lights, Punctual Lights, TODO: Area Lights)
-    uint dirLightIndex = 0;
-    bool materialReceiveShadowsOff = (materialFlags & kMaterialFlagReceiveShadowsOff) != 0;
-    for (dirLightIndex = 0; dirLightIndex < _DirectionalLightCount; dirLightIndex++)
-    {
-        // TODO: LightLayer
-        DirectionalLightData dirLight = g_DirectionalLightDatas[dirLightIndex];
-        float3 lightDirWS = dirLight.lightDirection;
-        float NdotL = dot(normalWS, lightDirWS);
+        uint dirLightIndex = 0;
+        bool materialReceiveShadowsOff = (shadingData.materialFlags & kMaterialFlagReceiveShadowsOff) != 0;
+        for (dirLightIndex = 0; dirLightIndex < _DirectionalLightCount; dirLightIndex++)
+        {
+
+            DirectionalLightData dirLight = g_DirectionalLightDatas[dirLightIndex];
+            #ifdef _LIGHT_LAYERS
+            if (IsMatchingLightLayer(dirLight.lightLayerMask, shadingData.meshRenderingLayers))
+            #endif
+            {
+                float3 lightDirWS = dirLight.lightDirection;
+                float NdotL = dot(normalWS, lightDirWS);
+                
+                float clampedNdotL = saturate(NdotL);
+                float clampedRoughness = max(shadingData.roughness, dirLight.minRoughness);
+
+                float LdotV, NdotH, LdotH, invLenLV;
+                GetBSDFAngle(viewDirWS, lightDirWS, NdotL, NdotV, LdotV, NdotH, LdotH, invLenLV);
+
+
+                float3 F = F_Schlick(shadingData.fresnel0, LdotH);
+                float DV = DV_SmithJointGGX(NdotH, abs(NdotL), clampedNdotV, clampedRoughness);
+                float3 specTerm = F * DV;
+                float diffTerm = DisneyDiffuse(clampedNdotV, abs(NdotL), LdotV, shadingData.perceptualRoughness);
+
+                diffTerm *= clampedNdotL;
+                specTerm *= clampedNdotL;
+
+                directDiffuse += shadingData.diffuseColor * diffTerm * dirLight.lightColor;
+                directSpecular += specTerm * dirLight.lightColor;
+            }
+
+        }
+        // Apply Shadows
+        // TODO: add different direct light shadowmap
+        float shadowAttenuation = LoadScreenSpaceShadowmap(posInput.positionSS);
+        #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
+        shadowAttenuation = min(shadowAttenuation, LoadPerObjectScreenSpaceShadowmap(posInput.positionSS));
+        #endif
+        directDiffuse *= shadowAttenuation;
+        directSpecular *= shadowAttenuation;
+
+
+        // Punctual Lights
+        uint lightCategory = 0;
+        uint lightStart;
+        uint lightCount;
+        GetCountAndStart(posInput, lightCategory, lightStart, lightCount);
+        uint v_lightListOffset = 0;
+        uint v_lightIdx = lightStart;
+
+        if (lightCount > 0) // avoid 0 iteration warning.
+        {
+            while (v_lightListOffset < lightCount)
+            {
+                v_lightIdx = FetchIndex(lightStart, v_lightListOffset);
+                if (v_lightIdx == -1)
+                    break;
+
+                GPULightData gpuLight = FetchLight(v_lightIdx);
+
+                #ifdef _LIGHT_LAYERS
+                if (IsMatchingLightLayer(gpuLight.lightLayerMask, shadingData.meshRenderingLayers))
+                #endif
+                {
+                    float3 lightVector = gpuLight.lightPosWS - positionWS.xyz;
+                    float distanceSqr = max(dot(lightVector, lightVector), FLT_MIN);
+
+                    float3 lightDirection = float3(lightVector * rsqrt(distanceSqr));
+
+                    // full-float precision required on some platforms
+                    float attenuation = DistanceAttenuation(distanceSqr, gpuLight.lightAttenuation.xy);
+
+
+                    float shadowMask = 1;
+                    float shadowAttenuation = gpuLight.shadowType == 0 ? 1 : AdditionalLightShadow(gpuLight.shadowLightIndex, positionWS, lightDirection, shadowMask, gpuLight.lightOcclusionProbInfo);
+
+                    attenuation *= shadowAttenuation;
+
+                    float3 lightDirWS = lightDirection;
+                    float NdotL = dot(normalWS, lightDirWS);
+                    
+                    float clampedNdotL = saturate(NdotL);
+                    float clampedRoughness = max(shadingData.roughness, gpuLight.minRoughness);
+
+                    float LdotV, NdotH, LdotH, invLenLV;
+                    GetBSDFAngle(viewDirWS, lightDirWS, NdotL, NdotV, LdotV, NdotH, LdotH, invLenLV);
+
+
+                    float3 F = F_Schlick(shadingData.fresnel0, LdotH);
+                    float DV = DV_SmithJointGGX(NdotH, abs(NdotL), clampedNdotV, clampedRoughness);
+                    float3 specTerm = F * DV;
+                    float diffTerm = DisneyDiffuse(clampedNdotV, abs(NdotL), LdotV, shadingData.perceptualRoughness);
+
+                    diffTerm *= clampedNdotL;
+                    specTerm *= clampedNdotL;
+
+                    directDiffuse += shadingData.diffuseColor * diffTerm * gpuLight.lightColor * attenuation;
+                    directSpecular += specTerm * gpuLight.lightColor * attenuation;
+
+
+                }
+
+                v_lightListOffset++;
+            }
+        }
         
-        float clampedNdotL = saturate(NdotL);
-        float clampedRoughness = max(roughness, dirLight.minRoughness);
-
-        float LdotV, NdotH, LdotH, invLenLV;
-        GetBSDFAngle(viewDirWS, lightDirWS, NdotL, NdotV, LdotV, NdotH, LdotH, invLenLV);
-
-
-        float3 F = F_Schlick(fresnel0, LdotH);
-        float DV = DV_SmithJointGGX(NdotH, abs(NdotL), clampedNdotV, clampedRoughness);
-        float3 specTerm = F * DV;
-        float diffTerm = DisneyDiffuse(clampedNdotV, abs(NdotL), LdotV, perceptualRoughness);
-
-        diffTerm *= clampedNdotL;
-        specTerm *= clampedNdotL;
-
-        directDiffuse += diffuseColor * diffTerm * dirLight.lightColor;
-        directSpecular += specTerm * dirLight.lightColor;
-    }
-    // Shadows, current only main light shadow.
-    // TODO: add different direct light shadowmap
-    float shadowAttenuation = LoadScreenSpaceShadowmap(posInput.positionSS);
-    #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
-    shadowAttenuation = min(shadowAttenuation, LoadPerObjectScreenSpaceShadowmap(posInput.positionSS));
-    #endif
-    directDiffuse *= shadowAttenuation;
-    directSpecular *= shadowAttenuation;
-
-
+    
 
 
 
@@ -355,20 +453,20 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, float4 gbuffer0, flo
     //  3. Sky Reflection / Refraction
 
     float3 SHColor = SampleSH(normalWS);
-    indirectDiffuse += diffuseFGD * SHColor * diffuseColor;
+    indirectDiffuse += diffuseFGD * SHColor * shadingData.diffuseColor;
     // TODO: ModifyBakedDiffuseLighting Function
 
 
     float3 reflectDirWS = reflect(-viewDirWS, normalWS);
     // Env is cubemap
     {
-        float3 specDominantDirWS = GetSpecularDominantDir(normalWS, reflectDirWS, perceptualRoughness, clampedNdotV);
+        float3 specDominantDirWS = GetSpecularDominantDir(normalWS, reflectDirWS, shadingData.perceptualRoughness, clampedNdotV);
         // When we are rough, we tend to see outward shifting of the reflection when at the boundary of the projection volume
         // Also it appear like more sharp. To avoid these artifact and at the same time get better match to reference we lerp to original unmodified reflection.
         // Formula is empirical.
-        reflectDirWS = lerp(specDominantDirWS, reflectDirWS, saturate(smoothstep(0, 1, roughness2)));
+        reflectDirWS = lerp(specDominantDirWS, reflectDirWS, saturate(smoothstep(0, 1, shadingData.roughness2)));
     }
-    float3 envReflection = GlossyEnvironmentReflection(reflectDirWS, perceptualRoughness, occlusion);// TODO: reflection is so different from HDRP
+    float3 envReflection = GlossyEnvironmentReflection(reflectDirWS, shadingData.perceptualRoughness, shadingData.occlusion);// TODO: reflection is so different from HDRP
     indirectSpecular += specularFGD * envReflection;
 
     // Post evaluate indirect diffuse or energy.
@@ -377,44 +475,87 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, float4 gbuffer0, flo
 
     lightOutput.diffuseLighting = directDiffuse + indirectDiffuse;
     lightOutput.specularLighting = directSpecular + indirectSpecular;
-    lightOutput.specularLighting *= 1.0 + fresnel0 * energyCompensation;
+    lightOutput.specularLighting *= 1.0 + shadingData.fresnel0 * energyCompensation;
 
     return lightOutput;
 }
 
-DeferredLightingOutput DeferredSimpleLit(PositionInputs posInput, float4 gbuffer0, float4 gbuffer1, float4 gbuffer2)
+
+#elif defined(DEFERRED_SIMPLELIT)
+//--------------------------------------------------------------------------------------------------
+// Implementation Shading Models: SimpleLit
+//--------------------------------------------------------------------------------------------------
+
+// Shading data decode from gbuffer
+struct ShadingData
+{
+    float3 albedo;
+};
+
+ShadingData DecodeShadingDataFromGBuffer(PositionInputs posInput)
+{
+    ShadingData shadingData;
+    ZERO_INITIALIZE(ShadingData, shadingData);
+
+    float4 gbuffer0 = LOAD_TEXTURE2D_X(_GBuffer0, posInput.positionSS);
+
+    shadingData.albedo = gbuffer0.rgb;
+    return shadingData;
+}
+
+DeferredLightingOutput DeferredSimpleLit(PositionInputs posInput, ShadingData shadingData)
 {
     DeferredLightingOutput lightOutput;
     ZERO_INITIALIZE(DeferredLightingOutput, lightOutput);
 
-    BRDFData brdfData = BRDFDataFromGbuffer(gbuffer0, gbuffer1, gbuffer2);
-
-    lightOutput.diffuseLighting = brdfData.albedo;
+    lightOutput.diffuseLighting = shadingData.albedo;
 
     return lightOutput;
 }
 
-DeferredLightingOutput DeferredCharacter(PositionInputs posInput, float4 gbuffer0, float4 gbuffer1, float4 gbuffer2)
+
+#elif defined(DEFERRED_CHARACTER)
+//--------------------------------------------------------------------------------------------------
+// Implementation Shading Models: Character
+//--------------------------------------------------------------------------------------------------
+
+// Shading data decode from gbuffer
+struct ShadingData
+{
+    float3 albedo;
+};
+
+ShadingData DecodeShadingDataFromGBuffer(PositionInputs posInput)
+{
+    ShadingData shadingData;
+    ZERO_INITIALIZE(ShadingData, shadingData);
+
+    float4 gbuffer0 = LOAD_TEXTURE2D_X(_GBuffer0, posInput.positionSS);
+
+    shadingData.albedo = gbuffer0.rgb;
+    return shadingData;
+}
+
+DeferredLightingOutput DeferredCharacter(PositionInputs posInput, ShadingData shadingData)
 {
     DeferredLightingOutput lightOutput;
     ZERO_INITIALIZE(DeferredLightingOutput, lightOutput);
 
-    BRDFData brdfData = BRDFDataFromGbuffer(gbuffer0, gbuffer1, gbuffer2);
-
-    lightOutput.diffuseLighting = brdfData.albedo;
+    lightOutput.diffuseLighting = shadingData.albedo;
 
     return lightOutput;
 }
+#endif
 
 
-DeferredLightingOutput DeferredShading(PositionInputs posInput, float4 gbuffer0, float4 gbuffer1, float4 gbuffer2)
+DeferredLightingOutput DeferredShading(PositionInputs posInput, ShadingData shadingData)
 {
 #if defined(DEFERRED_LIT)
-    return DeferredLit(posInput, gbuffer0, gbuffer1, gbuffer2);
+    return DeferredLit(posInput, shadingData);
 #elif defined(DEFERRED_SIMPLELIT)
-    return DeferredSimpleLit(posInput, gbuffer0, gbuffer1, gbuffer2);
+    return DeferredSimpleLit(posInput, shadingData);
 #elif defined(DEFERRED_CHARACTER)
-    return DeferredCharacter(posInput, gbuffer0, gbuffer1, gbuffer2);
+    return DeferredCharacter(posInput, shadingData);
 #endif
 }
 
@@ -443,12 +584,9 @@ void DEFERRED_COMPUTE_ENTRY(uint3 dispatchThreadId : SV_DispatchThreadID, uint2 
 
     PositionInputs posInput = GetPositionInput(coordSS.xy, _ScreenSize.zw, depth, UNITY_MATRIX_I_VP, UNITY_MATRIX_V, tileCoord);
 
-    float4 gbuffer0 = LOAD_TEXTURE2D_X(_GBuffer0, coordSS.xy);
-    float4 gbuffer1 = LOAD_TEXTURE2D_X(_GBuffer1, coordSS.xy);
-    float4 gbuffer2 = LOAD_TEXTURE2D_X(_GBuffer2, coordSS.xy);
+    ShadingData shadingData = DecodeShadingDataFromGBuffer(posInput);
 
-
-    DeferredLightingOutput lightOutput = DeferredShading(posInput, gbuffer0, gbuffer1, gbuffer2);
+    DeferredLightingOutput lightOutput = DeferredShading(posInput, shadingData);
 
 
     float3 diffuseLighting = lightOutput.diffuseLighting;

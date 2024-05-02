@@ -1300,8 +1300,6 @@ namespace UnityEngine.Rendering.Universal.Internal
 
                         cmd.SetComputeTextureParam(m_DeferredLightingCS, kernelIndex, "unity_SpecCube0", ReflectionProbe.defaultTexture);
                         cmd.SetComputeVectorParam(m_DeferredLightingCS, "unity_SpecCube0_HDR", ReflectionProbe.defaultTextureHDRDecodeValues);
-
-
                         cmd.DispatchCompute(m_DeferredLightingCS, kernelIndex, m_DispatchIndirectBuffer, (uint)modelIndex * 3 * sizeof(uint));
                     }
                 }

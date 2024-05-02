@@ -1251,7 +1251,11 @@ namespace UnityEngine.Rendering.Universal
         /// <summary> Keyword used for Drawing procedurally.</summary>
         public const string UseDrawProcedural = "_USE_DRAW_PROCEDURAL";
 
+        /// <summary> Keyword used for PerObjectShadow.</summary>
         public const string PerObjectScreenSpaceShadow = "_PEROBJECT_SCREEN_SPACE_SHADOW";
+
+        /// <summary> Keyword used for GPULights.</summary>
+        public const string GPULightsCluster = "_GPU_LIGHTS_CLUSTER";
     }
 
     public sealed partial class UniversalRenderPipeline

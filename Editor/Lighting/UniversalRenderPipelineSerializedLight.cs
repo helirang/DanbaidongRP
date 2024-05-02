@@ -32,6 +32,9 @@ namespace UnityEditor.Rendering.Universal
         // Shape Directional
         public SerializedProperty angularDiameter { get; }
 
+        // Shape Puntual
+        public SerializedProperty shapeRadius { get; }
+
         /// <summary>Method that updates the <see cref="SerializedObject"/> of the Light and the Additional Light Data</summary>
         public void Update()
         {
@@ -75,6 +78,8 @@ namespace UnityEditor.Rendering.Universal
             shadowRenderingLayers = serializedAdditionalDataObject.FindProperty("m_ShadowRenderingLayers");
 
             angularDiameter = serializedAdditionalDataObject.FindProperty("m_AngularDiameter");
+
+            shapeRadius = serializedAdditionalDataObject.FindProperty("m_ShapeRadius");
 
             settings.ApplyModifiedProperties();
         }

@@ -452,7 +452,8 @@ void ClusterCullingLights(uint3 dispatchThreadId : SV_DispatchThreadID, uint gro
 
     GroupMemoryBarrierWithGroupSync();
     
-    float currTileFarPlane = linMaxDepth;
+    float currTileFarPlane = asfloat(gs_MaxDepth);
+    currTileFarPlane = currTileFarPlane > 0.0 ? currTileFarPlane : g_fFarPlane; // sky pixel
     float suggestedBase = SuggestLogBase50(currTileFarPlane);
 
 

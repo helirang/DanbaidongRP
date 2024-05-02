@@ -29,6 +29,19 @@ namespace UnityEngine.Rendering.Universal
     }
 
     /// <summary>
+    /// Shape of a spot light
+    /// </summary>
+    public enum SpotLightShape
+    {
+        /// <summary>Cone shape. The default shape of the spot light.</summary>
+        Cone,
+        /// <summary>Pyramid shape.</summary>
+        //Pyramid,
+        /// <summary>Box shape. Similar to a directional light but with bounds.</summary>
+        //Box
+    }
+
+    /// <summary>
     /// Contains extension methods for Light class.
     /// </summary>
     public static class LightExtensions
@@ -149,6 +162,10 @@ namespace UnityEngine.Rendering.Universal
             set { m_RenderingLayers = value; }
         }
 
+        /// <summary>
+        /// Angular diameter of the emissive celestial body represented by the light as seen from the camera (in degrees).
+        /// Used to render the sun/moon disk.
+        /// </summary>
         [SerializeField] float m_AngularDiameter = 0.5f;
         public float angularDiameter
         {
@@ -156,6 +173,15 @@ namespace UnityEngine.Rendering.Universal
             set { m_AngularDiameter = value; }
         }
 
+        /// <summary>
+        /// Only for Punctual/Sphere/Disc. Default shape radius is not 0 so that specular highlight is visible by default, it matches the previous default of 0.99 for MaxSmoothness.
+        /// </summary>
+        [SerializeField] float m_ShapeRadius = 0.025f;
+        public float shapeRadius
+        {
+            get => m_ShapeRadius;
+            set { m_ShapeRadius = value; }
+        }
 
         [SerializeField] bool m_CustomShadowLayers = false;
 
