@@ -161,6 +161,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                     gpuLightsData.lightPosWS = lightPos;
                     gpuLightsData.lightColor = lightColor;
                     gpuLightsData.lightAttenuation = lightAttenuation;
+                    gpuLightsData.lightDirection = lightSpotDir;
                     gpuLightsData.lightOcclusionProbInfo = lightOcclusionChannel;
                     gpuLightsData.lightFlags = lightFlags;
                     gpuLightsData.shadowLightIndex = shadowLightIndex;

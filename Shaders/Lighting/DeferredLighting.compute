@@ -401,17 +401,12 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
                 {
                     float3 lightVector = gpuLight.lightPosWS - positionWS.xyz;
                     float distanceSqr = max(dot(lightVector, lightVector), FLT_MIN);
-
                     float3 lightDirection = float3(lightVector * rsqrt(distanceSqr));
-
-                    // full-float precision required on some platforms
-                    float attenuation = DistanceAttenuation(distanceSqr, gpuLight.lightAttenuation.xy);
-
-
                     float shadowMask = 1;
-                    float shadowAttenuation = gpuLight.shadowType == 0 ? 1 : AdditionalLightShadow(gpuLight.shadowLightIndex, positionWS, lightDirection, shadowMask, gpuLight.lightOcclusionProbInfo);
 
-                    attenuation *= shadowAttenuation;
+                    float distanceAtten = DistanceAttenuation(distanceSqr, gpuLight.lightAttenuation.xy) * AngleAttenuation(gpuLight.lightDirection.xyz, lightDirection, gpuLight.lightAttenuation.zw);
+                    float shadowAtten = gpuLight.shadowType == 0 ? 1 : AdditionalLightShadow(gpuLight.shadowLightIndex, positionWS, lightDirection, shadowMask, gpuLight.lightOcclusionProbInfo);
+                    float attenuation = distanceAtten * shadowAtten;
 
                     float3 lightDirWS = lightDirection;
                     float NdotL = dot(normalWS, lightDirWS);
@@ -427,6 +422,7 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
                     float DV = DV_SmithJointGGX(NdotH, abs(NdotL), clampedNdotV, clampedRoughness);
                     float3 specTerm = F * DV;
                     float diffTerm = DisneyDiffuse(clampedNdotV, abs(NdotL), LdotV, shadingData.perceptualRoughness);
+                    // float diffTerm = Lambert();
 
                     diffTerm *= clampedNdotL;
                     specTerm *= clampedNdotL;
