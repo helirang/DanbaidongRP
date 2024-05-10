@@ -16,6 +16,11 @@ Shader "Hidden/TerrainEngine/Details/UniversalPipeline/BillboardWavingDoublePass
 
         Pass
         {
+            Name "ForwardLit"
+            Tags
+            {
+                "LightMode" = "UniversalForward"
+            }
             AlphaToMask On
 
             HLSLPROGRAM
@@ -26,10 +31,11 @@ Shader "Hidden/TerrainEngine/Details/UniversalPipeline/BillboardWavingDoublePass
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
             #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
-            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #pragma multi_compile _ LIGHTMAP_SHADOW_MIXING
             #pragma multi_compile _ SHADOWS_SHADOWMASK
             #pragma multi_compile _ _FORWARD_PLUS
+            #include_with_pragmas "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl"
 
             // -------------------------------------
             // Unity defined keywords
@@ -46,8 +52,50 @@ Shader "Hidden/TerrainEngine/Details/UniversalPipeline/BillboardWavingDoublePass
             #pragma fragment LitPassFragmentGrass
             #define _ALPHATEST_ON
 
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Terrain/WavingGrassInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Terrain/WavingGrassPasses.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/Terrain/WavingGrassInput.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/Terrain/WavingGrassPasses.hlsl"
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "GBuffer"
+            Tags
+            {
+                "LightMode" = "UniversalGBuffer"
+            }
+
+            HLSLPROGRAM
+            #pragma target 4.5
+
+            // Deferred Rendering Path does not support the OpenGL-based graphics API:
+            // Desktop OpenGL, OpenGL ES 3.0, WebGL 2.0.
+            #pragma exclude_renderers gles3 glcore
+
+            // -------------------------------------
+            // Universal Pipeline keywords
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            #pragma multi_compile_fragment _ _RENDER_PASS_ENABLED
+            #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
+            #include_with_pragmas "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl"
+
+            // -------------------------------------
+            // Unity defined keywords
+            #pragma multi_compile _ SHADOWS_SHADOWMASK
+            #pragma multi_compile _ LIGHTMAP_SHADOW_MIXING
+
+            //--------------------------------------
+            // GPU Instancing
+            #pragma multi_compile_instancing
+
+            #pragma vertex WavingGrassBillboardVert
+            #pragma fragment LitPassFragmentGrass
+            #define _ALPHATEST_ON
+            #define TERRAIN_GBUFFER
+
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/Terrain/WavingGrassInput.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/Terrain/WavingGrassPasses.hlsl"
             ENDHLSL
         }
 
@@ -63,7 +111,7 @@ Shader "Hidden/TerrainEngine/Details/UniversalPipeline/BillboardWavingDoublePass
             HLSLPROGRAM
             #pragma target 2.0
 
-            #pragma vertex DepthOnlyVertex
+            #pragma vertex DepthOnlyBillboardVertex
             #pragma fragment DepthOnlyFragment
 
             // -------------------------------------
@@ -75,8 +123,8 @@ Shader "Hidden/TerrainEngine/Details/UniversalPipeline/BillboardWavingDoublePass
             // GPU Instancing
             #pragma multi_compile_instancing
 
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Terrain/WavingGrassInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Terrain/WavingGrassPasses.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/Terrain/WavingGrassInput.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/Terrain/WavingGrassPasses.hlsl"
             ENDHLSL
         }
 
@@ -91,7 +139,7 @@ Shader "Hidden/TerrainEngine/Details/UniversalPipeline/BillboardWavingDoublePass
             HLSLPROGRAM
             #pragma target 2.0
 
-            #pragma vertex DepthNormalOnlyVertex
+            #pragma vertex DepthNormalOnlyBillboardVertex
             #pragma fragment DepthNormalOnlyFragment
 
             // -------------------------------------
@@ -103,8 +151,8 @@ Shader "Hidden/TerrainEngine/Details/UniversalPipeline/BillboardWavingDoublePass
             // GPU Instancing
             #pragma multi_compile_instancing
 
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Terrain/WavingGrassInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Terrain/WavingGrassDepthNormalsPass.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/Terrain/WavingGrassInput.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/Terrain/WavingGrassDepthNormalsPass.hlsl"
             ENDHLSL
         }
     }

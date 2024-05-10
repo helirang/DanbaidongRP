@@ -4,7 +4,7 @@
 #define SHADERGRAPH_SAMPLE_SCENE_DEPTH(uv) shadergraph_LWSampleSceneDepth(uv)
 #define SHADERGRAPH_SAMPLE_SCENE_COLOR(uv) shadergraph_LWSampleSceneColor(uv)
 #define SHADERGRAPH_SAMPLE_SCENE_NORMAL(uv) shadergraph_LWSampleSceneNormals(uv)
-#define SHADERGRAPH_BAKED_GI(positionWS, normalWS, uvStaticLightmap, uvDynamicLightmap, applyScaling) shadergraph_LWBakedGI(positionWS, normalWS, uvStaticLightmap, uvDynamicLightmap, applyScaling)
+#define SHADERGRAPH_BAKED_GI(positionWS, normalWS, positionSS, uvStaticLightmap, uvDynamicLightmap, applyScaling) shadergraph_LWBakedGI(positionWS, normalWS, positionSS, uvStaticLightmap, uvDynamicLightmap, applyScaling)
 #define SHADERGRAPH_REFLECTION_PROBE(viewDir, normalOS, lod) shadergraph_LWReflectionProbe(viewDir, normalOS, lod)
 #define SHADERGRAPH_FOG(position, color, density) shadergraph_LWFog(position, color, density)
 #define SHADERGRAPH_AMBIENT_SKY unity_AmbientSky
@@ -15,15 +15,15 @@
 #define SHADERGRAPH_RENDERER_BOUNDS_MAX shadergraph_RendererBoundsWS_Max()
 
 #if defined(REQUIRE_DEPTH_TEXTURE)
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareDepthTexture.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 #endif
 
 #if defined(REQUIRE_OPAQUE_TEXTURE)
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareOpaqueTexture.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
 #endif
 
 #if defined(REQUIRE_NORMAL_TEXTURE)
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareNormalsTexture.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareNormalsTexture.hlsl"
 #endif
 
 float shadergraph_LWSampleSceneDepth(float2 uv)
@@ -53,7 +53,7 @@ float3 shadergraph_LWSampleSceneNormals(float2 uv)
 #endif
 }
 
-float3 shadergraph_LWBakedGI(float3 positionWS, float3 normalWS, float2 uvStaticLightmap, float2 uvDynamicLightmap, bool applyScaling)
+float3 shadergraph_LWBakedGI(float3 positionWS, float3 normalWS, uint2 positionSS, float2 uvStaticLightmap, float2 uvDynamicLightmap, bool applyScaling)
 {
 #ifdef LIGHTMAP_ON
     if (applyScaling)
@@ -67,7 +67,18 @@ float3 shadergraph_LWBakedGI(float3 positionWS, float3 normalWS, float2 uvStatic
     return SampleLightmap(uvStaticLightmap, normalWS);
 #endif
 #else
+    #if (defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2))
+    if (_EnableProbeVolumes)
+    {
+        float3 bakeDiffuseLighting;
+        EvaluateAdaptiveProbeVolume(positionWS, normalWS, GetWorldSpaceNormalizeViewDir(positionWS), positionSS, bakeDiffuseLighting);
+        return bakeDiffuseLighting;
+    }
+    else
+        return SampleSH(normalWS);
+    #else
     return SampleSH(normalWS);
+    #endif
 #endif
 }
 
@@ -75,7 +86,7 @@ float3 shadergraph_LWReflectionProbe(float3 viewDir, float3 normalOS, float lod)
 {
     float3 reflectVec = reflect(-viewDir, normalOS);
 #if USE_FORWARD_PLUS
-    return half4(SAMPLE_TEXTURECUBE_LOD(_GlossyEnvironmentCubeMap, sampler_GlossyEnvironmentCubeMap, reflectVec, lod));
+    return SAMPLE_TEXTURECUBE_LOD(_GlossyEnvironmentCubeMap, sampler_GlossyEnvironmentCubeMap, reflectVec, lod).rgb;
 #else
     return DecodeHDREnvironment(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0, samplerunity_SpecCube0, reflectVec, lod), unity_SpecCube0_HDR);
 #endif

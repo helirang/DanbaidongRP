@@ -1,9 +1,9 @@
 #ifndef UNIVERSAL_WAVING_GRASS_PASSES_INCLUDED
 #define UNIVERSAL_WAVING_GRASS_PASSES_INCLUDED
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Lighting.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityGBuffer.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/ShaderVariablesFunctions.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityGBuffer.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ShaderVariablesFunctions.hlsl"
 
 struct GrassVertexInput
 {
@@ -72,6 +72,12 @@ void InitializeInputData(GrassVertexOutput input, out InputData inputData)
 
 #if defined(DYNAMICLIGHTMAP_ON)
     inputData.bakedGI = SAMPLE_GI(input.lightmapUV, NOT_USED, input.vertexSH, inputData.normalWS);
+#elif !defined(LIGHTMAP_ON) && (defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2))
+    inputData.bakedGI = SAMPLE_GI(input.vertexSH,
+        GetAbsolutePositionWS(inputData.positionWS),
+        inputData.normalWS,
+        inputData.viewDirectionWS,
+        input.clipPos.xy);
 #else
     inputData.bakedGI = SAMPLE_GI(input.lightmapUV, input.vertexSH, inputData.normalWS);
 #endif
@@ -110,7 +116,7 @@ void InitializeVertData(GrassVertexInput input, inout GrassVertexOutput vertData
     // see DECLARE_LIGHTMAP_OR_SH macro.
     // The following funcions initialize the correct variable with correct data
     OUTPUT_LIGHTMAP_UV(input.lightmapUV, unity_LightmapST, vertData.lightmapUV);
-    OUTPUT_SH(vertData.normal, vertData.vertexSH);
+    OUTPUT_SH4(vertexInput.positionWS, vertData.normal.xyz, GetWorldSpaceNormalizeViewDir(vertexInput.positionWS), vertData.vertexSH);
 
     half3 vertexLight = VertexLighting(vertexInput.positionWS, vertData.normal.xyz);
 #if defined(_FOG_FRAGMENT)
@@ -204,7 +210,7 @@ half4 LitPassFragmentGrass(GrassVertexOutput input) : SV_Target
 
     InputData inputData;
     InitializeInputData(input, inputData);
-    SETUP_DEBUG_TEXTURE_DATA(inputData, input.uv, _MainTex);
+    SETUP_DEBUG_TEXTURE_DATA_FOR_TEX(inputData, input.uv, _MainTex);
 
 #ifdef TERRAIN_GBUFFER
     half4 color = half4(inputData.bakedGI * surfaceData.albedo + surfaceData.emission, surfaceData.alpha);
@@ -253,6 +259,24 @@ GrassVertexDepthOnlyOutput DepthOnlyVertex(GrassVertexDepthOnlyInput v)
     // _WaveAndDistance.z == 0 for MeshLit
     float waveAmount = v.color.a * _WaveAndDistance.z;
     o.color = TerrainWaveGrass(v.vertex, waveAmount, v.color);
+
+    InitializeVertData(v, o);
+
+    return o;
+}
+
+GrassVertexDepthOnlyOutput DepthOnlyBillboardVertex(GrassVertexDepthOnlyInput v)
+{
+    GrassVertexDepthOnlyOutput o = (GrassVertexDepthOnlyOutput) 0;
+    UNITY_SETUP_INSTANCE_ID(v);
+    UNITY_TRANSFER_INSTANCE_ID(v, o);
+    UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
+
+    TerrainBillboardGrass (v.vertex, v.tangent.xy);
+
+    // wave amount defined by the grass height
+    float waveAmount = v.tangent.y;
+    o.color = TerrainWaveGrass (v.vertex, waveAmount, v.color);
 
     InitializeVertData(v, o);
 

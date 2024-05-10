@@ -1,3 +1,6 @@
+using System;
+using UnityEngine.Rendering.Universal.Internal;
+
 namespace UnityEngine.Rendering.Universal
 {
     /// <summary>
@@ -18,28 +21,29 @@ namespace UnityEngine.Rendering.Universal
             m_shouldReceiveShadows = shadowReceiveSupported;
         }
 
-        public bool Setup(ref RenderingData renderingData)
+        public bool Setup()
         {
             // Currently we only need to enqueue this pass when the user
             // doesn't want transparent objects to receive shadows
             return !m_shouldReceiveShadows;
         }
 
+        [Obsolete(DeprecationMessage.CompatibilityScriptingAPIObsolete, false)]
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             // Get a command buffer...
             var cmd = renderingData.commandBuffer;
-            ExecutePass(cmd, m_shouldReceiveShadows);
+            ExecutePass(CommandBufferHelpers.GetRasterCommandBuffer(cmd), m_shouldReceiveShadows);
         }
 
-        public static void ExecutePass(CommandBuffer cmd, bool shouldReceiveShadows)
+        public static void ExecutePass(RasterCommandBuffer cmd, bool shouldReceiveShadows)
         {
             using (new ProfilingScope(cmd, m_ProfilingSampler))
             {
-                // Toggle light shadows enabled based on the renderer setting set in the constructor
-                CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.MainLightShadows, shouldReceiveShadows);
-                CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.MainLightShadowCascades, shouldReceiveShadows);
-                CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.AdditionalLightShadows, shouldReceiveShadows);
+                // This pass is only used when transparent objects should not
+                // receive shadows using the setting on the URP Renderer.
+                MainLightShadowCasterPass.SetEmptyMainLightShadowParams(cmd);
+                AdditionalLightsShadowCasterPass.SetEmptyAdditionalLightShadowParams(cmd, AdditionalLightsShadowCasterPass.s_EmptyAdditionalLightIndexToShadowParams);
             }
         }
     }

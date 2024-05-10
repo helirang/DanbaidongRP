@@ -1,7 +1,7 @@
 #ifndef UNIVERSAL_NORMAL_RECONSTRUCTION
 #define UNIVERSAL_NORMAL_RECONSTRUCTION
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareDepthTexture.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
 #if defined(USING_STEREO_MATRICES)
 #define unity_eyeIndex unity_StereoEyeIndex
@@ -13,7 +13,7 @@ float4x4 _NormalReconstructionMatrix[2];
 
 float GetRawDepth(float2 uv)
 {
-    return SampleSceneDepth(uv.xy).r;
+    return SampleSceneDepth(uv.xy, sampler_PointClamp).r;
 }
 
 // inspired by keijiro's depth inverse projection

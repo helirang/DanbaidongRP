@@ -2,9 +2,9 @@ using System;
 using UnityEngine.Serialization;
 using UnityEngine.Scripting.APIUpdating;
 using UnityEngine.U2D;
+using UnityEngine.Rendering.RenderGraphModule;
 #if UNITY_EDITOR
 using System.Linq;
-using UnityEditor.Experimental.SceneManagement;
 #endif
 
 namespace UnityEngine.Rendering.Universal
@@ -14,9 +14,9 @@ namespace UnityEngine.Rendering.Universal
     /// </summary>
     ///
     [ExecuteAlways, DisallowMultipleComponent]
-    [MovedFrom("UnityEngine.Experimental.Rendering.Universal")]
+    [MovedFrom(true, "UnityEngine.Experimental.Rendering.Universal", "Unity.RenderPipelines.Universal.Runtime")]
     [AddComponentMenu("Rendering/2D/Light 2D")]
-    [HelpURL("https://docs.unity3d.com/Packages/com.unity.render-pipelines.danbaidong@latest/index.html?subfolder=/manual/2DLightProperties.html")]
+    [HelpURL("https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@latest/index.html?subfolder=/manual/2DLightProperties.html")]
     public sealed partial class Light2D : Light2DBase, ISerializationCallbackReceiver
     {
         /// <summary>
@@ -94,10 +94,11 @@ namespace UnityEngine.Rendering.Universal
         private enum ComponentVersions
         {
             Version_Unserialized = 0,
-            Version_1 = 1
+            Version_1 = 1,
+            Version_2 = 2
         }
 
-        const ComponentVersions k_CurrentComponentVersion = ComponentVersions.Version_1;
+        const ComponentVersions k_CurrentComponentVersion = ComponentVersions.Version_2;
         [SerializeField] ComponentVersions m_ComponentVersion = ComponentVersions.Version_Unserialized;
 
 
@@ -116,7 +117,9 @@ namespace UnityEngine.Rendering.Universal
 
         [FormerlySerializedAs("m_LightVolumeOpacity")]
         [SerializeField] float m_LightVolumeIntensity = 1.0f;
-        [SerializeField] bool m_LightVolumeIntensityEnabled = false;
+
+        [FormerlySerializedAs("m_LightVolumeIntensityEnabled")]
+        [SerializeField] bool m_LightVolumeEnabled = false;
         [SerializeField] int[] m_ApplyToSortingLayers;  // These are sorting layer IDs. If we need to update this at runtime make sure we add code to update global lights
 
         [Reload("Textures/2D/Sparkle.png")]
@@ -142,9 +145,17 @@ namespace UnityEngine.Rendering.Universal
 
         [SerializeField] bool m_UseNormalMap = false;   // This is now deprecated. Keep it here for backwards compatibility.
 
-        [SerializeField] bool m_ShadowIntensityEnabled = false;
+        [FormerlySerializedAs("m_ShadowIntensityEnabled")]
+        [SerializeField] bool m_ShadowsEnabled = true;
+
         [Range(0, 1)]
         [SerializeField] float m_ShadowIntensity = 0.75f;
+
+        [Range(0, 1)]
+        [SerializeField] float m_ShadowSoftness = 0.3f;
+
+        [Range(0, 1)]
+        [SerializeField] float m_ShadowSoftnessFalloffIntensity = 0.5f;
 
         [SerializeField] bool m_ShadowVolumeIntensityEnabled = false;
         [Range(0, 1)]
@@ -166,9 +177,17 @@ namespace UnityEngine.Rendering.Universal
         int m_PreviousLightCookieSprite;
         internal Vector3 m_CachedPosition;
 
+        // We use Blue Channel of LightMesh's vertex color to indicate Slot Index.
+        int m_BatchSlotIndex = 0;
+        internal int batchSlotIndex { get { return m_BatchSlotIndex; } set {  m_BatchSlotIndex = value; } }
         internal int[] affectedSortingLayers => m_ApplyToSortingLayers;
 
-        private int lightCookieSpriteInstanceID => m_LightCookieSprite?.GetInstanceID() ?? 0;
+        private int lightCookieSpriteInstanceID => lightCookieSprite?.GetInstanceID() ?? 0;
+
+        internal bool useCookieSprite => (lightType == LightType.Point || lightType == LightType.Sprite) && (lightCookieSprite != null && lightCookieSprite.texture != null);
+
+        internal RTHandle m_CookieSpriteTexture = null;
+        internal TextureHandle m_CookieSpriteTextureHandle;
 
         [SerializeField]
         Bounds m_LocalBounds;
@@ -214,10 +233,17 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         public float shadowIntensity { get => m_ShadowIntensity; set => m_ShadowIntensity = Mathf.Clamp01(value); }
 
+
+        /// <summary>
+        /// Specifies the softness of the soft shadow
+        /// </summary>
+        public float shadowSoftness { get => m_ShadowSoftness; set => m_ShadowSoftness = value; }
+
+
         /// <summary>
         /// Specifies that the shadows are enabled
         /// </summary>
-        public bool shadowsEnabled { get => m_ShadowIntensityEnabled; set => m_ShadowIntensityEnabled = value; }
+        public bool shadowsEnabled { get => m_ShadowsEnabled; set => m_ShadowsEnabled = value; }
 
         /// <summary>
         /// Specifies the darkness of the shadow
@@ -250,18 +276,35 @@ namespace UnityEngine.Rendering.Universal
         /// Controls the visibility of the light's volume
         /// </summary>
         public float volumeIntensity { get => m_LightVolumeIntensity; set => m_LightVolumeIntensity = value; }
+
         /// <summary>
         /// Enables or disables the light's volume
         /// </summary>
-        public bool volumeIntensityEnabled { get => m_LightVolumeIntensityEnabled; set => m_LightVolumeIntensityEnabled = value; }
+        ///
+        [Obsolete]
+        public bool volumeIntensityEnabled { get => m_LightVolumeEnabled; set => m_LightVolumeEnabled = value; }
+
+
+        /// <summary>
+        /// Enables or disables the light's volume
+        /// </summary>
+        ///
+        public bool volumetricEnabled { get => m_LightVolumeEnabled; set => m_LightVolumeEnabled = value; }
+
         /// <summary>
         /// The Sprite that's used by the Sprite Light type to control the shape light
         /// </summary>
         public Sprite lightCookieSprite { get { return m_LightType != LightType.Point ? m_LightCookieSprite : m_DeprecatedPointLightCookieSprite; } set => m_LightCookieSprite = value; }
+
         /// <summary>
         /// Controls the brightness and distance of the fall off (edge) of the light
         /// </summary>
         public float falloffIntensity { get => m_FalloffIntensity; set => m_FalloffIntensity = Mathf.Clamp(value, 0, 1); }
+
+        /// <summary>
+        /// Controls the falloff for soft shadows
+        /// </summary>
+        public float shadowSoftnessFalloffIntensity { get => m_ShadowSoftnessFalloffIntensity; set => m_ShadowSoftnessFalloffIntensity = Mathf.Clamp(value, 0, 1); }
 
         /// <summary>
         /// Checks if the alpha overlap operation is alpha blend.
@@ -333,7 +376,32 @@ namespace UnityEngine.Rendering.Universal
                 m_Vertices = new LightUtility.LightMeshVertex[1];
                 m_Triangles = new ushort[1];
             }
-            return LightUtility.GenerateSpriteMesh(this, m_LightCookieSprite);
+            return LightUtility.GenerateSpriteMesh(this, m_LightCookieSprite, LightBatch.GetBatchColor());
+        }
+
+        internal void UpdateBatchSlotIndex()
+        {
+            if (lightMesh && lightMesh.colors != null && lightMesh.colors.Length != 0)
+                m_BatchSlotIndex = LightBatch.GetBatchSlotIndex(lightMesh.colors[0].b);
+        }
+
+        internal bool NeedsColorIndexBaking()
+        {
+            if (lightMesh && LightBatch.isBatchingSupported)
+            {
+                if (lightMesh.colors.Length != 0)
+                    return lightMesh.colors[0].b == 0;
+            }
+            return false;
+        }
+        
+        internal void UpdateCookieSpriteTexture()
+        {
+            m_CookieSpriteTexture?.Release();
+
+            if (useCookieSprite)
+                m_CookieSpriteTexture = RTHandles.Alloc(lightCookieSprite.texture);
+
         }
 
         internal void UpdateMesh(bool forceUpdate = false)
@@ -347,26 +415,31 @@ namespace UnityEngine.Rendering.Universal
             var shapePathHashChanged = LightUtility.CheckForChange(shapePathHash, ref m_PreviousShapePathHash);
             var lightTypeChanged = LightUtility.CheckForChange(m_LightType, ref m_PreviousLightType);
             var hashChanged = fallOffSizeChanged || parametricRadiusChanged || parametricSidesChanged ||
-                parametricAngleOffsetChanged || spriteInstanceChanged || shapePathHashChanged || lightTypeChanged;
+                parametricAngleOffsetChanged || spriteInstanceChanged || shapePathHashChanged || lightTypeChanged || NeedsColorIndexBaking();
 
             // Mesh Rebuilding
             if (hashChanged || forceUpdate)
             {
+                var batchChannelColor = LightBatch.GetBatchColor();
+
                 switch (m_LightType)
                 {
                     case LightType.Freeform:
-                        m_LocalBounds = LightUtility.GenerateShapeMesh(this, m_ShapePath, m_ShapeLightFalloffSize);
+                        m_LocalBounds = LightUtility.GenerateShapeMesh(this, m_ShapePath, m_ShapeLightFalloffSize, batchChannelColor);
                         break;
                     case LightType.Parametric:
-                        m_LocalBounds = LightUtility.GenerateParametricMesh(this, m_ShapeLightParametricRadius, m_ShapeLightFalloffSize, m_ShapeLightParametricAngleOffset, m_ShapeLightParametricSides);
+                        m_LocalBounds = LightUtility.GenerateParametricMesh(this, m_ShapeLightParametricRadius, m_ShapeLightFalloffSize, m_ShapeLightParametricAngleOffset, m_ShapeLightParametricSides, batchChannelColor);
                         break;
                     case LightType.Sprite:
                         m_LocalBounds = UpdateSpriteMesh();
                         break;
                     case LightType.Point:
-                        m_LocalBounds = LightUtility.GenerateParametricMesh(this, 1.412135f, 0, 0, 4);
+                        m_LocalBounds = LightUtility.GenerateParametricMesh(this, 1.412135f, 0, 0, 4, batchChannelColor);
                         break;
                 }
+
+                UpdateCookieSpriteTexture();
+                UpdateBatchSlotIndex();
             }
         }
 
@@ -398,6 +471,17 @@ namespace UnityEngine.Rendering.Universal
             return false;
         }
 
+        internal Matrix4x4 GetMatrix()
+        {
+            var matrix = transform.localToWorldMatrix;
+            if (lightType == Light2D.LightType.Point)
+            {
+                var scale = new Vector3(pointLightOuterRadius, pointLightOuterRadius, pointLightOuterRadius);
+                matrix = Matrix4x4.TRS(transform.position, transform.rotation, scale);
+            }
+            return matrix;
+        }
+
         private void Awake()
         {
 #if UNITY_EDITOR
@@ -411,6 +495,7 @@ namespace UnityEngine.Rendering.Universal
         {
             m_PreviousLightCookieSprite = lightCookieSpriteInstanceID;
             Light2DManager.RegisterLight(this);
+            UpdateCookieSpriteTexture();
 
 #if UNITY_EDITOR
             SortingLayer.onLayerAdded += OnSortingLayerAdded;
@@ -421,6 +506,7 @@ namespace UnityEngine.Rendering.Universal
         private void OnDisable()
         {
             Light2DManager.DeregisterLight(this);
+            m_CookieSpriteTexture?.Release();
 
 #if UNITY_EDITOR
             SortingLayer.onLayerAdded -= OnSortingLayerAdded;
@@ -468,11 +554,16 @@ namespace UnityEngine.Rendering.Universal
             if (m_ComponentVersion == ComponentVersions.Version_Unserialized)
             {
                 m_ShadowVolumeIntensityEnabled = m_ShadowVolumeIntensity > 0;
-                m_ShadowIntensityEnabled = m_ShadowIntensity > 0;
-                m_LightVolumeIntensityEnabled = m_LightVolumeIntensity > 0;
+                m_ShadowsEnabled = m_ShadowIntensity > 0;
+                m_LightVolumeEnabled = m_LightVolumeIntensity > 0;
                 m_NormalMapQuality = !m_UseNormalMap ? NormalMapQuality.Disabled : m_NormalMapQuality;
                 m_OverlapOperation = m_AlphaBlendOnOverlap ? OverlapOperation.AlphaBlend : m_OverlapOperation;
                 m_ComponentVersion = ComponentVersions.Version_1;
+            }
+
+            if(m_ComponentVersion < ComponentVersions.Version_2)
+            {
+                m_ShadowSoftness = 0;
             }
         }
     }

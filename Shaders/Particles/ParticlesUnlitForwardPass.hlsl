@@ -1,8 +1,8 @@
 #ifndef UNIVERSAL_PARTICLES_UNLIT_FORWARD_PASS_INCLUDED
 #define UNIVERSAL_PARTICLES_UNLIT_FORWARD_PASS_INCLUDED
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Unlit.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Particles.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Unlit.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Particles.hlsl"
 
 void InitializeInputData(VaryingsParticle input, SurfaceData surfaceData, out InputData inputData)
 {
@@ -27,7 +27,15 @@ void InitializeInputData(VaryingsParticle input, SurfaceData surfaceData, out In
 
     inputData.fogCoord = InitializeInputDataFog(float4(input.positionWS.xyz, 1.0), input.positionWS.w);
     inputData.vertexLighting = 0;
+#if !defined(LIGHTMAP_ON) && (defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2))
+    inputData.bakedGI = SAMPLE_GI(input.vertexSH,
+        GetAbsolutePositionWS(inputData.positionWS),
+        inputData.normalWS,
+        inputData.viewDirectionWS,
+        input.clipPos.xy);
+#else
     inputData.bakedGI = SampleSHPixel(input.vertexSH, inputData.normalWS);
+#endif
     inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.clipPos);
     inputData.shadowMask = 1;
     inputData.shadowCoord = 0;
@@ -133,7 +141,7 @@ half4 fragParticleUnlit(VaryingsParticle input) : SV_Target
     InitializeSurfaceData(particleParams, surfaceData);
     InputData inputData;
     InitializeInputData(input, surfaceData, inputData);
-    SETUP_DEBUG_TEXTURE_DATA(inputData, input.texcoord, _BaseMap);
+    SETUP_DEBUG_TEXTURE_DATA_FOR_TEX(inputData, input.texcoord, _BaseMap);
 
     half4 finalColor = UniversalFragmentUnlit(inputData, surfaceData);
 

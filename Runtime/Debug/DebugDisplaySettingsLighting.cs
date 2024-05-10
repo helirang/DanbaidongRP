@@ -19,9 +19,9 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         public DebugLightingFeatureFlags lightingFeatureFlags { get; set; }
 
-		/// <summary>
-		/// Current HDR debug mode.
-		/// </summary>
+        /// <summary>
+        /// Current HDR debug mode.
+        /// </summary>
         public HDRDebugMode hdrDebugMode { get; set; }
 
         static internal class Strings
@@ -68,7 +68,7 @@ namespace UnityEngine.Rendering.Universal
             public SettingsPanel(DebugDisplaySettingsLighting data)
                 : base(data)
             {
-                AddWidget(DebugDisplaySettingsCommon.WidgetFactory.CreateMissingDebugShadersWarning());
+                AddWidget(new DebugUI.RuntimeDebugShadersMessageBox());
 
                 AddWidget(new DebugUI.Foldout
                 {
@@ -96,12 +96,6 @@ namespace UnityEngine.Rendering.Universal
 
         /// <inheritdoc/>
         public bool IsLightingActive => true;
-
-        /// <inheritdoc/>
-        public bool TryGetScreenClearColor(ref Color color)
-        {
-            return false;
-        }
 
         /// <inheritdoc/>
         IDebugDisplaySettingsPanelDisposable IDebugDisplaySettingsData.CreatePanel()

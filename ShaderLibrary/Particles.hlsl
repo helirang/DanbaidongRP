@@ -1,12 +1,12 @@
 #ifndef UNIVERSAL_PARTICLES_INCLUDED
 #define UNIVERSAL_PARTICLES_INCLUDED
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/SurfaceInput.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareDepthTexture.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareOpaqueTexture.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/ParticlesInstancing.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ParticlesInstancing.hlsl"
 
 struct ParticleParams
 {
@@ -87,7 +87,7 @@ float SoftParticles(float near, float far, float4 projection)
     float fade = 1;
     if (near > 0.0 || far > 0.0)
     {
-        float rawDepth = SAMPLE_TEXTURE2D_X(_CameraDepthTexture, sampler_CameraDepthTexture, UnityStereoTransformScreenSpaceTex(projection.xy / projection.w)).r;
+        float rawDepth = SAMPLE_TEXTURE2D_X(_CameraDepthTexture, sampler_PointClamp, UnityStereoTransformScreenSpaceTex(projection.xy / projection.w)).r;
         float sceneZ = (unity_OrthoParams.w == 0) ? LinearEyeDepth(rawDepth, _ZBufferParams) : LinearDepthToEyeDepth(rawDepth);
         float thisZ = LinearEyeDepth(projection.z / projection.w, _ZBufferParams);
         fade = saturate(far * ((sceneZ - near) - thisZ));
@@ -131,8 +131,8 @@ half3 Distortion(float4 baseColor, float3 normal, half strength, half blend, flo
 {
     float2 screenUV = (projection.xy / projection.w) + normal.xy * strength * baseColor.a;
     screenUV = UnityStereoTransformScreenSpaceTex(screenUV);
-    float4 Distortion = SAMPLE_TEXTURE2D_X(_CameraOpaqueTexture, sampler_CameraOpaqueTexture, screenUV);
-    return half3(lerp(Distortion.rgb, baseColor.rgb, saturate(baseColor.a - blend)));
+    float3 distortion = SampleSceneColor(screenUV);
+    return half3(lerp(distortion, baseColor.rgb, saturate(baseColor.a - blend)));
 }
 
 // Sample a texture and do blending for texture sheet animation if needed

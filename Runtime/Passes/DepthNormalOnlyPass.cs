@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine.Experimental.Rendering;
-using UnityEngine.Experimental.Rendering.RenderGraphModule;
+using UnityEngine.Rendering.RenderGraphModule;
 
 namespace UnityEngine.Rendering.Universal.Internal
 {
@@ -16,6 +16,7 @@ namespace UnityEngine.Rendering.Universal.Internal
         private RTHandle normalHandle { get; set; }
         private RTHandle renderingLayersHandle { get; set; }
         internal bool enableRenderingLayers { get; set; } = false;
+        internal RenderingLayerUtils.MaskSize renderingLayersMaskSize { get; set; }
         private FilteringSettings m_FilteringSettings;
         private PassData m_PassData;
         // Constants
@@ -48,9 +49,9 @@ namespace UnityEngine.Rendering.Universal.Internal
         /// <returns>The GraphicsFormat to use with the Normals texture.</returns>
         public static GraphicsFormat GetGraphicsFormat()
         {
-            if (RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R8G8B8A8_SNorm, FormatUsage.Render))
+            if (SystemInfo.IsFormatSupported(GraphicsFormat.R8G8B8A8_SNorm, GraphicsFormatUsage.Render))
                 return GraphicsFormat.R8G8B8A8_SNorm; // Preferred format
-            else if (RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R16G16B16A16_SFloat, FormatUsage.Render))
+            else if (SystemInfo.IsFormatSupported(GraphicsFormat.R16G16B16A16_SFloat, GraphicsFormatUsage.Render))
                 return GraphicsFormat.R16G16B16A16_SFloat; // fallback
             else
                 return GraphicsFormat.R32G32B32A32_SFloat; // fallback
@@ -66,29 +67,29 @@ namespace UnityEngine.Rendering.Universal.Internal
         {
             this.depthHandle = depthHandle;
             this.normalHandle = normalHandle;
-            this.enableRenderingLayers = false;
+            enableRenderingLayers = false;
         }
 
         /// <summary>
-        /// Configures the pass.
+        /// Configure the pass
         /// </summary>
         /// <param name="depthHandle">The <c>RTHandle</c> used to render depth to.</param>
         /// <param name="normalHandle">The <c>RTHandle</c> used to render normals.</param>
         /// <param name="decalLayerHandle">The <c>RTHandle</c> used to render decals.</param>
-        /// <seealso cref="RTHandle"/>
         public void Setup(RTHandle depthHandle, RTHandle normalHandle, RTHandle decalLayerHandle)
         {
             Setup(depthHandle, normalHandle);
-            this.renderingLayersHandle = decalLayerHandle;
-            this.enableRenderingLayers = true;
+            renderingLayersHandle = decalLayerHandle;
+            enableRenderingLayers = true;
         }
 
 
         /// <inheritdoc/>
+        [Obsolete(DeprecationMessage.CompatibilityScriptingAPIObsolete, false)]
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
         {
             RTHandle[] colorHandles;
-            if (this.enableRenderingLayers)
+            if (enableRenderingLayers)
             {
                 k_ColorAttachment2[0] = normalHandle;
                 k_ColorAttachment2[1] = renderingLayersHandle;
@@ -100,55 +101,47 @@ namespace UnityEngine.Rendering.Universal.Internal
                 colorHandles = k_ColorAttachment1;
             }
 
+            // Disable obsolete warning for internal usage
+            #pragma warning disable CS0618
             if (renderingData.cameraData.renderer.useDepthPriming && (renderingData.cameraData.renderType == CameraRenderType.Base || renderingData.cameraData.clearDepth))
                 ConfigureTarget(colorHandles, renderingData.cameraData.renderer.cameraDepthTargetHandle);
             else
                 ConfigureTarget(colorHandles, depthHandle);
 
             ConfigureClear(ClearFlag.All, Color.black);
+            #pragma warning restore CS0618
         }
 
-        private static void ExecutePass(ScriptableRenderContext context, PassData passData, ref RenderingData renderingData)
+        private static void ExecutePass(RasterCommandBuffer cmd, PassData passData, RendererList rendererList)
         {
-            var cmd = renderingData.commandBuffer;
-            var shaderTagIds = passData.shaderTagIds;
-            var filteringSettings = passData.filteringSettings;
             using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.DepthNormalPrepass)))
             {
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
-
                 // Enable Rendering Layers
                 if (passData.enableRenderingLayers)
-                {
-                    CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.WriteRenderingLayers, true);
-                    context.ExecuteCommandBuffer(cmd);
-                    cmd.Clear();
-                }
+                    cmd.SetKeyword(ShaderGlobalKeywords.WriteRenderingLayers, true);
 
                 // Draw
-                var sortFlags = renderingData.cameraData.defaultOpaqueSortFlags;
-                var drawSettings = RenderingUtils.CreateDrawingSettings(shaderTagIds, ref renderingData, sortFlags);
-                drawSettings.perObjectData = PerObjectData.None;
-                context.DrawRenderers(renderingData.cullResults, ref drawSettings, ref filteringSettings);
+                cmd.DrawRendererList(rendererList);
 
                 // Clean up
                 if (passData.enableRenderingLayers)
-                {
-                    CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.WriteRenderingLayers, false);
-                    context.ExecuteCommandBuffer(cmd);
-                    cmd.Clear();
-                }
+                    cmd.SetKeyword(ShaderGlobalKeywords.WriteRenderingLayers, false);
             }
         }
 
         /// <inheritdoc/>
+        [Obsolete(DeprecationMessage.CompatibilityScriptingAPIObsolete, false)]
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
-            m_PassData.shaderTagIds = this.shaderTagIds;
-            m_PassData.filteringSettings = m_FilteringSettings;
+            ContextContainer frameData = renderingData.frameData;
+            UniversalRenderingData universalRenderingData = frameData.Get<UniversalRenderingData>();
+            UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+            UniversalLightData lightData = frameData.Get<UniversalLightData>();
+
             m_PassData.enableRenderingLayers = enableRenderingLayers;
-            ExecutePass(context, m_PassData, ref renderingData);
+            var param = InitRendererListParams(universalRenderingData, cameraData,lightData);
+            var rendererList = context.CreateRendererList(ref param);
+            ExecutePass(CommandBufferHelpers.GetRasterCommandBuffer(renderingData.commandBuffer), m_PassData, rendererList);
         }
 
         /// <inheritdoc/>
@@ -161,61 +154,78 @@ namespace UnityEngine.Rendering.Universal.Internal
             normalHandle = null;
             depthHandle = null;
             renderingLayersHandle = null;
+
+            // This needs to be reset as the renderer might change this in runtime (UUM-36069)
+            shaderTagIds = k_DepthNormals;
         }
 
+        /// <summary>
+        /// Shared pass data
+        /// </summary>
         private class PassData
         {
             internal TextureHandle cameraDepthTexture;
             internal TextureHandle cameraNormalsTexture;
-            internal RenderingData renderingData;
-            internal List<ShaderTagId> shaderTagIds;
-            internal FilteringSettings filteringSettings;
             internal bool enableRenderingLayers;
+            internal RenderingLayerUtils.MaskSize maskSize;
+            internal RendererListHandle rendererList;
         }
 
-        internal void Render(RenderGraph renderGraph, out TextureHandle cameraNormalsTexture, out TextureHandle cameraDepthTexture, ref RenderingData renderingData)
+        private RendererListParams InitRendererListParams(UniversalRenderingData renderingData, UniversalCameraData cameraData, UniversalLightData lightData)
         {
-            const GraphicsFormat k_DepthStencilFormat = GraphicsFormat.D32_SFloat_S8_UInt;
-            const int k_DepthBufferBits = 32;
+            var sortFlags = cameraData.defaultOpaqueSortFlags;
+            var drawSettings = RenderingUtils.CreateDrawingSettings(this.shaderTagIds, renderingData, cameraData, lightData, sortFlags);
+            drawSettings.perObjectData = PerObjectData.None;
+            return new RendererListParams(renderingData.cullResults, drawSettings, m_FilteringSettings);
+        }
 
-            using (var builder = renderGraph.AddRenderPass<PassData>("DepthNormals Prepass", out var passData, base.profilingSampler))
+        internal void Render(RenderGraph renderGraph, ContextContainer frameData, TextureHandle cameraNormalsTexture, TextureHandle cameraDepthTexture, TextureHandle renderingLayersTexture, uint batchLayerMask = uint.MaxValue, bool postSetGlobalTextures = true)
+        {
+            UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
+            UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+            UniversalLightData lightData = frameData.Get<UniversalLightData>();
+
+            using (var builder = renderGraph.AddRasterRenderPass<PassData>("DepthNormals Prepass", out var passData, base.profilingSampler))
             {
-                var depthDescriptor = renderingData.cameraData.cameraTargetDescriptor;
-                depthDescriptor.graphicsFormat = GraphicsFormat.None;
-                depthDescriptor.depthStencilFormat = k_DepthStencilFormat;
-                depthDescriptor.depthBufferBits = k_DepthBufferBits;
-                depthDescriptor.msaaSamples = 1;// Depth-Only pass don't use MSAA
-                cameraDepthTexture = UniversalRenderer.CreateRenderGraphTexture(renderGraph, depthDescriptor, "_CameraDepthTexture", true);
+                passData.cameraNormalsTexture = cameraNormalsTexture;
+                builder.SetRenderAttachment(cameraNormalsTexture, 0, AccessFlags.Write);
+                passData.cameraDepthTexture = cameraDepthTexture;
+                builder.SetRenderAttachmentDepth(cameraDepthTexture, AccessFlags.Write);
 
-                // TODO RENDERGRAPH: Handle Deferred case, see _CameraNormalsTexture logic in UniversalRenderer.cs
-                var normalDescriptor = renderingData.cameraData.cameraTargetDescriptor;
-                normalDescriptor.depthBufferBits = 0;
-                // Never have MSAA on this depth texture. When doing MSAA depth priming this is the texture that is resolved to and used for post-processing.
-                normalDescriptor.msaaSamples = 1;// Depth-Only pass don't use MSAA
-                                                    // Find compatible render-target format for storing normals.
-                                                    // Shader code outputs normals in signed format to be compatible with deferred gbuffer layout.
-                                                    // Deferred gbuffer format is signed so that normals can be blended for terrain geometry.
-                                                    // TODO: deferred
-
-                normalDescriptor.graphicsFormat = GetGraphicsFormat();
-                cameraNormalsTexture = UniversalRenderer.CreateRenderGraphTexture(renderGraph, normalDescriptor, "_CameraNormalsTexture", true);
-
-                passData.cameraNormalsTexture = builder.UseColorBuffer(cameraNormalsTexture, 0);
-                passData.cameraDepthTexture = builder.UseDepthBuffer(cameraDepthTexture, DepthAccess.Write);
-                passData.renderingData = renderingData;
-                passData.shaderTagIds = this.shaderTagIds;
-                passData.filteringSettings = m_FilteringSettings;
                 passData.enableRenderingLayers = enableRenderingLayers;
+
+                if (passData.enableRenderingLayers)
+                {
+                    builder.SetRenderAttachment(renderingLayersTexture, 1, AccessFlags.Write);
+                    passData.maskSize = renderingLayersMaskSize;
+                }
+
+                var param = InitRendererListParams(renderingData, cameraData, lightData);
+                param.filteringSettings.batchLayerMask = batchLayerMask;
+                passData.rendererList = renderGraph.CreateRendererList(param);
+                builder.UseRendererList(passData.rendererList);
+                builder.EnableFoveatedRasterization(cameraData.xr.supportsFoveatedRendering);
+
+                UniversalRenderer universalRenderer = cameraData.renderer as UniversalRenderer;
+                if (postSetGlobalTextures && universalRenderer != null)
+                {
+                    var renderingMode = universalRenderer.renderingModeActual;
+                    if (cameraNormalsTexture.IsValid() && renderingMode != RenderingMode.Deferred)
+                        builder.SetGlobalTextureAfterPass(cameraNormalsTexture, Shader.PropertyToID("_CameraNormalsTexture"));
+                    if (cameraDepthTexture.IsValid() && renderingMode != RenderingMode.Deferred)
+                        builder.SetGlobalTextureAfterPass(cameraDepthTexture, Shader.PropertyToID("_CameraDepthTexture"));
+                }
 
                 //  TODO RENDERGRAPH: culling? force culling off for testing
                 builder.AllowPassCulling(false);
+                // Required here because of RenderingLayerUtils.SetupProperties
+                builder.AllowGlobalStateModification(true);
 
-                builder.SetRenderFunc((PassData data, RenderGraphContext context) =>
+                builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
                 {
-                    ExecutePass(context.renderContext, data, ref data.renderingData);
+                    RenderingLayerUtils.SetupProperties(context.cmd, data.maskSize);
+                    ExecutePass(context.cmd, data, data.rendererList);
                 });
-
-                return;
             }
         }
     }

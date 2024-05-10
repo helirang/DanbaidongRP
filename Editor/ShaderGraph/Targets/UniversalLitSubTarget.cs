@@ -143,6 +143,8 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
 
         public override void GetActiveBlocks(ref TargetActiveBlockContext context)
         {
+            context.AddBlock(UniversalBlockFields.VertexDescription.MotionVector, target.additionalMotionVectorMode == AdditionalMotionVectorMode.Custom);
+
             context.AddBlock(BlockFields.SurfaceDescription.Smoothness);
             context.AddBlock(BlockFields.SurfaceDescription.NormalOS, normalDropOffSpace == NormalDropOffSpace.Object);
             context.AddBlock(BlockFields.SurfaceDescription.NormalTS, normalDropOffSpace == NormalDropOffSpace.Tangent);
@@ -331,7 +333,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                 SubShaderDescriptor result = new SubShaderDescriptor()
                 {
                     pipelineTag = UniversalTarget.kPipelineTag,
-                    customTags = UniversalTarget.kLitMaterialTypeTag,
+                    customTags = complexLit ? UniversalTarget.kComplexLitMaterialTypeTag : UniversalTarget.kLitMaterialTypeTag,
                     renderType = renderType,
                     renderQueue = renderQueue,
                     disableBatchingTag = disableBatchingTag,
@@ -344,12 +346,16 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                 else
                     result.passes.Add(LitPasses.Forward(target, workflowMode, blendModePreserveSpecular, CorePragmas.Forward, LitKeywords.Forward));
 
-                if (!complexLit)
-                    result.passes.Add(LitPasses.GBuffer(target, workflowMode, blendModePreserveSpecular));
+                // ForwardOnly ComplexLit fills GBuffer too for potential custom usage of the GBuffer.
+                result.passes.Add(LitPasses.GBuffer(target, workflowMode, blendModePreserveSpecular));
 
                 // cull the shadowcaster pass if we know it will never be used
                 if (target.castShadows || target.allowMaterialOverride)
                     result.passes.Add(PassVariant(CorePasses.ShadowCaster(target), CorePragmas.Instanced));
+
+                if (target.alwaysRenderMotionVectors)
+                    result.customTags = string.Concat(result.customTags, " ", UniversalTarget.kAlwaysRenderMotionVectorsTag);
+                result.passes.Add(PassVariant(CorePasses.MotionVectors(target), CorePragmas.MotionVectors));
 
                 if (target.mayWriteDepth)
                     result.passes.Add(PassVariant(CorePasses.DepthOnly(target), CorePragmas.Instanced));
@@ -493,7 +499,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                 return result;
             }
 
-            // Deferred only in SM4.5, MRT not supported in GLES2
+            // Deferred only in SM4.5
             public static PassDescriptor GBuffer(UniversalTarget target, WorkflowMode workflowMode, bool blendModePreserveSpecular)
             {
                 var result = new PassDescriptor
@@ -579,6 +585,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                 var result = new PassDescriptor()
                 {
                     // Definition
+                    displayName = "Universal 2D",
                     referenceName = "SHADERPASS_2D",
                     lightMode = "Universal2D",
 
@@ -827,6 +834,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                 { CoreKeywordDescriptors.StaticLightmap },
                 { CoreKeywordDescriptors.DynamicLightmap },
                 { CoreKeywordDescriptors.DirectionalLightmapCombined },
+                { CoreKeywordDescriptors.UseLegacyLightmaps },
                 { CoreKeywordDescriptors.MainLightShadows },
                 { CoreKeywordDescriptors.AdditionalLights },
                 { CoreKeywordDescriptors.AdditionalLightShadows },
@@ -840,6 +848,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                 { CoreKeywordDescriptors.DebugDisplay },
                 { CoreKeywordDescriptors.LightCookies },
                 { CoreKeywordDescriptors.ForwardPlus },
+                { CoreKeywordDescriptors.EvaluateSh },
             };
 
             public static readonly KeywordCollection GBuffer = new KeywordCollection
@@ -847,6 +856,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                 { CoreKeywordDescriptors.StaticLightmap },
                 { CoreKeywordDescriptors.DynamicLightmap },
                 { CoreKeywordDescriptors.DirectionalLightmapCombined },
+                { CoreKeywordDescriptors.UseLegacyLightmaps },
                 { CoreKeywordDescriptors.MainLightShadows },
                 { CoreKeywordDescriptors.ReflectionProbeBlending },
                 { CoreKeywordDescriptors.ReflectionProbeBoxProjection },
@@ -865,19 +875,20 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
         #region Includes
         static class LitIncludes
         {
-            const string kShadows = "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Shadows.hlsl";
-            const string kMetaInput = "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/MetaInput.hlsl";
-            const string kForwardPass = "Packages/com.unity.render-pipelines.danbaidong/Editor/ShaderGraph/Includes/PBRForwardPass.hlsl";
-            const string kGBuffer = "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityGBuffer.hlsl";
-            const string kPBRGBufferPass = "Packages/com.unity.render-pipelines.danbaidong/Editor/ShaderGraph/Includes/PBRGBufferPass.hlsl";
-            const string kLightingMetaPass = "Packages/com.unity.render-pipelines.danbaidong/Editor/ShaderGraph/Includes/LightingMetaPass.hlsl";
-            const string k2DPass = "Packages/com.unity.render-pipelines.danbaidong/Editor/ShaderGraph/Includes/PBR2DPass.hlsl";
+            const string kShadows = "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl";
+            const string kMetaInput = "Packages/com.unity.render-pipelines.universal/ShaderLibrary/MetaInput.hlsl";
+            const string kForwardPass = "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/PBRForwardPass.hlsl";
+            const string kGBuffer = "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityGBuffer.hlsl";
+            const string kPBRGBufferPass = "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/PBRGBufferPass.hlsl";
+            const string kLightingMetaPass = "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/LightingMetaPass.hlsl";
+            const string k2DPass = "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/PBR2DPass.hlsl";
 
             public static readonly IncludeCollection Forward = new IncludeCollection
             {
                 // Pre-graph
                 { CoreIncludes.DOTSPregraph },
                 { CoreIncludes.WriteRenderLayersPregraph },
+                { CoreIncludes.ProbeVolumePregraph },
                 { CoreIncludes.CorePregraph },
                 { kShadows, IncludeLocation.Pregraph },
                 { CoreIncludes.ShaderGraphPregraph },
@@ -893,6 +904,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                 // Pre-graph
                 { CoreIncludes.DOTSPregraph },
                 { CoreIncludes.WriteRenderLayersPregraph },
+                { CoreIncludes.ProbeVolumePregraph },
                 { CoreIncludes.CorePregraph },
                 { kShadows, IncludeLocation.Pregraph },
                 { CoreIncludes.ShaderGraphPregraph },

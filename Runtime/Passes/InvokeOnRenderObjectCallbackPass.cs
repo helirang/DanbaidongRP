@@ -1,4 +1,5 @@
-using UnityEngine.Experimental.Rendering.RenderGraphModule;
+using System;
+using UnityEngine.Rendering.RenderGraphModule;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -18,9 +19,10 @@ namespace UnityEngine.Rendering.Universal
         }
 
         /// <inheritdoc/>
+        [Obsolete(DeprecationMessage.CompatibilityScriptingAPIObsolete, false)]
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
-            context.InvokeOnRenderObjectCallback();
+            renderingData.commandBuffer.InvokeOnRenderObjectCallbacks();
         }
 
         private class PassData
@@ -29,17 +31,19 @@ namespace UnityEngine.Rendering.Universal
             internal TextureHandle depthTarget;
         }
 
-        internal void Render(RenderGraph renderGraph, TextureHandle colorTarget, TextureHandle depthTarget, ref RenderingData renderingData)
+        internal void Render(RenderGraph renderGraph, TextureHandle colorTarget, TextureHandle depthTarget)
         {
-            using (var builder = renderGraph.AddRenderPass<PassData>("OnRenderObject Callback Pass", out var passData,
+            using (var builder = renderGraph.AddUnsafePass<PassData>("OnRenderObject Callback Pass", out var passData,
                 base.profilingSampler))
             {
-                passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
-                passData.depthTarget = builder.UseDepthBuffer(depthTarget, DepthAccess.ReadWrite);
+                passData.colorTarget = colorTarget;
+                builder.UseTexture(colorTarget, AccessFlags.Write);
+                passData.depthTarget = depthTarget;
+                builder.UseTexture(depthTarget, AccessFlags.Write);
                 builder.AllowPassCulling(false);
-                builder.SetRenderFunc((PassData data, RenderGraphContext context) =>
+                builder.SetRenderFunc((PassData data, UnsafeGraphContext context) =>
                 {
-                    context.renderContext.InvokeOnRenderObjectCallback();
+                    context.cmd.InvokeOnRenderObjectCallbacks();
                 });
             }
         }

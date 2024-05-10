@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine.Rendering.RenderGraphModule;
+
 namespace UnityEngine.Rendering.Universal
 {
     /// <summary>
@@ -18,6 +22,7 @@ namespace UnityEngine.Rendering.Universal
         }
 
         /// <inheritdoc/>
+        [Obsolete(DeprecationMessage.CompatibilityScriptingAPIObsolete, false)]
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             CommandBuffer cmdBuf = renderingData.commandBuffer;
@@ -30,6 +35,42 @@ namespace UnityEngine.Rendering.Universal
                 var captureActions = renderingData.cameraData.captureActions;
                 for (captureActions.Reset(); captureActions.MoveNext();)
                     captureActions.Current(colorAttachmentIdentifier, renderingData.commandBuffer);
+            }
+        }
+
+        private class UnsafePassData
+        {
+            internal TextureHandle source;
+            public IEnumerator<Action<RenderTargetIdentifier, CommandBuffer>> captureActions;
+        }
+
+        const string k_UnsafePassName = "CapturePass (Render Graph Unsafe Pass)";
+
+        // This function needs to add an unsafe render pass to Render Graph because a raster render pass, which is typically
+        // used for rendering with Render Graph, cannot perform the texture readback operations performed with the command
+        // buffer in CameraTextureProvider. Unsafe passes can do certain operations that raster render passes cannot do and
+        // have access to the full command buffer API.
+        public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
+        {
+            UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
+            UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+
+            using (var builder = renderGraph.AddUnsafePass<UnsafePassData>(k_UnsafePassName, out var passData, profilingSampler))
+            {
+                // Setup up the pass data with cameraColor, which has the correct orientation and position in a built player
+                passData.source = resourceData.cameraColor;
+                passData.captureActions = cameraData.captureActions;
+
+                // Setup up the builder
+                builder.AllowPassCulling(false);
+                builder.UseTexture(resourceData.cameraColor);
+                builder.SetRenderFunc((UnsafePassData data, UnsafeGraphContext unsafeContext) =>
+                {
+                    var nativeCommandBuffer = CommandBufferHelpers.GetNativeCommandBuffer(unsafeContext.cmd);
+                    var captureActions = data.captureActions;
+                    for (data.captureActions.Reset(); data.captureActions.MoveNext();)
+                        captureActions.Current(data.source, nativeCommandBuffer);
+                });
             }
         }
     }

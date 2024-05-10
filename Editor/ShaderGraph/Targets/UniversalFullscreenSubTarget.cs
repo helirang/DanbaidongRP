@@ -17,12 +17,19 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
             context.AddAssetDependency(kSourceCodeGuid, AssetCollection.Flags.SourceDependency);
         }
 
+        protected override KeywordCollection GetPassKeywords(FullscreenCompatibility compatibility)
+        {
+            var modifiedKeywordCollection = base.GetPassKeywords(compatibility);
+            modifiedKeywordCollection.Add(CoreKeywordDescriptors.GBufferNormalsOct);
+            return modifiedKeywordCollection;
+        }
+
         // We don't need the save context / update materials for now
         public override object saveContext => null;
 
         protected override string pipelineTag => UniversalTarget.kPipelineTag;
 
-        const string kURPInput = "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Input.hlsl";
+        const string kURPInput = "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Input.hlsl";
 
         protected override IncludeCollection pregraphIncludes => new IncludeCollection
         {

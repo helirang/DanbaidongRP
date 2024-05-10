@@ -2,9 +2,9 @@
 #ifndef UNIVERSAL_TERRAIN_LIT_PASSES_INCLUDED
 #define UNIVERSAL_TERRAIN_LIT_PASSES_INCLUDED
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Lighting.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityGBuffer.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DBuffer.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityGBuffer.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DBuffer.hlsl"
 
 struct Attributes
 {
@@ -69,7 +69,7 @@ void InitializeInputData(Varyings IN, half3 normalTS, out InputData inputData)
         half3 normalWS = TransformObjectToWorldNormal(normalize(SAMPLE_TEXTURE2D(_TerrainNormalmapTexture, sampler_TerrainNormalmapTexture, sampleCoords).rgb * 2 - 1));
         half3 tangentWS = cross(GetObjectToWorldMatrix()._13_23_33, normalWS);
         inputData.normalWS = TransformTangentToWorld(normalTS, half3x3(-tangentWS, cross(normalWS, tangentWS), normalWS));
-        half3 SH = 0;
+        half3 SH = IN.vertexSH;
     #else
         half3 viewDirWS = GetWorldSpaceNormalizeViewDir(IN.positionWS);
         inputData.normalWS = IN.normal;
@@ -96,6 +96,12 @@ void InitializeInputData(Varyings IN, half3 normalTS, out InputData inputData)
 
 #if defined(DYNAMICLIGHTMAP_ON)
     inputData.bakedGI = SAMPLE_GI(IN.uvMainAndLM.zw, IN.dynamicLightmapUV, SH, inputData.normalWS);
+#elif !defined(LIGHTMAP_ON) && (defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2))
+    inputData.bakedGI = SAMPLE_GI(SH,
+        GetAbsolutePositionWS(inputData.positionWS),
+        inputData.normalWS,
+        inputData.viewDirectionWS,
+        inputData.positionCS.xy);
 #else
     inputData.bakedGI = SAMPLE_GI(IN.uvMainAndLM.zw, SH, inputData.normalWS);
 #endif
@@ -126,7 +132,7 @@ void NormalMapMix(float4 uvSplat01, float4 uvSplat23, inout half4 splatControl, 
         nrm += splatControl.a * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal3, sampler_Normal0, uvSplat23.zw), _NormalScale3);
 
         // avoid risk of NaN when normalizing.
-        #if HAS_HALF
+        #if !HALF_IS_FLOAT
             nrm.z += half(0.01);
         #else
             nrm.z += 1e-5f;
@@ -228,6 +234,43 @@ void SplatmapFinalColor(inout half4 color, half fogCoord)
     #endif
 }
 
+void SetupTerrainDebugTextureData(inout InputData inputData, float2 uv)
+{
+    #if defined(DEBUG_DISPLAY)
+        #if defined(TERRAIN_SPLAT_ADDPASS)
+            if (_DebugMipInfoMode != DEBUGMIPINFOMODE_NONE)
+            {
+                discard; // Layer 4 & beyond are done additively, doesn't make sense for the mipmap streaming debug views -> stop.
+            }
+        #endif
+
+        switch (_DebugMipMapTerrainTextureMode)
+        {
+            case DEBUGMIPMAPMODETERRAINTEXTURE_CONTROL:
+                SETUP_DEBUG_TEXTURE_DATA_FOR_TEX(inputData, TRANSFORM_TEX(uv, _Control), _Control);
+                break;
+            case DEBUGMIPMAPMODETERRAINTEXTURE_LAYER0:
+                SETUP_DEBUG_TEXTURE_DATA_FOR_TEX(inputData, TRANSFORM_TEX(uv, _Splat0), _Splat0);
+                break;
+            case DEBUGMIPMAPMODETERRAINTEXTURE_LAYER1:
+                SETUP_DEBUG_TEXTURE_DATA_FOR_TEX(inputData, TRANSFORM_TEX(uv, _Splat1), _Splat1);
+                break;
+            case DEBUGMIPMAPMODETERRAINTEXTURE_LAYER2:
+                SETUP_DEBUG_TEXTURE_DATA_FOR_TEX(inputData, TRANSFORM_TEX(uv, _Splat2), _Splat2);
+                break;
+            case DEBUGMIPMAPMODETERRAINTEXTURE_LAYER3:
+                SETUP_DEBUG_TEXTURE_DATA_FOR_TEX(inputData, TRANSFORM_TEX(uv, _Splat3), _Splat3);
+                break;
+            default:
+                break;
+        }
+
+        // TERRAIN_STREAM_INFO: no streamInfo will have been set (no MeshRenderer); set status to "6" to reflect in the debug status that this is a terrain
+        // also, set the per-material status to "4" to indicate warnings
+        inputData.streamInfo = TERRAIN_STREAM_INFO;
+    #endif
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //                  Vertex and Fragment functions                            //
 ///////////////////////////////////////////////////////////////////////////////
@@ -267,7 +310,7 @@ Varyings SplatmapVert(Attributes v)
         o.bitangent = half4(normalInput.bitangentWS, viewDirWS.z);
     #else
         o.normal = TransformObjectToWorldNormal(v.normalOS);
-        o.vertexSH = SampleSH(o.normal);
+        OUTPUT_SH4(Attributes.positionWS, o.normal.xyz, GetWorldSpaceNormalizeViewDir(Attributes.positionWS), o.vertexSH);
     #endif
 
     half fogFactor = 0;
@@ -382,7 +425,7 @@ void SplatmapFragment(
 
     InputData inputData;
     InitializeInputData(IN, normalTS, inputData);
-    SETUP_DEBUG_TEXTURE_DATA(inputData, IN.uvMainAndLM.xy, _BaseMap);
+    SetupTerrainDebugTextureData(inputData, IN.uvMainAndLM.xy);
 
 #if defined(_DBUFFER)
     half3 specular = half3(0.0h, 0.0h, 0.0h);
@@ -437,7 +480,7 @@ void SplatmapFragment(
 
 // Shadow pass
 
-// Shadow Casting Light geometric parameters. These variables are used when applying the shadow Normal Bias and are set by UnityEngine.Rendering.Universal.ShadowUtils.SetupShadowCasterConstantBuffer in com.unity.render-pipelines.danbaidong/Runtime/ShadowUtils.cs
+// Shadow Casting Light geometric parameters. These variables are used when applying the shadow Normal Bias and are set by UnityEngine.Rendering.Universal.ShadowUtils.SetupShadowCasterConstantBuffer in com.unity.render-pipelines.universal/Runtime/ShadowUtils.cs
 // For Directional lights, _LightDirection is used when applying shadow Normal Bias.
 // For Spot lights and Point lights, _LightPosition is used to compute the actual light direction because it is different at each shadow caster geometry vertex.
 float3 _LightDirection;

@@ -1,5 +1,9 @@
 #ifndef UNIVERSAL_INPUT_INCLUDED
 #define UNIVERSAL_INPUT_INCLUDED
+// URP package specific shader input variables and defines.
+// Unity Engine specific built-in shader input variables are defined in .universal/ShaderLibrary/UnityInput.hlsl
+
+#include "Packages/com.unity.render-pipelines.universal-config/Runtime/ShaderConfig.cs.hlsl"
 
 #define MAX_VISIBLE_LIGHTS_UBO  32
 #define MAX_VISIBLE_LIGHTS_SSBO 256
@@ -7,16 +11,17 @@
 // Keep in sync with RenderingUtils.useStructuredBuffer
 #define USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA 0
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/ShaderTypes.cs.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Deprecated.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ShaderTypes.cs.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Deprecated.hlsl"
 
 // Must match: UniversalRenderPipeline.maxVisibleAdditionalLights
-#if defined(SHADER_API_MOBILE) && (defined(SHADER_API_GLES) || defined(SHADER_API_GLES30))
-    #define MAX_VISIBLE_LIGHTS 16
-#elif defined(SHADER_API_MOBILE) || (defined(SHADER_API_GLCORE) && !defined(SHADER_API_SWITCH)) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3) // Workaround because SHADER_API_GLCORE is also defined when SHADER_API_SWITCH is
-    #define MAX_VISIBLE_LIGHTS 32
+#if defined(SHADER_API_MOBILE) && defined(SHADER_API_GLES30)
+    #define MAX_VISIBLE_LIGHTS MAX_VISIBLE_LIGHT_COUNT_LOW_END_MOBILE
+// WebGPU's minimal limits are based on mobile rather than desktop, so it will need to assume mobile.
+#elif defined(SHADER_API_MOBILE) || (defined(SHADER_API_GLCORE) && !defined(SHADER_API_SWITCH)) || defined(SHADER_API_GLES3) || defined(SHADER_API_WEBGPU) // Workaround because SHADER_API_GLCORE is also defined when SHADER_API_SWITCH is
+    #define MAX_VISIBLE_LIGHTS MAX_VISIBLE_LIGHT_COUNT_MOBILE
 #else
-    #define MAX_VISIBLE_LIGHTS 256
+    #define MAX_VISIBLE_LIGHTS MAX_VISIBLE_LIGHT_COUNT_DESKTOP
 #endif
 
 // Match with values in UniversalRenderPipeline.cs
@@ -56,6 +61,8 @@ struct InputData
 
     half3 brdfDiffuse;
     half3 brdfSpecular;
+
+    // Mipmap Streaming Debug
     float2 uv;
     uint mipCount;
 
@@ -72,6 +79,15 @@ struct InputData
     // z = desired on screen mip level
     // w = loaded mip level
     float4 mipInfo;
+
+    // streamInfo :
+    // x = streaming priority
+    // y = time stamp of the latest texture upload
+    // z = streaming status
+    // w = 0
+    float4 streamInfo;
+
+    float3 originalColor;
     #endif
 };
 
@@ -102,7 +118,8 @@ half4 _MainLightColor;
 half4 _MainLightOcclusionProbes;
 uint _MainLightLayerMask;
 
-// xyz are currently unused
+// x: SSAO Enabled/Disabled (Needed for situations when OFF keyword is stripped out but feature disabled in runtime)
+// yz are currently unused
 // w: directLightStrength
 half4 _AmbientOcclusionParam;
 
@@ -114,6 +131,8 @@ float _RenderingLayerRcpMaxInt;
 // Screen coord override.
 float4 _ScreenCoordScaleBias;
 float4 _ScreenSizeOverride;
+
+uint _EnableProbeVolumes;
 
 #if USE_FORWARD_PLUS
 float4 _FPParams0;
@@ -159,16 +178,18 @@ CBUFFER_END
 
 #if USE_FORWARD_PLUS
 
-CBUFFER_START(URP_ZBinBuffer)
-        float4 URP_ZBins[MAX_ZBIN_VEC4S];
+CBUFFER_START(urp_ZBinBuffer)
+        float4 urp_ZBins[MAX_ZBIN_VEC4S];
 CBUFFER_END
 CBUFFER_START(urp_TileBuffer)
         float4 urp_Tiles[MAX_TILE_VEC4S];
 CBUFFER_END
 
 TEXTURE2D(urp_ReflProbes_Atlas);
-SAMPLER(samplerurp_ReflProbes_Atlas);
 float urp_ReflProbes_Count;
+
+// 2023.3 Deprecated. This is for backwards compatibility. Remove in the future.
+#define samplerurp_ReflProbes_Atlas sampler_LinearClamp
 
 #ifndef SHADER_API_GLES3
 CBUFFER_START(urp_ReflectionProbeBuffer)
@@ -202,9 +223,9 @@ CBUFFER_END
 // UnityInput.hlsl must be included before UnityInstancing.hlsl, so constant buffer
 // declarations don't fail because of instancing macros.
 // UniversalDOTSInstancing.hlsl must be included after UnityInstancing.hlsl
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityInput.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityInput.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/UnityInstancing.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UniversalDOTSInstancing.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UniversalDOTSInstancing.hlsl"
 
 // VFX may also redefine UNITY_MATRIX_M / UNITY_MATRIX_I_M as static per-particle global matrices.
 #ifdef HAVE_VFX_MODIFICATION

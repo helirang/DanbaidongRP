@@ -1,12 +1,14 @@
 #ifndef AMBIENT_OCCLUSION_INCLUDED
 #define AMBIENT_OCCLUSION_INCLUDED
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/SurfaceData.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceData.hlsl"
 
 // Ambient occlusion
 TEXTURE2D_X(_ScreenSpaceOcclusionTexture);
-SAMPLER(sampler_ScreenSpaceOcclusionTexture);
+
+// 2023.3 Deprecated. This is for backwards compatibility. Remove in the future.
+#define sampler_ScreenSpaceOcclusionTexture sampler_LinearClamp
 
 struct AmbientOcclusionFactor
 {
@@ -17,21 +19,19 @@ struct AmbientOcclusionFactor
 half SampleAmbientOcclusion(float2 normalizedScreenSpaceUV)
 {
     float2 uv = UnityStereoTransformScreenSpaceTex(normalizedScreenSpaceUV);
-    return half(SAMPLE_TEXTURE2D_X(_ScreenSpaceOcclusionTexture, sampler_ScreenSpaceOcclusionTexture, uv).x);
+    return half(SAMPLE_TEXTURE2D_X(_ScreenSpaceOcclusionTexture, sampler_LinearClamp, uv).x);
 }
 
 AmbientOcclusionFactor GetScreenSpaceAmbientOcclusion(float2 normalizedScreenSpaceUV)
 {
     AmbientOcclusionFactor aoFactor;
-
     #if defined(_SCREEN_SPACE_OCCLUSION) && !defined(_SURFACE_TYPE_TRANSPARENT)
-    float ssao = SampleAmbientOcclusion(normalizedScreenSpaceUV);
-
-    aoFactor.indirectAmbientOcclusion = ssao;
-    aoFactor.directAmbientOcclusion = lerp(half(1.0), ssao, _AmbientOcclusionParam.w);
+        float ssao = saturate(SampleAmbientOcclusion(normalizedScreenSpaceUV) + (1.0 - _AmbientOcclusionParam.x));
+        aoFactor.indirectAmbientOcclusion = ssao;
+        aoFactor.directAmbientOcclusion = lerp(half(1.0), ssao, _AmbientOcclusionParam.w);
     #else
-    aoFactor.directAmbientOcclusion = 1;
-    aoFactor.indirectAmbientOcclusion = 1;
+        aoFactor.directAmbientOcclusion = half(1.0);
+        aoFactor.indirectAmbientOcclusion = half(1.0);
     #endif
 
     #if defined(DEBUG_DISPLAY)

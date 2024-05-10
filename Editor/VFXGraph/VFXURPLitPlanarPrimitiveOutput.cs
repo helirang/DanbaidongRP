@@ -1,21 +1,35 @@
 #if HAS_VFX_GRAPH
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEditor.VFX.Block;
 using UnityEngine;
 
 namespace UnityEditor.VFX.URP
 {
-    [VFXInfo(variantProvider = typeof(VFXPlanarPrimitiveVariantProvider))]
+    class VFXURPPlanarPrimitiveOutputProvider : VariantProvider
+    {
+        public override IEnumerable<Variant> GetVariants()
+        {
+            foreach (var primitive in Enum.GetValues(typeof(VFXPrimitiveType)))
+            {
+                yield return new Variant(
+                    $"Output Particle URP Lit {primitive}",
+                    "Output",
+                    typeof(VFXURPLitPlanarPrimitiveOutput),
+                    new[] {new KeyValuePair<string, object>("primitiveType", primitive)});
+            }
+        }
+    }
+
+    [VFXHelpURL("Context-OutputPrimitive")]
+    [VFXInfo(variantProvider = typeof(VFXURPPlanarPrimitiveOutputProvider))]
     class VFXURPLitPlanarPrimitiveOutput : VFXAbstractParticleURPLitOutput
     {
         public override string name
         {
             get
             {
-                return !string.IsNullOrEmpty(shaderName)
-                    ? $"Output Particle {shaderName} {primitiveType.ToString()}"
-                    : "Output Particle URP Lit " + primitiveType.ToString();
+                return "Output Particle URP Lit " + primitiveType.ToString();
             }
         }
         public override string codeGeneratorTemplate { get { return RenderPipeTemplate("VFXParticleLitPlanarPrimitive"); } }
@@ -45,35 +59,6 @@ namespace UnityEditor.VFX.URP
                 if (primitiveType == VFXPrimitiveType.Octagon)
                     properties = properties.Concat(PropertiesFromType(typeof(VFXPlanarPrimitiveHelper.OctagonInputProperties)));
                 return properties;
-            }
-        }
-
-        public override IEnumerable<VFXAttributeInfo> attributes
-        {
-            get
-            {
-                yield return new VFXAttributeInfo(VFXAttribute.Position, VFXAttributeMode.Read);
-                if (colorMode != ColorMode.None)
-                    yield return new VFXAttributeInfo(VFXAttribute.Color, VFXAttributeMode.Read);
-                yield return new VFXAttributeInfo(VFXAttribute.Alpha, VFXAttributeMode.Read);
-                yield return new VFXAttributeInfo(VFXAttribute.Alive, VFXAttributeMode.Read);
-                yield return new VFXAttributeInfo(VFXAttribute.AxisX, VFXAttributeMode.Read);
-                yield return new VFXAttributeInfo(VFXAttribute.AxisY, VFXAttributeMode.Read);
-                yield return new VFXAttributeInfo(VFXAttribute.AxisZ, VFXAttributeMode.Read);
-                yield return new VFXAttributeInfo(VFXAttribute.AngleX, VFXAttributeMode.Read);
-                yield return new VFXAttributeInfo(VFXAttribute.AngleY, VFXAttributeMode.Read);
-                yield return new VFXAttributeInfo(VFXAttribute.AngleZ, VFXAttributeMode.Read);
-                yield return new VFXAttributeInfo(VFXAttribute.PivotX, VFXAttributeMode.Read);
-                yield return new VFXAttributeInfo(VFXAttribute.PivotY, VFXAttributeMode.Read);
-                yield return new VFXAttributeInfo(VFXAttribute.PivotZ, VFXAttributeMode.Read);
-
-                yield return new VFXAttributeInfo(VFXAttribute.Size, VFXAttributeMode.Read);
-                yield return new VFXAttributeInfo(VFXAttribute.ScaleX, VFXAttributeMode.Read);
-                yield return new VFXAttributeInfo(VFXAttribute.ScaleY, VFXAttributeMode.Read);
-                yield return new VFXAttributeInfo(VFXAttribute.ScaleZ, VFXAttributeMode.Read);
-
-                if (usesFlipbook)
-                    yield return new VFXAttributeInfo(VFXAttribute.TexIndex, VFXAttributeMode.Read);
             }
         }
 

@@ -9,8 +9,9 @@
     #define _NORMALMAP
 #endif
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/SurfaceInput.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/DebugMipmapStreamingMacros.hlsl"
 
 #ifdef ENABLE_WIND
     #define WIND_QUALITY_NONE       0
@@ -23,13 +24,13 @@
     uniform half _WindQuality;
     uniform half _WindEnabled;
 
+    #define SPEEDTREE_8_WIND 1 // v7 & v8 use the same shader wind code
     #include "SpeedTreeWind.cginc"
 #endif
 
 TEXTURE2D(_MainTex);
 SAMPLER(sampler_MainTex);
 float4 _MainTex_TexelSize;
-float4 _MainTex_MipInfo;
 
 #ifdef EFFECT_HUE_VARIATION
     half4 _HueVariation;
@@ -37,10 +38,12 @@ float4 _MainTex_MipInfo;
 
 half4 _Color;
 
-// Shadow Casting Light geometric parameters. These variables are used when applying the shadow Normal Bias and are set by UnityEngine.Rendering.Universal.ShadowUtils.SetupShadowCasterConstantBuffer in com.unity.render-pipelines.danbaidong/Runtime/ShadowUtils.cs
+// Shadow Casting Light geometric parameters. These variables are used when applying the shadow Normal Bias and are set by UnityEngine.Rendering.Universal.ShadowUtils.SetupShadowCasterConstantBuffer in com.unity.render-pipelines.universal/Runtime/ShadowUtils.cs
 // For Directional lights, _LightDirection is used when applying shadow Normal Bias.
 // For Spot lights and Point lights, _LightPosition is used to compute the actual light direction because it is different at each shadow caster geometry vertex.
 float3 _LightDirection;
 float3 _LightPosition;
+
+UNITY_TEXTURE_STREAMING_DEBUG_VARS;
 
 #endif

@@ -3,8 +3,8 @@ Shader "Hidden/Universal Render Pipeline/Edge Adaptive Spatial Upsampling"
     HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Filtering.hlsl"
-        #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
-        #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/PostProcessing/Common.hlsl"
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        #include "Packages/com.unity.render-pipelines.universal/Shaders/PostProcessing/Common.hlsl"
 
         float4 _SourceSize;
 
@@ -29,7 +29,13 @@ Shader "Hidden/Universal Render Pipeline/Edge Adaptive Spatial Upsampling"
             color = Gamma20ToLinear(color);
 #endif
 
-            return half4(color, 1.0);
+#if _ENABLE_ALPHA_OUTPUT
+            half alpha = SAMPLE_TEXTURE2D_X_LOD(FSR_INPUT_TEXTURE, FSR_INPUT_SAMPLER, uv, 0.0).a;
+#else
+            half alpha = 1.0;
+#endif
+
+            return half4(color, alpha);
         }
 
     ENDHLSL
@@ -51,6 +57,8 @@ Shader "Hidden/Universal Render Pipeline/Edge Adaptive Spatial Upsampling"
                 #pragma vertex Vert
                 #pragma fragment FragEASU
                 #pragma target 4.5
+
+                #pragma multi_compile_local_fragment _ _ENABLE_ALPHA_OUTPUT
             ENDHLSL
         }
     }

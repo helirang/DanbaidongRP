@@ -10,10 +10,6 @@ Shader "Hidden/Universal Render Pipeline/CameraMotionVectors"
             ZWrite On
 
             HLSLPROGRAM
-            #pragma multi_compile_fragment _ _FOVEATED_RENDERING_NON_UNIFORM_RASTER
-            #pragma never_use_dxc metal
-
-            #pragma exclude_renderers d3d11_9x
             #pragma target 3.5
 
             #pragma vertex vert
@@ -21,12 +17,11 @@ Shader "Hidden/Universal Render Pipeline/CameraMotionVectors"
 
             // -------------------------------------
             // Includes
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareDepthTexture.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityInput.hlsl"
-            #if defined(_FOVEATED_RENDERING_NON_UNIFORM_RASTER)
-                #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRendering.hlsl"
-            #endif
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityInput.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRendering.hlsl"
 
             // -------------------------------------
             // Structs
@@ -55,14 +50,6 @@ Shader "Hidden/Universal Render Pipeline/CameraMotionVectors"
                 return output;
             }
 
-            #if defined(_FOVEATED_RENDERING_NON_UNIFORM_RASTER)
-                // Non-uniform raster needs to keep the posNDC values in float to avoid additional conversions
-                // since uv remap functions use floats
-                #define POS_NDC_TYPE float2 
-            #else
-                #define POS_NDC_TYPE half2
-            #endif
-
             // -------------------------------------
             // Fragment
             half4 frag(Varyings input, out float outDepth : SV_Depth) : SV_Target
@@ -78,9 +65,12 @@ Shader "Hidden/Universal Render Pipeline/CameraMotionVectors"
                 depth = lerp(UNITY_NEAR_CLIP_VALUE, 1, SampleSceneDepth(uv).x);
             #endif
 
-            #if defined(_FOVEATED_RENDERING_NON_UNIFORM_RASTER)
-                // Get the UVs from non-unifrom space to linear space to determine the right world-space position
-                uv = RemapFoveatedRenderingDistort(uv);
+            #if defined(SUPPORTS_FOVEATED_RENDERING_NON_UNIFORM_RASTER)
+                UNITY_BRANCH if (_FOVEATED_RENDERING_NON_UNIFORM_RASTER)
+                {
+                    // Get the UVs from non-unifrom space to linear space to determine the right world-space position
+                    uv = RemapFoveatedRenderingNonUniformToLinear(uv);
+                }
             #endif
 
                 // Reconstruct world position
@@ -90,23 +80,32 @@ Shader "Hidden/Universal Render Pipeline/CameraMotionVectors"
                 float4 posCS = mul(_NonJitteredViewProjMatrix, float4(posWS.xyz, 1.0));
                 float4 prevPosCS = mul(_PrevViewProjMatrix, float4(posWS.xyz, 1.0));
 
-                POS_NDC_TYPE posNDC = posCS.xy * rcp(posCS.w);
-                POS_NDC_TYPE prevPosNDC = prevPosCS.xy * rcp(prevPosCS.w);
+                // Non-uniform raster needs to keep the posNDC values in float to avoid additional conversions
+                // since uv remap functions use floats
+                float2 posNDC = posCS.xy * rcp(posCS.w);
+                float2 prevPosNDC = prevPosCS.xy * rcp(prevPosCS.w);
 
-                #if defined(_FOVEATED_RENDERING_NON_UNIFORM_RASTER)
+                float2 velocity;
+                #if defined(SUPPORTS_FOVEATED_RENDERING_NON_UNIFORM_RASTER)
+                UNITY_BRANCH if (_FOVEATED_RENDERING_NON_UNIFORM_RASTER)
+                {
                     // Convert velocity from NDC space (-1..1) to screen UV 0..1 space since FoveatedRendering remap needs that range.
                     // Also return both position in non-uniform UV space to get the right velocity vector
-                    half2 posUV = RemapFoveatedRenderingResolve(posNDC * 0.5f + 0.5f);
-                    half2 prevPosUV = RemapFoveatedRenderingPrevFrameResolve(prevPosNDC * 0.5f + 0.5f);
+
+                    float2 posUV = RemapFoveatedRenderingResolve(posNDC * 0.5f + 0.5f);
+                    float2 prevPosUV = RemapFoveatedRenderingPrevFrameLinearToNonUniform(prevPosNDC * 0.5f + 0.5f);
 
                     // Calculate forward velocity
-                    half2 velocity = (posUV - prevPosUV);
+                    velocity = (posUV - prevPosUV);
                     #if UNITY_UV_STARTS_AT_TOP
                         velocity.y = -velocity.y;
                     #endif
-                #else
+                }
+                else
+                #endif
+                {
                     // Calculate forward velocity
-                    half2 velocity = (posNDC - prevPosNDC);
+                    velocity = (posNDC - prevPosNDC);
 
                     // TODO: test that velocity.y is correct
                     #if UNITY_UV_STARTS_AT_TOP
@@ -117,8 +116,9 @@ Shader "Hidden/Universal Render Pipeline/CameraMotionVectors"
                     // Note: It doesn't mean we don't have negative values, we store negative or positive offset in the UV space.
                     // Note: ((posNDC * 0.5 + 0.5) - (prevPosNDC * 0.5 + 0.5)) = (velocity * 0.5)
                     velocity.xy *= 0.5;
-                #endif
-                return half4(velocity, 0, 0);
+                }
+
+                return float4(velocity, 0, 0);
             }
 
             ENDHLSL

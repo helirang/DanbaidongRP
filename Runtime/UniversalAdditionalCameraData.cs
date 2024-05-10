@@ -36,7 +36,7 @@ namespace UnityEngine.Rendering.Universal
     /// Options to control the renderer override.
     /// This enum is no longer in use.
     /// </summary>
-    //[Obsolete("Renderer override is no longer used, renderers are referenced by index on the pipeline asset.")]
+    [Obsolete("Renderer override is no longer used, renderers are referenced by index on the pipeline asset.")]
     public enum RendererOverrideOption
     {
         /// <summary>
@@ -297,7 +297,7 @@ namespace UnityEngine.Rendering.Universal
     [URPHelpURL("universal-additional-camera-data")]
     public class UniversalAdditionalCameraData : MonoBehaviour, ISerializationCallbackReceiver, IAdditionalData
     {
-        const string k_GizmoPath = "Packages/com.unity.render-pipelines.danbaidong/Editor/Gizmos/";
+        const string k_GizmoPath = "Packages/com.unity.render-pipelines.universal/Editor/Gizmos/";
         const string k_BaseCameraGizmoPath = k_GizmoPath + "Camera_Base.png";
         const string k_OverlayCameraGizmoPath = k_GizmoPath + "Camera_Base.png";
         const string k_PostProcessingGizmoPath = k_GizmoPath + "Camera_PostProcessing.png";
@@ -344,7 +344,9 @@ namespace UnityEngine.Rendering.Universal
 
         // These persist over multiple frames
         [NonSerialized] MotionVectorsPersistentData m_MotionVectorsPersistentData = new MotionVectorsPersistentData();
-        [NonSerialized] TaaPersistentData m_TaaPersistentData = new TaaPersistentData();
+
+        // The URP camera history texture manager. Persistent per camera textures.
+        [NonSerialized] internal UniversalCameraHistory m_History = new UniversalCameraHistory();
 
         [SerializeField] internal TemporalAA.Settings m_TaaSettings = TemporalAA.Settings.Create();
 
@@ -379,6 +381,15 @@ namespace UnityEngine.Rendering.Universal
                 }
                 return m_Camera;
             }
+        }
+
+        void Start()
+        {
+            // Need to ensure correct behavoiur for overlay cameras settings their clear flag to nothing.
+            // This can't be done in the upgrade since the camera component can't be retrieved in the deserialization phase.
+            // OnValidate ensure future cameras won't have this issue.
+            if (m_CameraType == CameraRenderType.Overlay)
+                camera.clearFlags = CameraClearFlags.Nothing;
         }
 
 
@@ -600,7 +611,7 @@ namespace UnityEngine.Rendering.Universal
             {
                 // If the volume stack is being removed,
                 // add it back to the list so it can be reused later
-                if (value == null && m_VolumeStack != null)
+                if (value == null && m_VolumeStack != null && m_VolumeStack.isValid)
                 {
                     if (s_CachedVolumeStacks == null)
                         s_CachedVolumeStacks = new List<VolumeStack>(4);
@@ -623,8 +634,10 @@ namespace UnityEngine.Rendering.Universal
             if (s_CachedVolumeStacks != null && s_CachedVolumeStacks.Count > 0)
             {
                 int index = s_CachedVolumeStacks.Count - 1;
-                volumeStack = s_CachedVolumeStacks[index];
+                var stack = s_CachedVolumeStacks[index];
                 s_CachedVolumeStacks.RemoveAt(index);
+                if (stack.isValid)
+                    volumeStack = stack;
             }
 
             // Create a new stack if was not possible to reuse an old one
@@ -661,15 +674,26 @@ namespace UnityEngine.Rendering.Universal
             set => m_AntialiasingQuality = value;
         }
 
-        internal ref TemporalAA.Settings taaSettings
+        /// <summary>
+        /// Returns the current temporal anti-aliasing settings used by this camera.
+        /// </summary>
+        public ref TemporalAA.Settings taaSettings
         {
             get { return ref m_TaaSettings; }
         }
 
         /// <summary>
-        /// Temporal Anti-aliasing buffers and data that persists over a frame.
+        /// Returns the URP camera history texture read access.
+        /// Used to register requests and to read the existing history textures by external systems.
         /// </summary>
-        internal TaaPersistentData taaPersistentData => m_TaaPersistentData;
+        public ICameraHistoryReadAccess history => m_History;
+
+        // Returns the URP camera history texture manager with full access for internal systems.
+        // NOTE: Only the pipeline should write/render history textures. Should be kept internal.
+        //
+        // The history is camera specific. The UniversalAdditionalCameraData is the URP specific camera (data).
+        // Therefore it owns the UniversalCameraHistory. The history should follow the camera lifetime.
+        internal UniversalCameraHistory historyManager => m_History;
 
         /// <summary>
         /// Motion data that persists over a frame.
@@ -746,7 +770,7 @@ namespace UnityEngine.Rendering.Universal
             get => m_ScreenCoordScaleBias;
             set => m_ScreenCoordScaleBias = value;
         }
-        
+
         /// <summary>
         /// Returns true if this camera allows outputting to HDR displays.
         /// </summary>
@@ -768,6 +792,16 @@ namespace UnityEngine.Rendering.Universal
             {
                 m_RequiresDepthTextureOption = (m_RequiresDepthTexture) ? CameraOverrideOption.On : CameraOverrideOption.Off;
                 m_RequiresOpaqueTextureOption = (m_RequiresColorTexture) ? CameraOverrideOption.On : CameraOverrideOption.Off;
+                m_Version = 2;
+            }
+        }
+
+        /// <inheritdoc/>
+        public void OnValidate()
+        {
+            if (m_CameraType == CameraRenderType.Overlay && m_Camera != null)
+            {
+                m_Camera.clearFlags = CameraClearFlags.Nothing;
             }
         }
 
@@ -815,10 +849,11 @@ namespace UnityEngine.Rendering.Universal
         /// <inheritdoc/>
         public void OnDestroy()
         {
+            m_Camera.DestroyVolumeStack(this);
             if (camera.cameraType != CameraType.SceneView )
                 scriptableRenderer?.ReleaseRenderTargets();
-            m_Camera.DestroyVolumeStack(this);
-            m_TaaPersistentData?.DeallocateTargets();
+            m_History?.Dispose();
+            m_History = null;
         }
     }
 }

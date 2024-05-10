@@ -38,7 +38,7 @@ namespace UnityEngine.Rendering.Universal
         /// Returns True if <see cref="UniversalRendererData"/> will require rendering layers texture.
         /// </summary>
         /// <param name="universalRendererData"></param>
-        /// <param name="msaaSampleCount">Number of MSAA Samples</param>
+        /// <param name="msaaSampleCount">Event at which rendering layers texture needs to be created</param>
         /// <param name="combinedEvent">Event at which rendering layers texture needs to be created</param>
         /// <param name="combinedMaskSize">The mask size of rendering layers texture</param>
         public static bool RequireRenderingLayers(UniversalRendererData universalRendererData, int msaaSampleCount, out Event combinedEvent, out MaskSize combinedMaskSize)
@@ -52,7 +52,7 @@ namespace UnityEngine.Rendering.Universal
             {
                 if (rendererFeature.isActive)
                 {
-                    result |= rendererFeature.RequireRenderingLayers(isDeferred, out Event rendererEvent, out MaskSize rendererMaskSize);
+                    result |= rendererFeature.RequireRenderingLayers(isDeferred, universalRendererData.accurateGbufferNormals, out Event rendererEvent, out MaskSize rendererMaskSize);
                     combinedEvent = Combine(combinedEvent, rendererEvent);
                     combinedMaskSize = Combine(combinedMaskSize, rendererMaskSize);
                 }
@@ -65,8 +65,8 @@ namespace UnityEngine.Rendering.Universal
             // Make sure texture has enough bits to encode all rendering layers in urp global settings
             if (UniversalRenderPipelineGlobalSettings.instance)
             {
-                int count = UniversalRenderPipelineGlobalSettings.instance.renderingLayerMaskNames.Length;
-                MaskSize maskSize = RenderingLayerUtils.GetMaskSize(count);
+                int count =  RenderingLayerMask.GetRenderingLayerCount();
+                MaskSize maskSize = GetMaskSize(count);
                 combinedMaskSize = Combine(combinedMaskSize, maskSize);
             }
 
@@ -78,7 +78,7 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         /// <param name="universalRenderer"></param>
         /// <param name="rendererFeatures">Event at which rendering layers texture needs to be created</param>
-        /// <param name="msaaSampleCount">Number of MSAA Samples</param>
+        /// <param name="msaaSampleCount">Event at which rendering layers texture needs to be created</param>
         /// <param name="combinedEvent">Event at which rendering layers texture needs to be created</param>
         /// <param name="combinedMaskSize">The mask size of rendering layers texture</param>
         public static bool RequireRenderingLayers(UniversalRenderer universalRenderer, List<ScriptableRendererFeature> rendererFeatures, int msaaSampleCount, out Event combinedEvent, out MaskSize combinedMaskSize)
@@ -92,7 +92,7 @@ namespace UnityEngine.Rendering.Universal
             {
                 if (rendererFeature.isActive)
                 {
-                    result |= rendererFeature.RequireRenderingLayers(isDeferred, out Event rendererEvent, out MaskSize rendererMaskSize);
+                    result |= rendererFeature.RequireRenderingLayers(isDeferred, universalRenderer.accurateGbufferNormals, out Event rendererEvent, out MaskSize rendererMaskSize);
                     combinedEvent = Combine(combinedEvent, rendererEvent);
                     combinedMaskSize = Combine(combinedMaskSize, rendererMaskSize);
                 }
@@ -105,8 +105,8 @@ namespace UnityEngine.Rendering.Universal
             // Make sure texture has enough bits to encode all rendering layers in urp global settings
             if (UniversalRenderPipelineGlobalSettings.instance)
             {
-                int count = UniversalRenderPipelineGlobalSettings.instance.renderingLayerMaskNames.Length;
-                MaskSize maskSize = RenderingLayerUtils.GetMaskSize(count);
+                int count =  RenderingLayerMask.GetLastDefinedRenderingLayerIndex();
+                MaskSize maskSize = GetMaskSize(count);
                 combinedMaskSize = Combine(combinedMaskSize, maskSize);
             }
 
@@ -118,7 +118,8 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         /// <param name="cmd">Used command buffer</param>
         /// <param name="maskSize">The mask size of rendering layers texture</param>
-        public static void SetupProperties(CommandBuffer cmd, MaskSize maskSize)
+        public static void SetupProperties(CommandBuffer cmd, MaskSize maskSize) { SetupProperties(CommandBufferHelpers.GetRasterCommandBuffer(cmd), maskSize); }
+        internal static void SetupProperties(RasterCommandBuffer cmd, MaskSize maskSize)
         {
             int bits = GetBits(maskSize);
 
@@ -155,7 +156,7 @@ namespace UnityEngine.Rendering.Universal
         {
             if (UniversalRenderPipelineGlobalSettings.instance)
             {
-                uint validRenderingLayers = UniversalRenderPipelineGlobalSettings.instance.validRenderingLayers;
+                uint validRenderingLayers = RenderingLayerMask.GetDefinedRenderingLayersCombinedMaskValue();
                 return validRenderingLayers & renderingLayers;
             }
             return renderingLayers;

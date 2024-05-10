@@ -1,7 +1,7 @@
 #ifndef UNIVERSAL_SPEEDTREE7_PASSES_INCLUDED
 #define UNIVERSAL_SPEEDTREE7_PASSES_INCLUDED
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Lighting.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #include "SpeedTree7CommonPasses.hlsl"
 
 void InitializeData(inout SpeedTreeVertexInput input, float lodValue)
@@ -161,7 +161,7 @@ SpeedTreeVertexOutput SpeedTree7Vert(SpeedTreeVertexInput input)
     output.positionWS = vertexInput.positionWS;
     output.clipPos = vertexInput.positionCS;
 
-    OUTPUT_SH(output.normalWS.xyz, output.vertexSH);
+    OUTPUT_SH4(vertexInput.positionWS, output.normalWS.xyz, GetWorldSpaceNormalizeViewDir(vertexInput.positionWS), output.vertexSH);
 
     return output;
 }

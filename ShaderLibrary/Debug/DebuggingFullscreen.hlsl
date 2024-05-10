@@ -1,5 +1,5 @@
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Debug/DebuggingCommon.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Debug/DebuggingCommon.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Debug.hlsl"
 
 #if defined(DEBUG_DISPLAY)
@@ -11,7 +11,10 @@ float _RangeMaximum;
 
 TEXTURE2D_X(_DebugTexture);
 TEXTURE2D(_DebugTextureNoStereo);
-SAMPLER(sampler_DebugTexture);
+
+// 2023.3 Deprecated. This is for backwards compatibility. Remove in the future.
+#define sampler_DebugTexture sampler_PointClamp
+
 half4 _DebugTextureDisplayRect;
 int _DebugRenderTargetSupportsStereo;
 
@@ -25,12 +28,46 @@ bool CalculateDebugColorRenderingSettings(half4 color, float2 uv, inout half4 de
         return true;
     }
 
+    if (_DebugMipInfoMode != DEBUGMIPINFOMODE_NONE)
+    {
+        debugColor = color; // just passing through
+
+        // draw legend
+        switch(_DebugMipInfoMode)
+        {
+            case DEBUGMIPINFOMODE_MIP_COUNT:
+                DrawMipCountLegend(uv, _ScreenSize, debugColor.rgb);
+                break;
+            case DEBUGMIPINFOMODE_MIP_RATIO:
+                DrawMipRatioLegend(uv, _ScreenSize, debugColor.rgb);
+                break;
+            case DEBUGMIPINFOMODE_MIP_STREAMING_STATUS:
+                if (_DebugMipMapStatusMode == DEBUGMIPMAPSTATUSMODE_TEXTURE)
+                    DrawMipStreamingStatusLegend(uv, _ScreenSize, _DebugMipMapShowStatusCode, debugColor.rgb);
+                else
+                    DrawMipStreamingStatusPerMaterialLegend(uv, _ScreenSize, debugColor.rgb);
+                break;
+            case DEBUGMIPINFOMODE_MIP_STREAMING_PERFORMANCE:
+                DrawTextureStreamingPerformanceLegend(uv, _ScreenSize, debugColor.rgb);
+                break;
+            case DEBUGMIPINFOMODE_MIP_STREAMING_PRIORITY:
+                DrawMipPriorityLegend(uv, _ScreenSize, debugColor.rgb);
+                break;
+            case DEBUGMIPINFOMODE_MIP_STREAMING_ACTIVITY:
+                DrawMipRecentlyUpdatedLegend(uv, _ScreenSize, _DebugMipMapStatusMode == DEBUGMIPMAPSTATUSMODE_MATERIAL, debugColor.rgb);
+                break;
+        }
+
+        return true;
+    }
+
     switch(_DebugFullScreenMode)
     {
         case DEBUGFULLSCREENMODE_DEPTH:
         case DEBUGFULLSCREENMODE_MAIN_LIGHT_SHADOW_MAP:
         case DEBUGFULLSCREENMODE_ADDITIONAL_LIGHTS_SHADOW_MAP:
         case DEBUGFULLSCREENMODE_REFLECTION_PROBE_ATLAS:
+        case DEBUGFULLSCREENMODE_STP:
         {
             float2 uvOffset = half2(uv.x - _DebugTextureDisplayRect.x, uv.y - _DebugTextureDisplayRect.y);
 
@@ -45,7 +82,20 @@ bool CalculateDebugColorRenderingSettings(half4 color, float2 uv, inout half4 de
                 else
                     sampleColor = SAMPLE_TEXTURE2D(_DebugTextureNoStereo, sampler_DebugTexture, debugTextureUv);
 
-                debugColor = _DebugFullScreenMode == DEBUGFULLSCREENMODE_DEPTH ? half4(sampleColor.rrr, 1) : sampleColor;
+                if (_DebugFullScreenMode == DEBUGFULLSCREENMODE_DEPTH)
+                {
+                    debugColor = half4(sampleColor.rrr, 1);
+                }
+                else if (_DebugFullScreenMode == DEBUGFULLSCREENMODE_STP)
+                {
+                    // This is encoded in gamma 2.0 (so the square is needed to get it back to linear).
+                    debugColor = sampleColor * sampleColor;
+                }
+                else
+                {
+                    debugColor = sampleColor;
+                }
+
                 return true;
             }
             else
@@ -67,7 +117,6 @@ bool CalculateDebugColorValidationSettings(half4 color, float2 uv, inout half4 d
     {
         case DEBUGVALIDATIONMODE_HIGHLIGHT_NAN_INF_NEGATIVE:
         {
-#if !defined (SHADER_API_GLES)
             if (AnyIsNaN(color))
             {
                 debugColor = half4(1, 0, 0, 1);
@@ -76,9 +125,7 @@ bool CalculateDebugColorValidationSettings(half4 color, float2 uv, inout half4 d
             {
                 debugColor = half4(0, 1, 0, 1);
             }
-            else
-#endif
-            if (color.r < 0 || color.g < 0 || color.b < 0 || color.a < 0)
+            else if (color.r < 0 || color.g < 0 || color.b < 0 || color.a < 0)
             {
                 debugColor = half4(0, 0, 1, 1);
             }

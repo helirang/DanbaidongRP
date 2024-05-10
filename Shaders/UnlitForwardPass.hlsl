@@ -2,10 +2,10 @@
 #ifndef URP_UNLIT_FORWARD_PASS_INCLUDED
 #define URP_UNLIT_FORWARD_PASS_INCLUDED
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Unlit.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Lighting.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Unlit.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #if defined(LOD_FADE_CROSSFADE)
-    #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/LODCrossFade.hlsl"
+    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
 #endif
 
 struct Attributes
@@ -43,6 +43,7 @@ void InitializeInputData(Varyings input, out InputData inputData)
 
     #if defined(DEBUG_DISPLAY)
     inputData.positionWS = input.positionWS;
+    inputData.positionCS = input.positionCS;
     inputData.normalWS = input.normalWS;
     inputData.viewDirectionWS = input.viewDirWS;
     #else
@@ -117,7 +118,7 @@ void UnlitPassFragment(
 
     InputData inputData;
     InitializeInputData(input, inputData);
-    SETUP_DEBUG_TEXTURE_DATA(inputData, input.uv, _BaseMap);
+    SETUP_DEBUG_TEXTURE_DATA(inputData, UNDO_TRANSFORM_TEX(input.uv, _BaseMap));
 
 #ifdef _DBUFFER
     ApplyDecalToBaseColor(input.positionCS, color);

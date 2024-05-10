@@ -1,8 +1,8 @@
 #ifndef UNITY_SHADER_VARIABLES_FUNCTIONS_INCLUDED
 #define UNITY_SHADER_VARIABLES_FUNCTIONS_INCLUDED
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/ShaderVariablesFunctions.deprecated.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Debug/DebuggingCommon.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ShaderVariablesFunctions.deprecated.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Debug/DebuggingCommon.hlsl"
 
 VertexPositionInputs GetVertexPositionInputs(float3 positionOS)
 {
@@ -190,7 +190,11 @@ half AlphaClip(half alpha, half cutoff)
     half clippedAlpha = (alpha >= cutoff) ? float(alpha) : 0.0;
 
     // Calculate a specialized alpha value that should be used when alpha-to-coverage is enabled
-    half alphaToCoverageAlpha = SharpenAlpha(alpha, cutoff);
+
+    // If the user has specified zero as the cutoff threshold, the expectation is that the shader will function as if alpha-clipping was disabled.
+    // Ideally, the user should just turn off the alpha-clipping feature in this case, but in order to make this case work as expected, we force alpha
+    // to 1.0 here to ensure that alpha-to-coverage never throws away samples when its active. (This would cause opaque objects to appear transparent)
+    half alphaToCoverageAlpha = (cutoff <= 0.0) ? 1.0 : SharpenAlpha(alpha, cutoff);
 
     // When alpha-to-coverage is available:     Use the specialized value which will be exported from the shader and combined with the MSAA coverage mask.
     // When alpha-to-coverage is not available: Use the "clipped" value. A clipped value will always result in thread termination via the clip() logic below.
@@ -213,7 +217,7 @@ half AlphaClip(half alpha, half cutoff)
 // NOTE: When _ALPHATEST_ON is not defined, this function is effectively a no-op.
 real AlphaDiscard(real alpha, real cutoff, real offset = real(0.0))
 {
-#ifdef _ALPHATEST_ON
+#if defined(_ALPHATEST_ON)
     if (IsAlphaDiscardEnabled())
         alpha = AlphaClip(alpha, cutoff + offset);
 #endif
@@ -398,7 +402,7 @@ float3 MixFogColor(float3 fragColor, float3 fogColor, float fogFactor)
 
 half3 MixFog(half3 fragColor, half fogFactor)
 {
-    return MixFogColor(fragColor, unity_FogColor.rgb, fogFactor);
+    return MixFogColor(fragColor, half3(unity_FogColor.rgb), fogFactor);
 }
 
 float3 MixFog(float3 fragColor, float fogFactor)
@@ -488,21 +492,7 @@ uint URP_FirstBitLow(uint m)
 #define FIRST_BIT_LOW firstbitlow
 #endif
 
-#if defined(UNITY_SINGLE_PASS_STEREO)
-    float2 TransformStereoScreenSpaceTex(float2 uv, float w)
-    {
-        // TODO: RVS support can be added here, if Universal decides to support it
-        float4 scaleOffset = unity_StereoScaleOffset[unity_StereoEyeIndex];
-        return uv.xy * scaleOffset.xy + scaleOffset.zw * w;
-    }
-
-    float2 UnityStereoTransformScreenSpaceTex(float2 uv)
-    {
-        return TransformStereoScreenSpaceTex(saturate(uv), 1.0);
-    }
-#else
-    #define UnityStereoTransformScreenSpaceTex(uv) uv
-#endif // defined(UNITY_SINGLE_PASS_STEREO)
+#define UnityStereoTransformScreenSpaceTex(uv) uv
 
 uint GetMeshRenderingLayer()
 {
@@ -530,6 +520,12 @@ uint DecodeMeshRenderingLayer(float renderingLayer)
     // - Parameter f is float instead of real
     uint maxInt = _RenderingLayerMaxInt;
     return (uint)(renderingLayer * maxInt + 0.5); // Round instead of truncating
+}
+
+// TODO: implement
+float GetCurrentExposureMultiplier()
+{
+    return 1;
 }
 
 #endif // UNITY_SHADER_VARIABLES_FUNCTIONS_INCLUDED

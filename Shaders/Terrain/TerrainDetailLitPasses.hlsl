@@ -1,7 +1,8 @@
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Lighting.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityGBuffer.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityGBuffer.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/DebugMipmapStreamingMacros.hlsl"
 
 struct Attributes
 {
@@ -48,10 +49,19 @@ void InitializeInputData(Varyings input, out InputData inputData)
 
     inputData.fogCoord = input.LightingFog.a;
     inputData.vertexLighting = input.LightingFog.rgb;
-    inputData.bakedGI = SAMPLE_GI(input.staticLightmapUV, input.vertexSH, input.NormalWS.xyz);
     inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.PositionCS);
     inputData.shadowMask = SAMPLE_SHADOWMASK(input.staticLightmapUV);
     inputData.positionWS = input.PositionWS;
+
+#if !defined(LIGHTMAP_ON) && (defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2))
+    inputData.bakedGI = SAMPLE_GI(input.vertexSH,
+        GetAbsolutePositionWS(inputData.positionWS),
+        input.NormalWS.xyz,
+        GetWorldSpaceNormalizeViewDir(inputData.positionWS),
+        inputData.positionCS.xy);
+#else
+    inputData.bakedGI = SAMPLE_GI(input.staticLightmapUV, input.vertexSH, input.NormalWS.xyz);
+#endif
 
     #if defined(DEBUG_DISPLAY)
     inputData.uv = input.UV01;
@@ -131,7 +141,7 @@ Varyings TerrainLitVertex(Attributes input)
 
     // Vertex Lighting
     half3 NormalWS = input.NormalOS;
-    OUTPUT_SH(NormalWS, output.vertexSH);
+    OUTPUT_SH4(vertexInput.positionWS, NormalWS.xyz, GetWorldSpaceNormalizeViewDir(vertexInput.positionWS), output.vertexSH);
     Light mainLight = GetMainLight();
     half3 attenuatedLightColor = mainLight.color * mainLight.distanceAttenuation;
     half3 diffuseColor = half3(0, 0, 0);
@@ -171,6 +181,7 @@ half4 TerrainLitForwardFragment(Varyings input) : SV_Target
 
     InputData inputData;
     InitializeInputData(input, inputData);
+    SETUP_DEBUG_TEXTURE_DATA_FOR_TERRAIN(inputData);
     half4 tex = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.UV01);
     half4 color = UniversalTerrainLit(inputData, tex.rgb, tex.a);
 
@@ -186,6 +197,7 @@ FragmentOutput TerrainLitGBufferFragment(Varyings input)
     half4 tex = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.UV01);
     InputData inputData;
     InitializeInputData(input, inputData);
+    SETUP_DEBUG_TEXTURE_DATA_FOR_TERRAIN(inputData);
     SurfaceData surfaceData;
     InitializeSurfaceData(tex.rgb, tex.a, surfaceData);
     half4 color = UniversalTerrainLit(inputData, tex.rgb, tex.a);

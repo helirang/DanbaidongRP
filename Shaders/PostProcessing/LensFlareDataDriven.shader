@@ -21,9 +21,7 @@ Shader "Hidden/Universal Render Pipeline/LensFlareDataDriven"
             #pragma target 3.0
             #pragma vertex vert
             #pragma fragment frag
-            #pragma exclude_renderers gles
 
-            #pragma multi_compile_fragment _ FLARE_CIRCLE FLARE_POLYGON
             #pragma multi_compile_fragment _ FLARE_INVERSE_SDF
 
             #pragma multi_compile_vertex _ FLARE_OPENGL3_OR_OPENGLCORE
@@ -32,11 +30,12 @@ Shader "Hidden/Universal Render Pipeline/LensFlareDataDriven"
 
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareDepthTexture.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/PostProcessing/Common.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityInput.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/PostProcessing/Common.hlsl"
 
+            #define FLARE_ADDITIVE_BLEND
             #include "Packages/com.unity.render-pipelines.core/Runtime/PostProcessing/Shaders/LensFlareCommon.hlsl"
 
             ENDHLSL
@@ -59,9 +58,7 @@ Shader "Hidden/Universal Render Pipeline/LensFlareDataDriven"
             #pragma target 3.0
             #pragma vertex vert
             #pragma fragment frag
-            #pragma exclude_renderers gles
 
-            #pragma multi_compile_fragment _ FLARE_CIRCLE FLARE_POLYGON
             #pragma multi_compile_fragment _ FLARE_INVERSE_SDF
 
             #pragma multi_compile_vertex _ FLARE_OPENGL3_OR_OPENGLCORE
@@ -70,11 +67,12 @@ Shader "Hidden/Universal Render Pipeline/LensFlareDataDriven"
 
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareDepthTexture.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/PostProcessing/Common.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityInput.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/PostProcessing/Common.hlsl"
 
+            #define FLARE_SCREEN_BLEND
             #include "Packages/com.unity.render-pipelines.core/Runtime/PostProcessing/Shaders/LensFlareCommon.hlsl"
 
             ENDHLSL
@@ -97,9 +95,7 @@ Shader "Hidden/Universal Render Pipeline/LensFlareDataDriven"
             #pragma target 3.0
             #pragma vertex vert
             #pragma fragment frag
-            #pragma exclude_renderers gles
 
-            #pragma multi_compile_fragment _ FLARE_CIRCLE FLARE_POLYGON
             #pragma multi_compile_fragment _ FLARE_INVERSE_SDF
 
             #pragma multi_compile_vertex _ FLARE_OPENGL3_OR_OPENGLCORE
@@ -108,11 +104,12 @@ Shader "Hidden/Universal Render Pipeline/LensFlareDataDriven"
 
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareDepthTexture.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/PostProcessing/Common.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityInput.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/PostProcessing/Common.hlsl"
 
+            #define FLARE_PREMULTIPLIED_BLEND
             #include "Packages/com.unity.render-pipelines.core/Runtime/PostProcessing/Shaders/LensFlareCommon.hlsl"
 
             ENDHLSL
@@ -135,9 +132,7 @@ Shader "Hidden/Universal Render Pipeline/LensFlareDataDriven"
             #pragma target 3.0
             #pragma vertex vert
             #pragma fragment frag
-            #pragma exclude_renderers gles
 
-            #pragma multi_compile_fragment _ FLARE_CIRCLE FLARE_POLYGON
             #pragma multi_compile_fragment _ FLARE_INVERSE_SDF
 
             #pragma multi_compile_vertex _ FLARE_OPENGL3_OR_OPENGLCORE
@@ -146,11 +141,12 @@ Shader "Hidden/Universal Render Pipeline/LensFlareDataDriven"
 
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareDepthTexture.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/PostProcessing/Common.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityInput.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/PostProcessing/Common.hlsl"
 
+            #define FLARE_LERP_BLEND
             #include "Packages/com.unity.render-pipelines.core/Runtime/PostProcessing/Shaders/LensFlareCommon.hlsl"
 
             ENDHLSL
@@ -173,7 +169,7 @@ Shader "Hidden/Universal Render Pipeline/LensFlareDataDriven"
             #pragma exclude_renderers gles
 
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareDepthTexture.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
             #define FLARE_COMPUTE_OCCLUSION
             #include "Packages/com.unity.render-pipelines.core/Runtime/PostProcessing/Shaders/LensFlareCommon.hlsl"

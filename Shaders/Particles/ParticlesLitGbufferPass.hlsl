@@ -1,8 +1,8 @@
 #ifndef UNIVERSAL_PARTICLES_GBUFFER_LIT_PASS_INCLUDED
 #define UNIVERSAL_PARTICLES_GBUFFER_LIT_PASS_INCLUDED
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Lighting.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityGBuffer.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityGBuffer.hlsl"
 
 void InitializeInputData(VaryingsParticle input, half3 normalTS, out InputData inputData)
 {
@@ -36,7 +36,15 @@ void InitializeInputData(VaryingsParticle input, half3 normalTS, out InputData i
 
     inputData.fogCoord = 0.0; // not used for deferred shading
     inputData.vertexLighting = half3(0.0h, 0.0h, 0.0h);
+#if !defined(LIGHTMAP_ON) && (defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2))
+    inputData.bakedGI = SAMPLE_GI(input.vertexSH,
+        GetAbsolutePositionWS(inputData.positionWS),
+        inputData.normalWS,
+        inputData.viewDirectionWS,
+        inputData.positionCS.xy);
+#else
     inputData.bakedGI = SampleSHPixel(input.vertexSH, inputData.normalWS);
+#endif
     inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.clipPos);
     inputData.shadowMask = half4(1, 1, 1, 1);
 
@@ -72,7 +80,7 @@ VaryingsParticle ParticlesGBufferVertex(AttributesParticle input)
     output.viewDirWS = viewDirWS;
 #endif
 
-    OUTPUT_SH(output.normalWS.xyz, output.vertexSH);
+    OUTPUT_SH4(vertexInput.positionWS, output.normalWS.xyz, GetWorldSpaceNormalizeViewDir(vertexInput.positionWS), output.vertexSH);
 
     output.positionWS.xyz = vertexInput.positionWS;
     output.clipPos = vertexInput.positionCS;
@@ -115,7 +123,7 @@ FragmentOutput ParticlesGBufferFragment(VaryingsParticle input)
 
     InputData inputData;
     InitializeInputData(input, surfaceData.normalTS, inputData);
-    SETUP_DEBUG_TEXTURE_DATA(inputData, input.texcoord, _BaseMap);
+    SETUP_DEBUG_TEXTURE_DATA_FOR_TEX(inputData, input.texcoord, _BaseMap);
 
     // Stripped down version of UniversalFragmentPBR().
 

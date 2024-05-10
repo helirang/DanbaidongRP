@@ -1,8 +1,8 @@
 #ifndef UNIVERSAL_PARTICLES_FORWARD_LIT_PASS_INCLUDED
 #define UNIVERSAL_PARTICLES_FORWARD_LIT_PASS_INCLUDED
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Lighting.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Particles.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Particles.hlsl"
 
 void InitializeInputData(VaryingsParticle input, half3 normalTS, out InputData inputData)
 {
@@ -35,7 +35,16 @@ void InitializeInputData(VaryingsParticle input, half3 normalTS, out InputData i
 
     inputData.fogCoord = InitializeInputDataFog(float4(input.positionWS.xyz, 1.0), input.positionWS.w);
     inputData.vertexLighting = half3(0.0h, 0.0h, 0.0h);
+#if !defined(LIGHTMAP_ON) && (defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2))
+    inputData.bakedGI = SAMPLE_GI(input.vertexSH,
+        GetAbsolutePositionWS(inputData.positionWS),
+        inputData.normalWS,
+        inputData.viewDirectionWS,
+        input.clipPos.xy);
+#else
     inputData.bakedGI = SampleSHPixel(input.vertexSH, inputData.normalWS);
+#endif
+
     inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.clipPos);
     inputData.shadowMask = half4(1, 1, 1, 1);
 
@@ -75,7 +84,7 @@ VaryingsParticle ParticlesLitVertex(AttributesParticle input)
     output.viewDirWS = viewDirWS;
 #endif
 
-    OUTPUT_SH(output.normalWS.xyz, output.vertexSH);
+    OUTPUT_SH4(vertexInput.positionWS, output.normalWS.xyz, GetWorldSpaceNormalizeViewDir(vertexInput.positionWS), output.vertexSH);
 
     output.positionWS.xyz = vertexInput.positionWS;
     output.positionWS.w = fogFactor;
@@ -116,7 +125,7 @@ half4 ParticlesLitFragment(VaryingsParticle input) : SV_Target
 
     InputData inputData;
     InitializeInputData(input, surfaceData.normalTS, inputData);
-    SETUP_DEBUG_TEXTURE_DATA(inputData, input.texcoord, _BaseMap);
+    SETUP_DEBUG_TEXTURE_DATA_FOR_TEX(inputData, input.texcoord, _BaseMap);
 
     half4 color = UniversalFragmentPBR(inputData, surfaceData);
     color.rgb = MixFog(color.rgb, inputData.fogCoord);

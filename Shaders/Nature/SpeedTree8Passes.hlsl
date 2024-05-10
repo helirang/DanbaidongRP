@@ -1,11 +1,11 @@
 #ifndef UNIVERSAL_SPEEDTREE8_PASSES_INCLUDED
 #define UNIVERSAL_SPEEDTREE8_PASSES_INCLUDED
 
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Lighting.hlsl"
-#include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityGBuffer.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityGBuffer.hlsl"
 #include "SpeedTreeUtility.hlsl"
 #if defined(LOD_FADE_CROSSFADE)
-    #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/LODCrossFade.hlsl"
+    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
 #endif
 
 struct SpeedTreeVertexInput
@@ -275,7 +275,7 @@ SpeedTreeVertexOutput SpeedTree8Vert(SpeedTreeVertexInput input)
 
     output.clipPos = vertexInput.positionCS;
 
-    OUTPUT_SH(output.normalWS.xyz, output.vertexSH);
+    OUTPUT_SH4(vertexInput.positionWS, output.normalWS.xyz, GetWorldSpaceNormalizeViewDir(vertexInput.positionWS), output.vertexSH);
 
     return output;
 }
@@ -342,7 +342,16 @@ void InitializeInputData(SpeedTreeFragmentInput input, half3 normalTS, out Input
 
     inputData.fogCoord = InitializeInputDataFog(float4(input.interpolated.positionWS, 1.0), input.interpolated.fogFactorAndVertexLight.x);
     inputData.vertexLighting = input.interpolated.fogFactorAndVertexLight.yzw;
+#if !defined(LIGHTMAP_ON) && (defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2))
+    inputData.bakedGI = SAMPLE_GI(input.interpolated.vertexSH,
+        GetAbsolutePositionWS(inputData.positionWS),
+        inputData.normalWS,
+        inputData.viewDirectionWS,
+        inputData.positionCS.xy);
+#else
     inputData.bakedGI = SAMPLE_GI(NOT_USED, input.interpolated.vertexSH, inputData.normalWS);
+#endif
+
     inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.interpolated.clipPos);
     inputData.shadowMask = half4(1, 1, 1, 1); // No GI currently.
 
@@ -427,7 +436,7 @@ half4 SpeedTree8Frag(SpeedTreeFragmentInput input) : SV_Target
 
     InputData inputData;
     InitializeInputData(input, normalTs, inputData);
-    SETUP_DEBUG_TEXTURE_DATA(inputData, input.interpolated.uv, _MainTex);
+    SETUP_DEBUG_TEXTURE_DATA(inputData, input.interpolated.uv);
 
 #if defined(GBUFFER) || defined(EFFECT_SUBSURFACE)
     Light mainLight = GetMainLight(inputData.shadowCoord, inputData.positionWS, inputData.shadowMask);
