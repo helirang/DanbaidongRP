@@ -60,6 +60,15 @@ namespace UnityEngine.Rendering.Universal
             get => m_DefaultDecalMaterial;
             set => this.SetValueAndNotify(ref m_DefaultDecalMaterial, value);
         }
+
+        [SerializeField]
+        [ResourcePath("Runtime/Materials/PerObjectShadow.mat")]
+        private Material m_DefaultPerObjectShadowMaterial;
+        public virtual Material defaultPerObjectShadowMaterial
+        {
+            get => m_DefaultPerObjectShadowMaterial;
+            set => this.SetValueAndNotify(ref m_DefaultPerObjectShadowMaterial, value);
+        }
     }
 }
 #endif

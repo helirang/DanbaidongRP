@@ -231,7 +231,8 @@ namespace UnityEngine.Rendering.Universal
         Sprite,
         UnityBuiltinDefault,
         SpriteMask,
-        Decal
+        Decal,
+        PerObjectShadow
     }
 
     /// <summary>

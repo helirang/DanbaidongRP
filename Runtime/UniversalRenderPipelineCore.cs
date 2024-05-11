@@ -1444,6 +1444,9 @@ namespace UnityEngine.Rendering.Universal
 
         /// <summary> Keyword used for enable alpha output. Used in post processing. </summary>
         public const string _ENABLE_ALPHA_OUTPUT = "_ENABLE_ALPHA_OUTPUT";
+
+        /// <summary> Keyword used for per object shadow. </summary>
+        public const string PerObjectScreenSpaceShadow = "_PEROBJECT_SCREEN_SPACE_SHADOW";
     }
 
     public sealed partial class UniversalRenderPipeline

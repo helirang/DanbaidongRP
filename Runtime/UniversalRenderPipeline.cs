@@ -256,6 +256,8 @@ namespace UnityEngine.Rendering.Universal
 
             DecalProjector.defaultMaterial = asset.decalMaterial;
 
+            PerObjectShadowProjector.defaultMaterial = asset.perObjectShadowMaterial;
+
             s_RenderGraph = new RenderGraph("URPRenderGraph");
             useRenderGraph = !GraphicsSettings.GetRenderPipelineSettings<RenderGraphSettings>().enableRenderCompatibilityMode;
 

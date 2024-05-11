@@ -25,6 +25,7 @@ namespace UnityEngine.Rendering.Universal
                       DefaultMaterialType.Particle => defaultMaterials.defaultParticleUnlitMaterial,
                       DefaultMaterialType.Terrain => defaultMaterials.defaultTerrainLitMaterial,
                       DefaultMaterialType.Decal => defaultMaterials.defaultDecalMaterial,
+                      DefaultMaterialType.PerObjectShadow => defaultMaterials.defaultPerObjectShadowMaterial,
                       _ => null,// Unity Builtin Default
                     };
                 }
@@ -96,7 +97,7 @@ namespace UnityEngine.Rendering.Universal
         /// <returns>Returns the Material containing the Unity decal shader.</returns>
         public Material decalMaterial => GetMaterial(DefaultMaterialType.Decal);
 
-
+        public Material perObjectShadowMaterial => GetMaterial(DefaultMaterialType.PerObjectShadow);
         #endregion
 
         #region Shaders
