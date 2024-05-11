@@ -122,7 +122,7 @@ namespace UnityEngine.Rendering.Universal.Internal
         }
 
         // Magic numbers used to identify light type when rendering shadow receiver.
-        // Keep in sync with AdditionalLightRealtimeShadow code in com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl
+        // Keep in sync with AdditionalLightRealtimeShadow code in com.unity.render-pipelines.danbaidong/ShaderLibrary/Shadows.hlsl
         private const float LightTypeIdentifierInShadowParams_Spot = 0;
         private const float LightTypeIdentifierInShadowParams_Point = 1;
 

@@ -26,13 +26,13 @@ Shader "Universal Render Pipeline/2D/Sprite-Lit-Default"
             Tags { "LightMode" = "Universal2D" }
 
             HLSLPROGRAM
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/2D/Include/Core2D.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/2D/Include/Core2D.hlsl"
 
             #pragma vertex CombinedShapeLightVertex
             #pragma fragment CombinedShapeLightFragment
 
-            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/Shaders/2D/Include/ShapeLightShared.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/Shaders/2D/Include/ShapeLightShared.hlsl"
 
             #pragma multi_compile _ DEBUG_DISPLAY SKINNED_SPRITE
 
@@ -57,7 +57,7 @@ Shader "Universal Render Pipeline/2D/Sprite-Lit-Default"
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/2D/Include/LightingUtility.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/2D/Include/LightingUtility.hlsl"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/DebugMipmapStreamingMacros.hlsl"
 
             TEXTURE2D(_MainTex);
@@ -110,7 +110,7 @@ Shader "Universal Render Pipeline/2D/Sprite-Lit-Default"
                 return o;
             }
 
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/2D/Include/CombinedShapeLightShared.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/2D/Include/CombinedShapeLightShared.hlsl"
 
             half4 CombinedShapeLightFragment(Varyings i) : SV_Target
             {
@@ -134,8 +134,8 @@ Shader "Universal Render Pipeline/2D/Sprite-Lit-Default"
             Tags { "LightMode" = "NormalsRendering"}
 
             HLSLPROGRAM
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/2D/Include/Core2D.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/2D/Include/Core2D.hlsl"
 
             #pragma vertex NormalsRenderingVertex
             #pragma fragment NormalsRenderingFragment
@@ -192,7 +192,7 @@ Shader "Universal Render Pipeline/2D/Sprite-Lit-Default"
                 return o;
             }
 
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/2D/Include/NormalsRenderingShared.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/2D/Include/NormalsRenderingShared.hlsl"
 
             half4 NormalsRenderingFragment(Varyings i) : SV_Target
             {
@@ -209,11 +209,11 @@ Shader "Universal Render Pipeline/2D/Sprite-Lit-Default"
             Tags { "LightMode" = "UniversalForward" "Queue"="Transparent" "RenderType"="Transparent"}
 
             HLSLPROGRAM
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/2D/Include/Core2D.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/2D/Include/Core2D.hlsl"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/DebugMipmapStreamingMacros.hlsl"
             #if defined(DEBUG_DISPLAY)
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Debug/Debugging2D.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Debug/Debugging2D.hlsl"
             #endif
 
             #pragma vertex UnlitVertex

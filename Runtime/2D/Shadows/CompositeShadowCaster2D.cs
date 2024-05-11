@@ -6,9 +6,9 @@ namespace UnityEngine.Rendering.Universal
     /// <summary>
     /// Class for 2D composite shadow casters.
     /// </summary>
-    [CoreRPHelpURL("2DShadows", "com.unity.render-pipelines.universal")]
+    [CoreRPHelpURL("2DShadows", "com.unity.render-pipelines.danbaidong")]
     [AddComponentMenu("Rendering/2D/Composite Shadow Caster 2D")]
-    [MovedFrom(false, "UnityEngine.Experimental.Rendering.Universal", "com.unity.render-pipelines.universal")]
+    [MovedFrom(false, "UnityEngine.Experimental.Rendering.Universal", "com.unity.render-pipelines.danbaidong")]
     [ExecuteInEditMode]
     public class CompositeShadowCaster2D : ShadowCasterGroup2D
     {

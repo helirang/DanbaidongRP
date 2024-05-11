@@ -122,12 +122,12 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
         public const string kAlwaysRenderMotionVectorsTag = "\"AlwaysRenderMotionVectors\" = \"true\"";
         public static readonly string[] kSharedTemplateDirectories = GenerationUtils.GetDefaultSharedTemplateDirectories().Union(new string[]
         {
-            "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Templates"
+            "Packages/com.unity.render-pipelines.danbaidong/Editor/ShaderGraph/Templates"
 #if HAS_VFX_GRAPH
             , "Packages/com.unity.visualeffectgraph/Editor/ShaderGraph/Templates"
 #endif
         }).ToArray();
-        public const string kUberTemplatePath = "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Templates/ShaderPass.template";
+        public const string kUberTemplatePath = "Packages/com.unity.render-pipelines.danbaidong/Editor/ShaderGraph/Templates/ShaderPass.template";
 
         // SubTarget
         List<SubTarget> m_SubTargets;
@@ -1661,28 +1661,28 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
     {
         const string kColor = "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl";
         const string kTexture = "Packages/com.unity.render-pipelines.core/ShaderLibrary/Texture.hlsl";
-        const string kCore = "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl";
-        const string kInput = "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Input.hlsl";
-        const string kLighting = "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl";
-        const string kGraphFunctions = "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ShaderGraphFunctions.hlsl";
-        const string kVaryings = "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/Varyings.hlsl";
-        const string kShaderPass = "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/ShaderPass.hlsl";
-        const string kDepthOnlyPass = "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/DepthOnlyPass.hlsl";
-        const string kDepthNormalsOnlyPass = "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/DepthNormalsOnlyPass.hlsl";
-        const string kShadowCasterPass = "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/ShadowCasterPass.hlsl";
-        const string kMotionVectorPass = "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/MotionVectorPass.hlsl";
+        const string kCore = "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl";
+        const string kInput = "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Input.hlsl";
+        const string kLighting = "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Lighting.hlsl";
+        const string kGraphFunctions = "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/ShaderGraphFunctions.hlsl";
+        const string kVaryings = "Packages/com.unity.render-pipelines.danbaidong/Editor/ShaderGraph/Includes/Varyings.hlsl";
+        const string kShaderPass = "Packages/com.unity.render-pipelines.danbaidong/Editor/ShaderGraph/Includes/ShaderPass.hlsl";
+        const string kDepthOnlyPass = "Packages/com.unity.render-pipelines.danbaidong/Editor/ShaderGraph/Includes/DepthOnlyPass.hlsl";
+        const string kDepthNormalsOnlyPass = "Packages/com.unity.render-pipelines.danbaidong/Editor/ShaderGraph/Includes/DepthNormalsOnlyPass.hlsl";
+        const string kShadowCasterPass = "Packages/com.unity.render-pipelines.danbaidong/Editor/ShaderGraph/Includes/ShadowCasterPass.hlsl";
+        const string kMotionVectorPass = "Packages/com.unity.render-pipelines.danbaidong/Editor/ShaderGraph/Includes/MotionVectorPass.hlsl";
         const string kTextureStack = "Packages/com.unity.render-pipelines.core/ShaderLibrary/TextureStack.hlsl";
-        const string kDBuffer = "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DBuffer.hlsl";
-        const string kSelectionPickingPass = "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/SelectionPickingPass.hlsl";
-        const string kLODCrossFade = "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl";
+        const string kDBuffer = "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DBuffer.hlsl";
+        const string kSelectionPickingPass = "Packages/com.unity.render-pipelines.danbaidong/Editor/ShaderGraph/Includes/SelectionPickingPass.hlsl";
+        const string kLODCrossFade = "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/LODCrossFade.hlsl";
         const string kFoveatedRenderingKeywords = "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl";
         const string kFoveatedRendering = "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRendering.hlsl";
         const string kMipmapDebugMacros = "Packages/com.unity.render-pipelines.core/ShaderLibrary/DebugMipmapStreamingMacros.hlsl";
 
         // Files that are included with #include_with_pragmas
-        const string kDOTS = "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl";
-        const string kRenderingLayers = "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl";
-        const string kProbeVolumes = "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ProbeVolumeVariants.hlsl";
+        const string kDOTS = "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DOTS.hlsl";
+        const string kRenderingLayers = "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/RenderingLayers.hlsl";
+        const string kProbeVolumes = "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/ProbeVolumeVariants.hlsl";
 
         public static readonly IncludeCollection CorePregraph = new IncludeCollection
         {

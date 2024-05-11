@@ -690,7 +690,7 @@ namespace UnityEngine.Rendering.Universal
         public bool isImmediateModeSupported => false;
 
 #if UNITY_EDITOR
-        public static readonly string packagePath = "Packages/com.unity.render-pipelines.universal";
+        public static readonly string packagePath = "Packages/com.unity.render-pipelines.danbaidong";
 
         public static UniversalRenderPipelineAsset Create(ScriptableRendererData rendererData = null)
         {

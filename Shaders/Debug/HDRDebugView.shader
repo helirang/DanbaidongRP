@@ -6,12 +6,12 @@ Shader "Hidden/Universal/HDRDebugView"
     #pragma multi_compile_fragment _ DEBUG_DISPLAY
     #pragma multi_compile_local_fragment _ HDR_ENCODING
 
-    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+    #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
     #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
     #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
     #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/ACES.hlsl"
     #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/HDROutput.hlsl"
-    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Debug/DebuggingFullscreen.hlsl"
+    #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Debug/DebuggingFullscreen.hlsl"
     #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Debug.hlsl"
     #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
 

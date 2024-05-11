@@ -6,13 +6,13 @@ Shader "Hidden/Universal/BlitHDROverlay"
         #pragma multi_compile_local_fragment _ HDR_COLORSPACE_CONVERSION HDR_ENCODING HDR_COLORSPACE_CONVERSION_AND_ENCODING
 
         // Core.hlsl for XR dependencies
-        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
         #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
         // Color.hlsl and HDROutput.hlsl for color space conversion and encoding
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/HDROutput.hlsl"
         // DebuggingFullscreen.hlsl for URP debug draw
-        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Debug/DebuggingFullscreen.hlsl"
+        #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Debug/DebuggingFullscreen.hlsl"
 
         TEXTURE2D_X(_OverlayUITexture);
 

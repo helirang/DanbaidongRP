@@ -16,12 +16,12 @@ namespace UnityEngine.Rendering.Universal
     /// <summary>
     /// Class <c>ShadowCaster2D</c> contains properties used for shadow casting
     /// </summary>
-    [CoreRPHelpURL("2DShadows", "com.unity.render-pipelines.universal")]
+    [CoreRPHelpURL("2DShadows", "com.unity.render-pipelines.danbaidong")]
     [ExecuteInEditMode]
     [DisallowMultipleComponent]
 
     [AddComponentMenu("Rendering/2D/Shadow Caster 2D")]
-    [MovedFrom(false, "UnityEngine.Experimental.Rendering.Universal", "com.unity.render-pipelines.universal")]
+    [MovedFrom(false, "UnityEngine.Experimental.Rendering.Universal", "com.unity.render-pipelines.danbaidong")]
 
     public class ShadowCaster2D : ShadowCasterGroup2D, ISerializationCallbackReceiver
     {
