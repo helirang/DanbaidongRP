@@ -1549,7 +1549,8 @@ namespace UnityEngine.Rendering.Universal
                 desc = new RenderTextureDescriptor(camera.pixelWidth, camera.pixelHeight);
                 desc.width = scaledWidth;
                 desc.height = scaledHeight;
-                desc.graphicsFormat = MakeRenderTextureGraphicsFormat(isHdrEnabled, requestHDRColorBufferPrecision, needsAlpha);
+                // Improving quality, added by danbaidong 20240321.
+                desc.graphicsFormat = MakeRenderTextureGraphicsFormat(isHdrEnabled, requestHDRColorBufferPrecision, camera.cameraType == CameraType.Game ? true : needsAlpha);
                 desc.depthBufferBits = 32;
                 desc.msaaSamples = msaaSamples;
                 desc.sRGB = (QualitySettings.activeColorSpace == ColorSpace.Linear);
@@ -1561,10 +1562,19 @@ namespace UnityEngine.Rendering.Universal
                 desc.width = scaledWidth;
                 desc.height = scaledHeight;
 
-                if (camera.cameraType == CameraType.SceneView && !isHdrEnabled)
+                //if (camera.cameraType == CameraType.SceneView && !isHdrEnabled)
+                //{
+                //    desc.graphicsFormat = SystemInfo.GetGraphicsFormat(DefaultFormat.LDR);
+                //}
+
+                // Enhancing sceneView quality: Without this adjustment, if no game camera is available,
+                // the sceneView target will default to the baseCamera target type, which is R8G8B8A8.
+                if (camera.cameraType == CameraType.SceneView)
                 {
-                    desc.graphicsFormat = SystemInfo.GetGraphicsFormat(DefaultFormat.LDR);
+                    if (SystemInfo.IsFormatSupported(GraphicsFormat.R16G16B16A16_SFloat, GraphicsFormatUsage.Blend))
+                        desc.graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
                 }
+
                 // SystemInfo.SupportsRenderTextureFormat(camera.targetTexture.descriptor.colorFormat)
                 // will assert on R8_SINT since it isn't a valid value of RenderTextureFormat.
                 // If this is fixed then we can implement debug statement to the user explaining why some
@@ -1877,6 +1887,7 @@ namespace UnityEngine.Rendering.Universal
         DepthNormalPrepass,
         DepthPrepass,
         UpdateReflectionProbeAtlas,
+        GPUCopy,
 
         // DrawObjectsPass
         DrawOpaqueObjects,

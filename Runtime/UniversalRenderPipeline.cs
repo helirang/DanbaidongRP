@@ -217,6 +217,9 @@ namespace UnityEngine.Rendering.Universal
             runtimeTextures = GraphicsSettings.GetRenderPipelineSettings<UniversalRenderPipelineRuntimeTextures>();
 
             var shaders = GraphicsSettings.GetRenderPipelineSettings<UniversalRenderPipelineRuntimeShaders>();
+#if UNITY_EDITOR
+            shaders.EnsureShadersCompiled();
+#endif
             Blitter.Initialize(shaders.coreBlitPS, shaders.coreBlitColorAndDepthPS);
 
             SetSupportedRenderingFeatures(pipelineAsset);
@@ -258,7 +261,7 @@ namespace UnityEngine.Rendering.Universal
 
             PerObjectShadowProjector.defaultMaterial = asset.perObjectShadowMaterial;
 
-            s_RenderGraph = new RenderGraph("URPRenderGraph");
+            s_RenderGraph = new RenderGraph("DanbaidongRPRenderGraph");
             useRenderGraph = !GraphicsSettings.GetRenderPipelineSettings<RenderGraphSettings>().enableRenderCompatibilityMode;
 
 #if !UNITY_EDITOR

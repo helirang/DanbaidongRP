@@ -1,4 +1,6 @@
 using System;
+using System.Reflection;
+using UnityEditor.Rendering;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -80,5 +82,44 @@ namespace UnityEngine.Rendering.Universal
             get => m_SamplingPS;
             set => this.SetValueAndNotify(ref m_SamplingPS, value, nameof(m_SamplingPS));
         }
+
+
+        [SerializeField, ResourcePath("Shaders/Utils/GPUCopy.compute")]
+        private ComputeShader m_CopyChannelCS;
+
+        /// <summary>
+        /// GPUCopy compute shader.
+        /// </summary>
+        public ComputeShader copyChannelCS
+        {
+            get => m_CopyChannelCS;
+            set => this.SetValueAndNotify(ref m_CopyChannelCS, value);
+        }
+
+#if UNITY_EDITOR
+        public void EnsureShadersCompiled()
+        {
+            void CheckComputeShaderMessages(ComputeShader computeShader)
+            {
+                foreach (var message in UnityEditor.ShaderUtil.GetComputeShaderMessages(computeShader))
+                {
+                    if (message.severity == UnityEditor.Rendering.ShaderCompilerMessageSeverity.Error)
+                    {
+                        // Will be catched by the try in HDRenderPipelineAsset.CreatePipeline()
+                        throw new System.Exception(System.String.Format(
+                            "Compute Shader compilation error on platform {0} in file {1}:{2}: {3}{4}\n" +
+                            "HDRP will not run until the error is fixed.\n",
+                            message.platform, message.file, message.line, message.message, message.messageDetails
+                        ));
+                    }
+                }
+            }
+
+            // We iterate over all compute shader to verify if they are all compiled, if it's not the case then
+            // we throw an exception to avoid allocating resources and crashing later on by using a null compute kernel.
+            this.ForEachFieldOfType<ComputeShader>(CheckComputeShaderMessages, BindingFlags.Public | BindingFlags.Instance);
+        }
+#endif
+
     }
 }

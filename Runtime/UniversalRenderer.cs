@@ -105,6 +105,7 @@ namespace UnityEngine.Rendering.Universal
         AdditionalLightsShadowCasterPass m_AdditionalLightsShadowCasterPass;
         GBufferPass m_GBufferPass;
         CopyDepthPass m_GBufferCopyDepthPass;
+        GPUCopyPass m_GPUCopyPass;
         DeferredPass m_DeferredPass;
         DrawObjectsPass m_RenderOpaqueForwardOnlyPass;
         DrawObjectsPass m_RenderOpaqueForwardPass;
@@ -175,6 +176,8 @@ namespace UnityEngine.Rendering.Universal
         internal LayerMask opaqueLayerMask { get; set; }
         internal LayerMask transparentLayerMask { get; set; }
 
+        internal UniversalRenderPipelineRuntimeShaders runtimeShaders { get; private set; }
+
         /// <summary>
         /// Constructor for the Universal Renderer.
         /// </summary>
@@ -184,16 +187,17 @@ namespace UnityEngine.Rendering.Universal
             // Query and cache runtime platform info first before setting up URP.
             PlatformAutoDetect.Initialize();
 
+            runtimeShaders = GraphicsSettings.GetRenderPipelineSettings<UniversalRenderPipelineRuntimeShaders>();
+
 #if ENABLE_VR && ENABLE_XR_MODULE
             if (GraphicsSettings.TryGetRenderPipelineSettings<UniversalRenderPipelineRuntimeXRResources>(out var xrResources))
                 Experimental.Rendering.XRSystem.Initialize(XRPassUniversal.Create, xrResources.xrOcclusionMeshPS, xrResources.xrMirrorViewPS);
 #endif
-            if (GraphicsSettings.TryGetRenderPipelineSettings<UniversalRenderPipelineRuntimeShaders>(
-                    out var shadersResources))
+            if (runtimeShaders != null)
             {
-                m_BlitMaterial = CoreUtils.CreateEngineMaterial(shadersResources.coreBlitPS);
-                m_BlitHDRMaterial = CoreUtils.CreateEngineMaterial(shadersResources.blitHDROverlay);
-                m_SamplingMaterial = CoreUtils.CreateEngineMaterial(shadersResources.samplingPS);
+                m_BlitMaterial = CoreUtils.CreateEngineMaterial(runtimeShaders.coreBlitPS);
+                m_BlitHDRMaterial = CoreUtils.CreateEngineMaterial(runtimeShaders.blitHDROverlay);
+                m_SamplingMaterial = CoreUtils.CreateEngineMaterial(runtimeShaders.samplingPS);
             }
 
             Shader copyDephPS = null;
@@ -302,6 +306,7 @@ namespace UnityEngine.Rendering.Universal
                 };
                 int forwardOnlyStencilRef = stencilData.stencilReference | (int)StencilUsage.MaterialUnlit;
                 m_GBufferCopyDepthPass = new CopyDepthPass(RenderPassEvent.BeforeRenderingGbuffer + 1, copyDephPS, true);
+                m_GPUCopyPass = new GPUCopyPass(RenderPassEvent.BeforeRenderingGbuffer + 2, runtimeShaders.copyChannelCS, true);
                 m_DeferredPass = new DeferredPass(RenderPassEvent.BeforeRenderingDeferredLights, m_DeferredLights);
                 m_RenderOpaqueForwardOnlyPass = new DrawObjectsPass("Render Opaques Forward Only", forwardOnlyShaderTagIds, true, RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask, forwardOnlyStencilState, forwardOnlyStencilRef);
             }

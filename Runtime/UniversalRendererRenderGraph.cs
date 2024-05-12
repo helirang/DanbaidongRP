@@ -800,13 +800,16 @@ namespace UnityEngine.Rendering.Universal
                 return;
             }
 
-            OnBeforeRendering(renderGraph);
+            //OnBeforeRendering(renderGraph);
+            OnBeforeDanbaidongRPRendering(renderGraph);
 
             BeginRenderGraphXRRendering(renderGraph);
 
-            OnMainRendering(renderGraph, context);
+            //OnMainRendering(renderGraph, context);
+            OnMainDanbaidongRPRendering(renderGraph, context);
 
-            OnAfterRendering(renderGraph);
+            //OnAfterRendering(renderGraph);
+            OnAfterDanbaidongRPRendering(renderGraph);
 
             EndRenderGraphXRRendering(renderGraph);
         }
@@ -883,6 +886,41 @@ namespace UnityEngine.Rendering.Universal
                 SetupRenderGraphCameraProperties(renderGraph, resourceData.isActiveTargetBackBuffer);
 
             RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingShadows);
+        }
+        
+        private void OnBeforeDanbaidongRPRendering(RenderGraph renderGraph)
+        {
+            //UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
+            //UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
+            //UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+            //UniversalLightData lightData = frameData.Get<UniversalLightData>();
+            //UniversalShadowData shadowData = frameData.Get<UniversalShadowData>();
+
+            //m_ForwardLights.PreSetup(renderingData, cameraData, lightData);
+
+            //RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingShadows);
+
+            //bool renderShadows = false;
+
+            //if (m_MainLightShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))
+            //{
+            //    renderShadows = true;
+            //    resourceData.mainShadowsTexture = m_MainLightShadowCasterPass.Render(renderGraph, frameData);
+            //}
+
+            //if (m_AdditionalLightsShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))
+            //{
+            //    renderShadows = true;
+            //    resourceData.additionalShadowsTexture = m_AdditionalLightsShadowCasterPass.Render(renderGraph, frameData);
+            //}
+
+            // The camera need to be setup again after the shadows since those passes override some settings
+            // TODO RENDERGRAPH: move the setup code into the shadow passes
+            //if (renderShadows)
+            //    SetupRenderGraphCameraProperties(renderGraph, resourceData.isActiveTargetBackBuffer);
+
+
+            //RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingShadows);
         }
 
         private void UpdateInstanceOccluders(RenderGraph renderGraph, UniversalCameraData cameraData, TextureHandle depthTexture)
@@ -1232,6 +1270,291 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
+        private void OnMainDanbaidongRPRendering(RenderGraph renderGraph, ScriptableRenderContext context)
+        {
+            UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
+            UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+            UniversalLightData lightData = frameData.Get<UniversalLightData>();
+            UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
+            UniversalShadowData shadowData = frameData.Get<UniversalShadowData>();
+            UniversalPostProcessingData postProcessingData = frameData.Get<UniversalPostProcessingData>();
+
+            if (!renderGraph.nativeRenderPassesEnabled)
+            {
+                RTClearFlags clearFlags = (RTClearFlags)GetCameraClearFlag(cameraData);
+
+                if (clearFlags != RTClearFlags.None)
+                    ClearTargetsPass.Render(renderGraph, resourceData.activeColorTexture, resourceData.activeDepthTexture, clearFlags, cameraData.backgroundColor);
+            }
+
+            // DanbaidongRP not set this at BeforeRendering, we need set here.
+            SetupRenderGraphCameraProperties(renderGraph, resourceData.isActiveTargetBackBuffer);
+
+            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingPrePasses);
+
+            // If Camera's PostProcessing is enabled and if there any enabled PostProcessing requires depth texture as shader read resource (Motion Blur/DoF)
+            bool cameraHasPostProcessingWithDepth = CameraHasPostProcessingWithDepth(cameraData);
+
+            RenderPassInputSummary renderPassInputs = GetRenderPassInputs(cameraData.IsTemporalAAEnabled(), postProcessingData.isEnabled);
+
+            if (m_RenderingLayerProvidesByDepthNormalPass)
+                renderPassInputs.requiresNormalsTexture = true;
+
+#if UNITY_EDITOR
+            if (ProbeReferenceVolume.instance.IsProbeSamplingDebugEnabled())
+                renderPassInputs.requiresNormalsTexture = true;
+#endif
+
+            bool requiresDepthPrepass = RequireDepthPrepass(cameraData, ref renderPassInputs);
+            bool requiresDepthCopyPass = !requiresDepthPrepass
+                                         && (cameraData.requiresDepthTexture || cameraHasPostProcessingWithDepth || renderPassInputs.requiresDepthTexture)
+                                         && m_CreateDepthTexture; // we create both intermediate textures if this is true, so instead of repeating the checks we reuse this
+
+            requiresDepthCopyPass |= !requiresDepthPrepass && DebugHandlerRequireDepthPass(frameData.Get<UniversalCameraData>());
+            bool requiresColorCopyPass = cameraData.requiresOpaqueTexture || renderPassInputs.requiresColorTexture;
+            requiresColorCopyPass &= !cameraData.isPreviewCamera;
+            bool requiredColorGradingLutPass = cameraData.postProcessEnabled && m_PostProcessPasses.isCreated;
+
+            bool isDeferred = this.renderingModeActual == RenderingMode.Deferred;
+
+            bool needsOccluderUpdate = cameraData.useGPUOcclusionCulling;
+            if (requiresDepthPrepass)
+            {
+                // TODO RENDERGRAPH: is this always a valid assumption for deferred rendering?
+                TextureHandle depthTarget = (renderingModeActual == RenderingMode.Deferred) ? resourceData.activeDepthTexture : resourceData.cameraDepthTexture;
+                depthTarget = (useDepthPriming && (cameraData.renderType == CameraRenderType.Base || cameraData.clearDepth)) ? resourceData.activeDepthTexture : depthTarget;
+
+                var passCount = needsOccluderUpdate ? 2 : 1;
+                for (int passIndex = 0; passIndex < passCount; ++passIndex)
+                {
+                    uint batchLayerMask = uint.MaxValue;
+                    if (needsOccluderUpdate)
+                    {
+                        // first pass: test everything against previous frame final depth pyramid
+                        // second pass: re-test culled against current frame intermediate depth pyramid
+                        OcclusionTest occlusionTest = (passIndex == 0) ? OcclusionTest.TestAll : OcclusionTest.TestCulled;
+                        InstanceOcclusionTest(renderGraph, cameraData, occlusionTest);
+                        batchLayerMask = occlusionTest.GetBatchLayerMask();
+                    }
+
+                    bool isLastPass = (passIndex == (passCount - 1));
+                    if (renderPassInputs.requiresNormalsTexture)
+                        DepthNormalPrepassRender(renderGraph, renderPassInputs, depthTarget, batchLayerMask, isLastPass);
+                    else
+                    {
+                        m_DepthPrepass.Render(renderGraph, frameData, ref depthTarget, batchLayerMask);
+                        if (isLastPass && !useDepthPriming && depthTarget.IsValid())
+                            RenderGraphUtils.SetGlobalTexture(renderGraph, Shader.PropertyToID("_CameraDepthTexture"), depthTarget, "Set Global Depth Texture");
+                    }
+
+                    if (needsOccluderUpdate)
+                    {
+                        // first pass: make current frame intermediate depth pyramid
+                        // second pass: make current frame final depth pyramid, set occlusion test results for later passes
+                        UpdateInstanceOccluders(renderGraph, cameraData, depthTarget);
+                        if (passIndex != 0)
+                            InstanceOcclusionTest(renderGraph, cameraData, OcclusionTest.TestAll);
+                    }
+                }
+                needsOccluderUpdate = false;
+            }
+
+            // depth priming still needs to copy depth because the prepass doesn't target anymore CameraDepthTexture
+            // TODO: this is unoptimal, investigate optimizations
+            if (useDepthPriming)
+            {
+                TextureHandle depth = resourceData.cameraDepth;
+                TextureHandle cameraDepthTexture = resourceData.cameraDepthTexture;
+                m_PrimedDepthCopyPass.Render(renderGraph, frameData, cameraDepthTexture, depth, true);
+            }
+
+            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingPrePasses);
+
+            if (requiredColorGradingLutPass)
+            {
+                TextureHandle internalColorLut;
+                m_PostProcessPasses.colorGradingLutPass.Render(renderGraph, frameData, out internalColorLut);
+                resourceData.internalColorLut = internalColorLut;
+            }
+
+#if ENABLE_VR && ENABLE_XR_MODULE
+            if (cameraData.xr.hasValidOcclusionMesh)
+                m_XROcclusionMeshPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture);
+#endif
+
+            //if (isDeferred)
+            // Danbaidong RP only has Deferred path
+            {
+                m_DeferredLights.Setup(m_AdditionalLightsShadowCasterPass);
+                if (m_DeferredLights != null)
+                {
+                    // We need to be sure there are no custom passes in between GBuffer/Deferred passes, if there are - we disable fb fetch just to be safe`
+                    //m_DeferredLights.UseFramebufferFetch = renderGraph.nativeRenderPassesEnabled;
+                    m_DeferredLights.UseFramebufferFetch = false;
+                    m_DeferredLights.HasNormalPrepass = renderPassInputs.requiresNormalsTexture;
+                    m_DeferredLights.HasDepthPrepass = requiresDepthPrepass;
+                    m_DeferredLights.ResolveMixedLightingMode(lightData);
+                    m_DeferredLights.IsOverlay = cameraData.renderType == CameraRenderType.Overlay;
+                }
+
+
+                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingGbuffer);
+
+                m_GBufferPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture);
+
+                // GBufferCopyDepth => GPUCopy
+                //m_GBufferCopyDepthPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.activeDepthTexture, true, "GBuffer Depth Copy");
+                m_GPUCopyPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.activeDepthTexture);
+
+                // TODO: DepthPyramid
+
+                // MotionVectors
+                // Depends on the camera (copy) depth texture. Depth is reprojected to calculate motion vectors.
+                if (renderPassInputs.requiresMotionVectors)
+                {
+                    m_MotionVectorPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.motionVectorColor, resourceData.motionVectorDepth);
+                }
+
+
+                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingGbuffer);
+
+                // TODO: GPULightList
+                // TODO: SSAO
+                // TODO: SSR
+                // TODO: SSGI
+
+                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingShadows);
+
+                bool renderShadows = false;
+                // MainlightShadowCaster
+                if (m_MainLightShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))
+                {
+                    renderShadows = true;
+                    resourceData.mainShadowsTexture = m_MainLightShadowCasterPass.Render(renderGraph, frameData);
+                }
+                // TODO: ScreenSpaceShadowMap
+
+                // AdditionalShadowCaster
+                if (m_AdditionalLightsShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))
+                {
+                    renderShadows = true;
+                    resourceData.additionalShadowsTexture = m_AdditionalLightsShadowCasterPass.Render(renderGraph, frameData);
+                }
+                // The camera need to be setup again after the shadows since those passes override some settings
+                if (renderShadows)
+                    SetupRenderGraphCameraProperties(renderGraph, resourceData.isActiveTargetBackBuffer);
+
+
+                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingShadows, RenderPassEvent.BeforeRenderingDeferredLights);
+
+                //var gfxDeviceType = SystemInfo.graphicsDeviceType;
+                // We double check for features in between GBuffer and Deferred passes just in case to know whether we need to reload the attachments
+                //if (InterruptFramebufferFetch(FramebufferFetchEvent.FetchGbufferInDeferred, RenderPassEvent.AfterRenderingGbuffer, RenderPassEvent.BeforeRenderingDeferredLights))
+                    //GBufferPass.ResetGlobalGBufferTextures(renderGraph, resourceData.gBuffer, resourceData.activeDepthTexture, resourceData, ref m_DeferredLights);
+
+                //m_DeferredPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, resourceData.gBuffer);
+
+                // TODO: CharacterForwardLights
+
+                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingDeferredLights, RenderPassEvent.BeforeRenderingOpaques);
+
+                TextureHandle mainShadowsTexture = resourceData.mainShadowsTexture;
+                TextureHandle additionalShadowsTexture = resourceData.additionalShadowsTexture;
+                m_RenderOpaqueForwardOnlyPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, mainShadowsTexture, additionalShadowsTexture, uint.MaxValue);
+            }
+
+
+            // Custom passes come before built-in passes to keep parity with non-RG code path where custom passes are added before renderer Setup.
+            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingOpaques);
+
+            if (requiresDepthCopyPass && m_CopyDepthMode != CopyDepthMode.AfterTransparents)
+            {
+                TextureHandle cameraDepthTexture = resourceData.cameraDepthTexture;
+                m_CopyDepthPass.Render(renderGraph, frameData, cameraDepthTexture, resourceData.activeDepthTexture, true);
+            }
+
+
+
+            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingSkybox);
+
+            if (cameraData.camera.clearFlags == CameraClearFlags.Skybox && cameraData.renderType != CameraRenderType.Overlay)
+            {
+                if (RenderSettings.skybox != null || (cameraData.camera.TryGetComponent(out Skybox cameraSkybox) && cameraSkybox.material != null))
+                    m_DrawSkyboxPass.Render(renderGraph, frameData, context, resourceData.activeColorTexture, resourceData.activeDepthTexture, requiresDepthCopyPass && m_CopyDepthMode != CopyDepthMode.AfterTransparents);
+            }
+
+            if (requiresColorCopyPass)
+            {
+                TextureHandle activeColor = resourceData.activeColorTexture;
+                Downsampling downsamplingMethod = UniversalRenderPipeline.asset.opaqueDownsampling;
+                TextureHandle cameraOpaqueTexture;
+                m_CopyColorPass.Render(renderGraph, frameData, out cameraOpaqueTexture, in activeColor, downsamplingMethod);
+                resourceData.cameraOpaqueTexture = cameraOpaqueTexture;
+            }
+
+#if UNITY_EDITOR
+            {
+                TextureHandle cameraDepthTexture = resourceData.cameraDepthTexture;
+                TextureHandle cameraNormalsTexture = resourceData.cameraNormalsTexture;
+                m_ProbeVolumeDebugPass.Render(renderGraph, frameData, cameraDepthTexture, cameraNormalsTexture);
+            }
+#endif
+
+            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingSkybox, RenderPassEvent.BeforeRenderingTransparents);
+
+            // TODO RENDERGRAPH: bind _CameraOpaqueTexture, _CameraDepthTexture in transparent pass?
+#if ADAPTIVE_PERFORMANCE_2_1_0_OR_NEWER
+            if (needTransparencyPass)
+#endif
+            {
+                m_RenderTransparentForwardPass.m_ShouldTransparentsReceiveShadows = !m_TransparentSettingsPass.Setup();
+                m_RenderTransparentForwardPass.Render(
+                    renderGraph,
+                    frameData,
+                    resourceData.activeColorTexture,
+                    resourceData.activeDepthTexture,
+                    resourceData.mainShadowsTexture,
+                    resourceData.additionalShadowsTexture);
+            }
+
+            // Custom passes come before built-in passes to keep parity with non-RG code path where custom passes are added before renderer Setup.
+
+            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingTransparents);
+
+            if (requiresDepthCopyPass && m_CopyDepthMode == CopyDepthMode.AfterTransparents)
+                m_CopyDepthPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.activeDepthTexture, true);
+
+            // TODO: Postprocess pass should be able configure its render pass inputs per camera per frame (settings) BEFORE building any of the graph
+            // TODO: Alternatively we could always build the graph (a potential graph) and cull away unused passes if "record + cull" is fast enough.
+            // TODO: Currently we just override "requiresMotionVectors" for TAA in GetRenderPassInputs()
+            // Depends on camera (copy) depth texture
+            if (renderPassInputs.requiresMotionVectors && m_CopyDepthMode == CopyDepthMode.AfterTransparents)
+                m_MotionVectorPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.motionVectorColor, resourceData.motionVectorDepth);
+
+            if (context.HasInvokeOnRenderObjectCallbacks())
+                m_OnRenderObjectCallbackPass.Render(renderGraph, resourceData.activeColorTexture, resourceData.activeDepthTexture);
+
+#if VISUAL_EFFECT_GRAPH_0_0_1_OR_NEWER
+            if (resourceData != null)
+            {
+                // SetupVFXCameraBuffer will interrogate VFXManager to automatically enable RequestAccess on RawColor and/or RawDepth. This must be done before SetupRawColorDepthHistory.
+                // SetupVFXCameraBuffer will also provide the GetCurrentTexture from history manager to the VFXManager which can be sampled during the next VFX.Update for the following frame.
+                SetupVFXCameraBuffer(cameraData);
+            }
+#endif
+
+            RenderRawColorDepthHistory(renderGraph, cameraData, resourceData);
+
+            bool shouldRenderUI = cameraData.rendersOverlayUI;
+            bool outputToHDR = cameraData.isHDROutputActive;
+            if (shouldRenderUI && outputToHDR)
+            {
+                TextureHandle overlayUI;
+                m_DrawOffscreenUIPass.RenderOffscreen(renderGraph, frameData, k_DepthStencilFormat, out overlayUI);
+                resourceData.overlayUITexture = overlayUI;
+            }
+        }
+
         private void OnAfterRendering(RenderGraph renderGraph)
         {
             UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
@@ -1448,6 +1771,222 @@ namespace UnityEngine.Rendering.Universal
                 DrawRenderGraphGizmos(renderGraph, frameData, resourceData.backBufferColor, resourceData.activeDepthTexture, GizmoSubset.PostImageEffects);
         }
 
+        private void OnAfterDanbaidongRPRendering(RenderGraph renderGraph)
+        {
+            UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
+            UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
+            UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+            UniversalPostProcessingData postProcessingData = frameData.Get<UniversalPostProcessingData>();
+
+            // if it's the last camera in the stack, setup the rendering debugger
+            if (cameraData.resolveFinalTarget)
+                SetupRenderGraphFinalPassDebug(renderGraph, frameData);
+
+            // Disable Gizmos when using scene overrides. Gizmos break some effects like Overdraw debug.
+            bool drawGizmos = UniversalRenderPipelineDebugDisplaySettings.Instance.renderingSettings.sceneOverrideMode == DebugSceneOverrideMode.None;
+
+            if (drawGizmos)
+                DrawRenderGraphGizmos(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, GizmoSubset.PreImageEffects);
+
+            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingPostProcessing);
+
+            bool cameraTargetResolved = false;
+            bool applyPostProcessing = ShouldApplyPostProcessing(cameraData.postProcessEnabled);
+            // There's at least a camera in the camera stack that applies post-processing
+            bool anyPostProcessing = postProcessingData.isEnabled && m_PostProcessPasses.isCreated;
+
+            // When FXAA or scaling is active, we must perform an additional pass at the end of the frame for the following reasons:
+            // 1. FXAA expects to be the last shader running on the image before it's presented to the screen. Since users are allowed
+            //    to add additional render passes after post processing occurs, we can't run FXAA until all of those passes complete as well.
+            //    The FinalPost pass is guaranteed to execute after user authored passes so FXAA is always run inside of it.
+            // 2. UberPost can only handle upscaling with linear filtering. All other filtering methods require the FinalPost pass.
+            // 3. TAA sharpening using standalone RCAS pass is required. (When upscaling is not enabled).
+            bool applyFinalPostProcessing = anyPostProcessing && cameraData.resolveFinalTarget &&
+                                            ((cameraData.antialiasing == AntialiasingMode.FastApproximateAntialiasing) ||
+                                             ((cameraData.imageScalingMode == ImageScalingMode.Upscaling) && (cameraData.upscalingFilter != ImageUpscalingFilter.Linear)) ||
+                                             (cameraData.IsTemporalAAEnabled() && cameraData.taaSettings.contrastAdaptiveSharpening > 0.0f));
+            bool hasCaptureActions = cameraData.captureActions != null && cameraData.resolveFinalTarget;
+
+            bool hasPassesAfterPostProcessing = activeRenderPassQueue.Find(x => x.renderPassEvent == RenderPassEvent.AfterRenderingPostProcessing) != null;
+
+            bool resolvePostProcessingToCameraTarget = !hasCaptureActions && !hasPassesAfterPostProcessing && !applyFinalPostProcessing;
+            bool needsColorEncoding = DebugHandler == null || !DebugHandler.HDRDebugViewIsActive(cameraData.resolveFinalTarget);
+
+            DebugHandler debugHandler = ScriptableRenderPass.GetActiveDebugHandler(cameraData);
+            bool resolveToDebugScreen = debugHandler != null && debugHandler.WriteToDebugScreenTexture(cameraData.resolveFinalTarget);
+            // Allocate debug screen texture if the debug mode needs it.
+            if (resolveToDebugScreen)
+            {
+                RenderTextureDescriptor colorDesc = cameraData.cameraTargetDescriptor;
+                DebugHandler.ConfigureColorDescriptorForDebugScreen(ref colorDesc, cameraData.pixelWidth, cameraData.pixelHeight);
+                resourceData.debugScreenColor = CreateRenderGraphTexture(renderGraph, colorDesc, "_DebugScreenColor", false);
+
+                RenderTextureDescriptor depthDesc = cameraData.cameraTargetDescriptor;
+                DebugHandler.ConfigureDepthDescriptorForDebugScreen(ref depthDesc, k_DepthStencilFormat, cameraData.pixelWidth, cameraData.pixelHeight);
+                resourceData.debugScreenDepth = CreateRenderGraphTexture(renderGraph, depthDesc, "_DebugScreenDepth", false);
+            }
+
+            // If the debugHandler displays HDR debug views, it needs to redirect (final) post-process output to an intermediate color target (debugScreenTexture)
+            // and it will write into the post-process intended output.
+            TextureHandle debugHandlerColorTarget = resourceData.afterPostProcessColor;
+
+            if (applyPostProcessing)
+            {
+                TextureHandle activeColor = resourceData.activeColorTexture;
+                TextureHandle backbuffer = resourceData.backBufferColor;
+                TextureHandle internalColorLut = resourceData.internalColorLut;
+                TextureHandle overlayUITexture = resourceData.overlayUITexture;
+
+                bool isTargetBackbuffer = (cameraData.resolveFinalTarget && !applyFinalPostProcessing && !hasPassesAfterPostProcessing);
+                // if the postprocessing pass is trying to read and write to the same CameraColor target, we need to swap so it writes to a different target,
+                // since reading a pass attachment is not possible. Normally this would be possible using temporary RenderGraph managed textures.
+                // The reason why in this case we need to use "external" RTHandles is to preserve the results for camera stacking.
+                // TODO RENDERGRAPH: Once all cameras will run in a single RenderGraph we can just use temporary RenderGraph textures as intermediate buffer.
+                if (!isTargetBackbuffer)
+                {
+                    ImportResourceParams importColorParams = new ImportResourceParams();
+                    importColorParams.clearOnFirstUse = true;
+                    importColorParams.clearColor = Color.black;
+                    importColorParams.discardOnLastUse = cameraData.resolveFinalTarget;  // check if last camera in the stack
+
+                    // When STP is enabled, we must switch to the upscaled set of color handles before the next color handle value is queried. This ensures
+                    // that the post processing output is rendered to a properly sized target. Any rendering performed beyond this point will also use the upscaled targets.
+                    if (cameraData.IsSTPEnabled())
+                        m_UseUpscaledColorHandle = true;
+
+                    resourceData.cameraColor = renderGraph.ImportTexture(nextRenderGraphCameraColorHandle, importColorParams);
+                }
+
+                // Desired target for post-processing pass.
+                var target = isTargetBackbuffer ? backbuffer : resourceData.cameraColor;
+
+                // but we may actually render to an intermediate texture if debug views are enabled.
+                // In that case, DebugHandler will eventually blit DebugScreenTexture into AfterPostProcessColor.
+                if (resolveToDebugScreen && isTargetBackbuffer)
+                {
+                    debugHandlerColorTarget = target;
+                    target = resourceData.debugScreenColor;
+                }
+
+                bool doSRGBEncoding = resolvePostProcessingToCameraTarget && needsColorEncoding;
+                m_PostProcessPasses.postProcessPass.RenderPostProcessingRenderGraph(renderGraph, frameData, in activeColor, in internalColorLut, in overlayUITexture, in target, applyFinalPostProcessing, resolveToDebugScreen, doSRGBEncoding);
+
+                // Handle any after-post rendering debugger overlays
+                if (cameraData.resolveFinalTarget)
+                    SetupAfterPostRenderGraphFinalPassDebug(renderGraph, frameData);
+
+                if (isTargetBackbuffer)
+                {
+                    resourceData.activeColorID = UniversalResourceData.ActiveID.BackBuffer;
+                    resourceData.activeDepthID = UniversalResourceData.ActiveID.BackBuffer;
+                }
+            }
+
+            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingPostProcessing);
+
+            if (applyFinalPostProcessing)
+            {
+                TextureHandle backbuffer = resourceData.backBufferColor;
+                TextureHandle overlayUITexture = resourceData.overlayUITexture;
+
+                // Desired target for post-processing pass.
+                TextureHandle target = backbuffer;
+
+                if (resolveToDebugScreen)
+                {
+                    debugHandlerColorTarget = target;
+                    target = resourceData.debugScreenColor;
+                }
+
+                // make sure we are accessing the proper camera color in case it was replaced by injected passes
+                var source = resourceData.cameraColor;
+                m_PostProcessPasses.finalPostProcessPass.RenderFinalPassRenderGraph(renderGraph, frameData, in source, in overlayUITexture, in target, needsColorEncoding);
+
+                resourceData.activeColorID = UniversalResourceData.ActiveID.BackBuffer;
+                resourceData.activeDepthID = UniversalResourceData.ActiveID.BackBuffer;
+            }
+
+            if (cameraData.captureActions != null)
+            {
+                m_CapturePass.RecordRenderGraph(renderGraph, frameData);
+            }
+
+            cameraTargetResolved =
+                // final PP always blit to camera target
+                applyFinalPostProcessing ||
+                // no final PP but we have PP stack. In that case it blit unless there are render pass after PP
+                (applyPostProcessing && !hasPassesAfterPostProcessing && !hasCaptureActions);
+
+            // TODO RENDERGRAPH: we need to discuss and decide if RenderPassEvent.AfterRendering injected passes should only be called after the last camera in the stack
+            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRendering);
+
+            if (!resourceData.isActiveTargetBackBuffer && cameraData.resolveFinalTarget && !cameraTargetResolved)
+            {
+                TextureHandle backbuffer = resourceData.backBufferColor;
+                TextureHandle overlayUITexture = resourceData.overlayUITexture;
+                TextureHandle target = backbuffer;
+
+                if (resolveToDebugScreen)
+                {
+                    debugHandlerColorTarget = target;
+                    target = resourceData.debugScreenColor;
+                }
+
+                // make sure we are accessing the proper camera color in case it was replaced by injected passes
+                var source = resourceData.cameraColor;
+
+                debugHandler?.UpdateShaderGlobalPropertiesForFinalValidationPass(renderGraph, cameraData, !resolveToDebugScreen);
+
+                m_FinalBlitPass.Render(renderGraph, cameraData, source, target, overlayUITexture);
+                resourceData.activeColorID = UniversalResourceData.ActiveID.BackBuffer;
+                resourceData.activeDepthID = UniversalResourceData.ActiveID.BackBuffer;
+            }
+
+            // We can explicitely render the overlay UI from URP when HDR output is not enabled.
+            // SupportedRenderingFeatures.active.rendersUIOverlay should also be set to true.
+            bool shouldRenderUI = cameraData.rendersOverlayUI;
+            bool outputToHDR = cameraData.isHDROutputActive;
+            if (shouldRenderUI && !outputToHDR)
+            {
+                TextureHandle depthBuffer = resourceData.backBufferDepth;
+                TextureHandle target = resourceData.backBufferColor;
+
+                if (resolveToDebugScreen)
+                {
+                    debugHandlerColorTarget = target;
+                    target = resourceData.debugScreenColor;
+                    depthBuffer = resourceData.debugScreenDepth;
+                }
+
+                m_DrawOverlayUIPass.RenderOverlay(renderGraph, frameData, in target, in depthBuffer);
+            }
+
+            if (debugHandler != null)
+            {
+                TextureHandle overlayUITexture = resourceData.overlayUITexture;
+                TextureHandle debugScreenTexture = resourceData.debugScreenColor;
+
+                debugHandler.Render(renderGraph, cameraData, debugScreenTexture, overlayUITexture, debugHandlerColorTarget);
+            }
+
+#if UNITY_EDITOR
+            bool isGizmosEnabled = UnityEditor.Handles.ShouldRenderGizmos();
+
+            if (cameraData.isSceneViewCamera || cameraData.isPreviewCamera || (isGizmosEnabled && cameraData.resolveFinalTarget))
+            {
+                TextureHandle cameraDepthTexture = resourceData.cameraDepthTexture;
+                m_FinalDepthCopyPass.CopyToDepth = true;
+                m_FinalDepthCopyPass.MssaSamples = 0;
+                m_FinalDepthCopyPass.Render(renderGraph, frameData, resourceData.activeDepthTexture, cameraDepthTexture, false, "Final Depth Copy");
+            }
+#endif
+            if (cameraData.isSceneViewCamera)
+                DrawRenderGraphWireOverlay(renderGraph, frameData, resourceData.backBufferColor);
+
+            if (drawGizmos)
+                DrawRenderGraphGizmos(renderGraph, frameData, resourceData.backBufferColor, resourceData.activeDepthTexture, GizmoSubset.PostImageEffects);
+        }
+
         bool RequireDepthPrepass(UniversalCameraData cameraData, ref RenderPassInputSummary renderPassInputs)
         {
             bool applyPostProcessing = ShouldApplyPostProcessing(cameraData.postProcessEnabled);
@@ -1530,6 +2069,8 @@ namespace UnityEngine.Rendering.Universal
                 depthDescriptor.graphicsFormat = GraphicsFormat.R32_SFloat;
                 depthDescriptor.depthStencilFormat = GraphicsFormat.None;
                 depthDescriptor.depthBufferBits = 0;
+                // For GPUCopy compute shader.
+                depthDescriptor.enableRandomWrite = true;
             }
 
             resourceData.cameraDepthTexture = CreateRenderGraphTexture(renderGraph, depthDescriptor, "_CameraDepthTexture", true);
