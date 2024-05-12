@@ -56,8 +56,8 @@ namespace UnityEngine.Rendering.Universal
         [Tooltip("Strength of the bloom filter.")]
         public MinFloatParameter intensity = new MinFloatParameter(0.75f, 0f);
 
-        [Tooltip("lumRnageScale of the bloom filter.")]
-        public ClampedFloatParameter lumRnageScale = new ClampedFloatParameter(0.0f, 0f, 1f);
+        [Tooltip("lumRnageScale of the bloom filter. We need this to anti-flicker.")]
+        public ClampedFloatParameter lumRnageScale = new ClampedFloatParameter(0.2f, 0f, 1f);
 
         [Tooltip("preFilterScale of the bloom filter.")]
         public ClampedFloatParameter preFilterScale = new ClampedFloatParameter(2.5f, 0f, 5.0f);
