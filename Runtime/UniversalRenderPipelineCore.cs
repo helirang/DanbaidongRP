@@ -954,6 +954,7 @@ namespace UnityEngine.Rendering.Universal
         public static GlobalKeyword MixedLightingSubtractive; // Backward compatibility
         public static GlobalKeyword LightmapShadowMixing;
         public static GlobalKeyword ShadowsShadowMask;
+        public static GlobalKeyword PerObjectScreenSpaceShadow;
         public static GlobalKeyword LightLayers;
         public static GlobalKeyword RenderPassEnabled;
         public static GlobalKeyword BillboardFaceCameraPos;
@@ -1062,6 +1063,7 @@ namespace UnityEngine.Rendering.Universal
             ShaderGlobalKeywords.MixedLightingSubtractive = GlobalKeyword.Create(ShaderKeywordStrings.MixedLightingSubtractive);
             ShaderGlobalKeywords.LightmapShadowMixing = GlobalKeyword.Create(ShaderKeywordStrings.LightmapShadowMixing);
             ShaderGlobalKeywords.ShadowsShadowMask = GlobalKeyword.Create(ShaderKeywordStrings.ShadowsShadowMask);
+            ShaderGlobalKeywords.PerObjectScreenSpaceShadow = GlobalKeyword.Create(ShaderKeywordStrings.PerObjectScreenSpaceShadow);
             ShaderGlobalKeywords.LightLayers = GlobalKeyword.Create(ShaderKeywordStrings.LightLayers);
             ShaderGlobalKeywords.RenderPassEnabled = GlobalKeyword.Create(ShaderKeywordStrings.RenderPassEnabled);
             ShaderGlobalKeywords.BillboardFaceCameraPos = GlobalKeyword.Create(ShaderKeywordStrings.BillboardFaceCameraPos);
@@ -1277,8 +1279,8 @@ namespace UnityEngine.Rendering.Universal
         /// <summary> Keyword used for HDR Color Grading. </summary>
         public const string HDRGrading = "_HDR_GRADING";
 
-        public static readonly string TonemapGT = "_TONEMAP_GT";
-        public static readonly string TonemapACESSampleVer = "_TONEMAP_ACES_SAMPLE_VER";
+        public const string TonemapGT = "_TONEMAP_GT";
+        public const string TonemapACESSampleVer = "_TONEMAP_ACES_SAMPLE_VER";
 
         /// <summary> Keyword used for ACES Tonemapping. </summary>
         public const string TonemapACES = "_TONEMAP_ACES";

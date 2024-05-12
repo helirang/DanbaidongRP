@@ -173,9 +173,6 @@ namespace UnityEngine.Rendering.Universal
             if (!isSystemsValid)
                 return;
 
-            ContextContainer frameData = renderingData.frameData;
-            UniversalRenderingData universalRenderingData = frameData.Get<UniversalRenderingData>();
-
             // Execute systems
             m_ObjectShadowUpdateCulledSystem.Execute();
 
@@ -228,7 +225,7 @@ namespace UnityEngine.Rendering.Universal
         /// <param name="cmd"></param>
         private void ClearRenderingState(CommandBuffer cmd)
         {
-            // TODO: null input
+            // Note that we clear at OnCameraCleanup at PerObjectScreenSpaceShadowsPass. Like URP SetKeyword do.
             //m_PerObjectScreenSpaceShadowsPass.ClearRenderingState(cmd);
         }
 

@@ -408,7 +408,7 @@ namespace UnityEngine.Rendering.Universal
         /// <param name="cmd"></param>
         /// <param name="shadowLight"></param>
         /// <param name="shadowBias"></param>
-        public static void SetupShadowCasterConstantBuffer(CommandBuffer cmd, ref VisibleLight shadowLight, Vector4 shadowBias)
+        public static void SetupShadowCasterConstantBuffer(RasterCommandBuffer cmd, ref VisibleLight shadowLight, Vector4 shadowBias)
         {
             cmd.SetGlobalVector("_ShadowBias", shadowBias);
 
@@ -428,8 +428,9 @@ namespace UnityEngine.Rendering.Universal
         /// <param name="cmd"></param>
         /// <param name="context"></param>
         /// <param name="shadowSliceData"></param>
-        public static void RenderPerObjectShadowSlice(Renderer[] renderers, CommandBuffer cmd, ref ScriptableRenderContext context,
-            ref PerObjectShadowSliceData shadowSliceData, Material material, int passIndex)
+        public static void RenderPerObjectShadowSlice(RasterCommandBuffer cmd, Renderer[] renderers,
+            ref PerObjectShadowSliceData shadowSliceData, 
+            Material material, int passIndex)
         {
             Matrix4x4 view = shadowSliceData.viewMatrix;
             Matrix4x4 proj = shadowSliceData.projectionMatrix;
@@ -438,8 +439,7 @@ namespace UnityEngine.Rendering.Universal
 
             cmd.SetViewport(new Rect(shadowSliceData.offsetX, shadowSliceData.offsetY, shadowSliceData.resolution, shadowSliceData.resolution));
             cmd.SetViewProjectionMatrices(view, proj);
-            context.ExecuteCommandBuffer(cmd);
-            cmd.Clear();
+
             foreach (Renderer r in renderers)
             {
                 int submeshCount = 0;
@@ -462,8 +462,6 @@ namespace UnityEngine.Rendering.Universal
             }
 
             cmd.DisableScissorRect();
-            context.ExecuteCommandBuffer(cmd);
-            cmd.Clear();
 
             cmd.SetGlobalDepthBias(0.0f, 0.0f); // Restore previous depth bias values
         }

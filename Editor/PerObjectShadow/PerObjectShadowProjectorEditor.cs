@@ -120,7 +120,7 @@ namespace UnityEditor.Rendering.Universal
                 return;
             }
             Renderer[] renderers = objectShadowProjector.childRenderers;
-            Light[] lights = GameObject.FindObjectsOfType<Light>();
+            Light[] lights = GameObject.FindObjectsByType<Light>(FindObjectsSortMode.None);
             if (renderers == null || renderers.Length == 0)
             {
                 return;

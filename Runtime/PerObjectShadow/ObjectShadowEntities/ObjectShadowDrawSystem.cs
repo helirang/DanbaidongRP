@@ -31,7 +31,7 @@ namespace UnityEngine.Rendering.Universal
             PerObjectShadowDrawConstant._PerObjectShadowScaledScreenParams = Shader.PropertyToID("_PerObjectShadowScaledScreenParams");
         }
 
-        public void Execute(CommandBuffer cmd, Vector2 rtSize)
+        public void Execute(RasterCommandBuffer cmd, Vector2 rtSize)
         {
             using (new ProfilingScope(cmd, m_Sampler))
             {
@@ -47,7 +47,7 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        private void Execute(CommandBuffer cmd, Vector2 rtSize, ObjectShadowEntityChunk entityChunk, ObjectShadowCachedChunk cacheChunk, ObjectShadowDrawCallChunk drawCallChunk, int count)
+        private void Execute(RasterCommandBuffer cmd, Vector2 rtSize, ObjectShadowEntityChunk entityChunk, ObjectShadowCachedChunk cacheChunk, ObjectShadowDrawCallChunk drawCallChunk, int count)
         {
             cacheChunk.currentJobHandle.Complete();
             drawCallChunk.currentJobHandle.Complete();
@@ -69,7 +69,7 @@ namespace UnityEngine.Rendering.Universal
 
         }
 
-        private void DrawInstanced(CommandBuffer cmd, Vector2 rtSize, ObjectShadowEntityChunk entityChunk, ObjectShadowCachedChunk cacheChunk, ObjectShadowDrawCallChunk drawCallChunk, Material material, int passIndex)
+        private void DrawInstanced(RasterCommandBuffer cmd, Vector2 rtSize, ObjectShadowEntityChunk entityChunk, ObjectShadowCachedChunk cacheChunk, ObjectShadowDrawCallChunk drawCallChunk, Material material, int passIndex)
         {
             var mesh = PerObjectShadowUtils.shadowProjectorMesh;
             int instanceCount = drawCallChunk.drawCallCount;

@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Unity.Collections;
-using UnityEditor.Graphs;
 using UnityEngine.Rendering.RenderGraphModule;
-using static UnityEngine.Rendering.Universal.RenderingLayerUtils;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -175,42 +172,45 @@ namespace UnityEngine.Rendering.Universal
         [Obsolete(DeprecationMessage.CompatibilityScriptingAPIObsolete, false)]
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
-            ConfigureTarget(m_PerObjectShadowMapTexture);
-            ConfigureClear(ClearFlag.All, Color.black);
+            // We use RenderGraph
+
+            //ConfigureTarget(m_PerObjectShadowMapTexture);
+            //ConfigureClear(ClearFlag.All, Color.black);
         }
 
         /// <inheritdoc/>
         [Obsolete(DeprecationMessage.CompatibilityScriptingAPIObsolete, false)]
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
-            ContextContainer frameData = renderingData.frameData;
-            UniversalRenderingData universalRenderingData = frameData.Get<UniversalRenderingData>();
-            RenderPerObjectTileShadowmap(ref context, ref renderingData);
-            universalRenderingData.commandBuffer.SetGlobalTexture(m_PerObjectShadowmapID, m_PerObjectShadowMapTexture.nameID);
+            // We use RenderGraph
+
+            //ContextContainer frameData = renderingData.frameData;
+            //UniversalRenderingData universalRenderingData = frameData.Get<UniversalRenderingData>();
+            //RenderPerObjectTileShadowmap(ref context, ref renderingData);
+            //universalRenderingData.commandBuffer.SetGlobalTexture(m_PerObjectShadowmapID, m_PerObjectShadowMapTexture.nameID);
         }
+
+
 
         /// <summary>
         /// Render each tile shadow in atlas
         /// </summary>
         /// <param name="context"></param>
         /// <param name="renderingData"></param>
-        internal void RenderPerObjectTileShadowmap(ref ScriptableRenderContext context, ref RenderingData renderingData)
+        void RenderPerObjectTileShadowmap(RasterCommandBuffer cmd, ref PerObjectShadowPassData data)
         {
-            var lightData = renderingData.lightData;
+            var lightData = data.lightData;
 
             int shadowLightIndex = lightData.mainLightIndex;
             if (shadowLightIndex == -1)
                 return;
 
             VisibleLight shadowLight = lightData.visibleLights[shadowLightIndex];
-            ContextContainer frameData = renderingData.frameData;
-            UniversalRenderingData universalRenderingData = frameData.Get<UniversalRenderingData>();
 
-            var cmd = universalRenderingData.commandBuffer;
             using (new ProfilingScope(cmd, m_ProfilingSampler))
             {
                 // Need to start by setting the Camera position as that is not set for passes executed before normal rendering
-                cmd.SetGlobalVector(ShaderPropertyId.worldSpaceCameraPos, renderingData.cameraData.worldSpaceCameraPos);
+                cmd.SetGlobalVector(ShaderPropertyId.worldSpaceCameraPos, data.cameraData.worldSpaceCameraPos);
 
                 for (int i = 0; i < m_EntityManager.chunkCount; i++)
                 {
@@ -244,9 +244,9 @@ namespace UnityEngine.Rendering.Universal
                         sliceData.uvScaleOffset = drawCallChunk.uvScaleOffsets[instanceIndex];
 
                         // Render sclice shadows
-                        Vector4 shadowBias = ShadowUtils.GetShadowBias(ref shadowLight, shadowLightIndex, ref renderingData.shadowData, sliceData.projectionMatrix, sliceData.resolution);
+                        Vector4 shadowBias = ShadowUtils.GetShadowBias(ref shadowLight, shadowLightIndex, data.shadowData, sliceData.projectionMatrix, sliceData.resolution);
                         PerObjectShadowUtils.SetupShadowCasterConstantBuffer(cmd, ref shadowLight, shadowBias);
-                        PerObjectShadowUtils.RenderPerObjectShadowSlice(renderers, cmd, ref context, ref sliceData, chunkMaterial, shadowPassIndex);
+                        PerObjectShadowUtils.RenderPerObjectShadowSlice(cmd, renderers, ref sliceData, chunkMaterial, shadowPassIndex);
                     }
                 }
 
@@ -261,7 +261,7 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         /// <param name="cmd"></param>
         /// <param name="shadowLight"></param>
-        internal void SetupPerObjectShadowReceiverConstants(CommandBuffer cmd, ref VisibleLight shadowLight)
+        internal void SetupPerObjectShadowReceiverConstants(RasterCommandBuffer cmd, ref VisibleLight shadowLight)
         {
             int matricesIndex = 0;
             foreach (PerObjectShadowData data in m_ObjectsShadowDataList)
@@ -307,9 +307,27 @@ namespace UnityEngine.Rendering.Universal
 
         private class PerObjectShadowPassData
         {
+            internal UniversalRenderingData renderingData;
+            internal UniversalCameraData cameraData;
+            internal UniversalLightData lightData;
+            internal UniversalShadowData shadowData;
 
+            internal PerObjectShadowCasterPass pass;
         }
 
+        // Store the texture reference at.
+        public class PerObjectShadowMapRefData : ContextItem
+        {
+            public TextureHandle perObjectShadowMap = TextureHandle.nullHandle;
+
+            // Reset function required by ContextItem. It should reset all variables not carried
+            // over to next frame.
+            public override void Reset()
+            {
+                // only vaild for the current frame.
+                perObjectShadowMap = TextureHandle.nullHandle;
+            }
+        }
 
         /// <inheritdoc/>
         /// <summary>
@@ -319,20 +337,37 @@ namespace UnityEngine.Rendering.Universal
         /// <param name="frameData"></param>
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
+            UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
             UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
-            UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
+            UniversalLightData lightData = frameData.Get<UniversalLightData>();
+            UniversalShadowData shadowData = frameData.Get<UniversalShadowData>();
 
             // Create Texture Handles
-            //var perObjectShadowMapTextureHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, )
-            var perObjectShadowMapTextureHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, m_PerObjectShadowMapTexture.rt.descriptor, "_PerObjectShadowmapTexture", true, ShadowUtils.m_ForceShadowPointSampling ? FilterMode.Point : FilterMode.Bilinear);
+            var perObjectShadowMap = UniversalRenderer.CreateRenderGraphTexture(renderGraph, m_PerObjectShadowMapTexture.rt.descriptor, "_PerObjectShadowmapTexture", true, ShadowUtils.m_ForceShadowPointSampling ? FilterMode.Point : FilterMode.Bilinear);
 
             using(var builder = renderGraph.AddRasterRenderPass<PerObjectShadowPassData>("Per Object ShadowMap", out var passData, m_ProfilingSampler))
             {
-
-
-                builder.SetRenderFunc((PerObjectShadowPassData passData, RasterGraphContext context) =>
+                if (!frameData.Contains<PerObjectShadowMapRefData>())
                 {
+                    var shadowMapRefData = frameData.GetOrCreate<PerObjectShadowMapRefData>();
+                    shadowMapRefData.perObjectShadowMap = perObjectShadowMap;
+                }
 
+                passData.renderingData = renderingData;
+                passData.cameraData = cameraData;
+                passData.lightData = lightData;
+                passData.shadowData = shadowData;
+                passData.pass = this;
+
+                builder.AllowPassCulling(false);
+                builder.AllowGlobalStateModification(true);
+                builder.SetRenderAttachmentDepth(perObjectShadowMap);
+                if (perObjectShadowMap.IsValid())
+                    builder.SetGlobalTextureAfterPass(perObjectShadowMap, m_PerObjectShadowmapID);
+
+                builder.SetRenderFunc((PerObjectShadowPassData data, RasterGraphContext context) =>
+                {
+                    data.pass.RenderPerObjectTileShadowmap(context.cmd, ref passData);
                 });
 
             }
