@@ -70,7 +70,7 @@ namespace UnityEngine.Rendering.Universal
                 public static readonly ProfilingSampler getPerObjectLightFlags = new ProfilingSampler($"{k_Name}.{nameof(GetPerObjectLightFlags)}");
                 public static readonly ProfilingSampler getMainLightIndex = new ProfilingSampler($"{k_Name}.{nameof(GetMainLightIndex)}");
                 public static readonly ProfilingSampler setupPerFrameShaderConstants = new ProfilingSampler($"{k_Name}.{nameof(SetupPerFrameShaderConstants)}");
-                public static readonly ProfilingSampler setupPerCameraShaderConstants = new ProfilingSampler($"{k_Name}.{nameof(SetupPerCameraShaderConstants)}");
+                public static readonly ProfilingSampler setupPerCameraShaderConstants = new ProfilingSampler($"{k_Name}.{nameof(SetupPerCameraEnvironmentShaderConstants)}");
 
                 public static class Renderer
                 {
@@ -245,6 +245,8 @@ namespace UnityEngine.Rendering.Universal
             // We always create this.
             // TODO: Create a switch button for users.
             PreIntegratedFGD.instance.Build(PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse);
+
+            SkySystem.instance.Build(asset, defaultRuntimeResources);
 
             Shader.globalRenderPipeline = k_ShaderTagName;
 
@@ -672,7 +674,9 @@ namespace UnityEngine.Rendering.Universal
                 cmd.Clear();
 
                 PreIntegratedFGD.instance.RenderInit(PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse, cmd);
-                SetupPerCameraShaderConstants(cmd);
+                SkySystem.instance.UpdateCurrentSky();
+                SetupPerCameraEnvironmentShaderConstants(cmd);// TODO: use SkySystem.instance.UpdateEnvironment();
+                
 
                 // Emit scene/game view UI. The main game camera UI is always rendered, so this needs to be handled only for different camera types
                 if (camera.cameraType == CameraType.Reflection || camera.cameraType == CameraType.Preview)
@@ -713,6 +717,8 @@ namespace UnityEngine.Rendering.Universal
                 if (asset.useAdaptivePerformance)
                     ApplyAdaptivePerformance(ref renderingData);
 #endif
+
+                SkySystem.instance.UpdateEnvironment(cmd, ref renderingData, false, false, false, SkyAmbientMode.Dynamic);
 
                 renderer.AddRenderPasses(ref renderingData);
 
@@ -1340,6 +1346,14 @@ namespace UnityEngine.Rendering.Universal
             Matrix4x4 jitterMat = TemporalAA.CalculateJitterMatrix(ref cameraData);
             cameraData.SetViewProjectionAndJitterMatrix(camera.worldToCameraMatrix, projectionMatrix, jitterMat);
 
+            // SetPixelCoordToViewDirWSMatrix for Sky and compute shader
+            var screenSize = new Vector4(cameraData.cameraTargetDescriptor.width, cameraData.cameraTargetDescriptor.height,
+                                        1.0f / cameraData.cameraTargetDescriptor.width, 1.0f / cameraData.cameraTargetDescriptor.height);
+            var gpuProj = cameraData.GetGPUProjectionMatrix(true);
+            var gpuProjAspect = RenderingUtils.ProjectionMatrixAspect(gpuProj);
+            cameraData.SetPixelCoordToViewDirWSMatrix(
+                RenderingUtils.ComputePixelCoordToWorldSpaceViewDirectionMatrix(camera, camera.worldToCameraMatrix, gpuProj, screenSize, gpuProjAspect));
+
             cameraData.worldSpaceCameraPos = camera.transform.position;
 
             var backgroundColorSRGB = camera.backgroundColor;
@@ -1707,7 +1721,7 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        static void SetupPerCameraShaderConstants(CommandBuffer cmd)
+        static void SetupPerCameraEnvironmentShaderConstants(CommandBuffer cmd)
         {
             using var profScope = new ProfilingScope(null, Profiling.Pipeline.setupPerCameraShaderConstants);
 

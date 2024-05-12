@@ -6,7 +6,7 @@ Shader "Hidden/ColorPyramid"
     }
     SubShader
     {
-        Tags{ "RenderPipeline" = "HDRenderPipeline" }
+        Tags{ "RenderPipeline" = "UniversalPipeline" }
         HLSLINCLUDE
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
             #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"

@@ -15,6 +15,18 @@ namespace UnityEngine.Rendering.Universal
         public sealed class ShaderResources
         {
             /// <summary>
+            /// Sky.
+            /// </summary>
+            [Reload("Shaders/Sky/HDRISky.shader")]
+            public Shader hdriSkyPS;
+
+            [Reload("Shaders/Sky/GradientSky.shader")]
+            public Shader gradientSkyPS;
+
+            [Reload("Shaders/Sky/ProceduralToonSky.shader")]
+            public Shader proceduralToonSkyPS;
+
+            /// <summary>
             /// GPUCopy compute shader.
             /// </summary>
             [Reload("Shaders/Utils/GPUCopy.compute")]
@@ -110,6 +122,10 @@ namespace UnityEngine.Rendering.Universal
             public Texture2D[] blueNoise128RTex;
             [Reload("Textures/STBN/vec2/stbn_vec2_2Dx1D_128x128x64_{0}.png", 0, 64)]
             public Texture2D[] blueNoise128RGTex;
+
+            // Default HDRI Sky
+            [Reload("Textures/Sky/DefaultHDRISky.exr")]
+            public Cubemap defaultHDRISky;
         }
 
         /// <summary>

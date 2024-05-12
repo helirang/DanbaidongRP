@@ -13,6 +13,10 @@ MonoBehaviour:
   m_Name: UniversalRenderPipelineRuntimeResources
   m_EditorClassIdentifier: 
   shaders:
+    hdriSkyPS: {fileID: 4800000, guid: 7bd3559ba5f4a9e4d9d8a00264664997, type: 3}
+    gradientSkyPS: {fileID: 4800000, guid: e435ac4bcc46e204894385eae6477568, type: 3}
+    proceduralToonSkyPS: {fileID: 4800000, guid: f124ffaf8c3541447ba6e04e7110b9b7,
+      type: 3}
     copyChannelCS: {fileID: 7200000, guid: de054c53515c26b48bcdb79cc7a0f0b3, type: 3}
     depthPyramidCS: {fileID: 7200000, guid: e984b811c24ff0d4a8f27a3bcaed61fd, type: 3}
     colorPyramid: {fileID: 4800000, guid: ad0e31eefa48aaf43b718a4fe9a98d32, type: 3}
@@ -163,3 +167,4 @@ MonoBehaviour:
     - {fileID: 2800000, guid: 68d703183644b0a48a5e9e77224ad9fb, type: 3}
     - {fileID: 2800000, guid: b36a11aac94bcd841bfb7c852b4c6a32, type: 3}
     - {fileID: 2800000, guid: 2d3bca1242b78154db5a6bc4785969e5, type: 3}
+    defaultHDRISky: {fileID: 8900000, guid: c5e56f470b9af1d4e81214db02a9c73e, type: 3}

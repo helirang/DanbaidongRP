@@ -9,6 +9,10 @@ namespace UnityEngine.Rendering.Universal
     /// </summary>
     public class DrawSkyboxPass : ScriptableRenderPass
     {
+        // Profiling tag
+        private static string m_ProfilerTag = "Render Sky";
+        private static ProfilingSampler m_ProfilingSampler = new ProfilingSampler(m_ProfilerTag);
+
         /// <summary>
         /// Creates a new <c>DrawSkyboxPass</c> instance.
         /// </summary>
@@ -16,8 +20,6 @@ namespace UnityEngine.Rendering.Universal
         /// <seealso cref="RenderPassEvent"/>
         public DrawSkyboxPass(RenderPassEvent evt)
         {
-            base.profilingSampler = new ProfilingSampler(nameof(DrawSkyboxPass));
-
             renderPassEvent = evt;
         }
 
@@ -89,7 +91,13 @@ namespace UnityEngine.Rendering.Universal
             else
 #endif
             {
-                context.DrawSkybox(camera);
+                //context.DrawSkybox(camera);
+
+                var cmd = renderingData.commandBuffer;
+                using (new ProfilingScope(cmd, m_ProfilingSampler))
+                {
+                    SkySystem.instance.RenderSky(cmd, ref renderingData);
+                }
             }
         }
 
@@ -108,7 +116,7 @@ namespace UnityEngine.Rendering.Universal
             Camera camera = renderingData.cameraData.camera;
 
             using (var builder = renderGraph.AddRenderPass<PassData>("Draw Skybox Pass", out var passData,
-                base.profilingSampler))
+                m_ProfilingSampler))
             {
                 passData.color = builder.UseColorBuffer(colorTarget, 0);
                 passData.depth = builder.UseDepthBuffer(depthTarget, DepthAccess.Read);

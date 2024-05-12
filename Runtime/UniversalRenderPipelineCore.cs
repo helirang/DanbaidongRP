@@ -210,6 +210,9 @@ namespace UnityEngine.Rendering.Universal
         Matrix4x4 m_ProjectionMatrix;
         Matrix4x4 m_JitterMatrix;
 
+        // PixelCoord to ViewDirWS. For Sky or compute shaders.
+        Matrix4x4 m_PixelCoordToViewDirWS;
+
         internal void SetViewAndProjectionMatrix(Matrix4x4 viewMatrix, Matrix4x4 projectionMatrix)
         {
             m_ViewMatrix = viewMatrix;
@@ -222,6 +225,11 @@ namespace UnityEngine.Rendering.Universal
             m_ViewMatrix = viewMatrix;
             m_ProjectionMatrix = projectionMatrix;
             m_JitterMatrix = jitterMatrix;
+        }
+
+        internal void SetPixelCoordToViewDirWSMatrix(Matrix4x4 pCoordToViewDirWSMatrix)
+        {
+            m_PixelCoordToViewDirWS = pCoordToViewDirWSMatrix;
         }
 
         // Helper function to populate builtin stereo matricies as well as URP stereo matricies
@@ -311,6 +319,15 @@ namespace UnityEngine.Rendering.Universal
         internal Matrix4x4 GetGPUProjectionMatrix(bool renderIntoTexture, int viewIndex = 0)
         {
             return m_JitterMatrix * GL.GetGPUProjectionMatrix(GetProjectionMatrix(viewIndex), renderIntoTexture);
+        }
+
+        /// <summary>
+        /// Utility matrix (used by sky) to map screen position to WS view direction.
+        /// </summary>
+        /// <returns></returns>
+        internal Matrix4x4 GetPixelCoordToViewDirWSMatrix()
+        {
+            return m_PixelCoordToViewDirWS;
         }
 
         /// <summary>
