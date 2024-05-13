@@ -659,6 +659,8 @@ namespace UnityEngine.Rendering.Universal
 
             CreateCameraDepthCopyTexture(renderGraph, cameraData.cameraTargetDescriptor, RequireDepthPrepass(cameraData, ref renderPassInputs) && this.renderingModeActual != RenderingMode.Deferred);
 
+            CreateCameraDepthPyramidTexture(renderGraph, cameraData.cameraTargetDescriptor);
+
             CreateCameraNormalsTexture(renderGraph, cameraData.cameraTargetDescriptor);
 
             CreateMotionVectorTextures(renderGraph, cameraData.cameraTargetDescriptor);
@@ -1404,9 +1406,11 @@ namespace UnityEngine.Rendering.Universal
 
                 // GBufferCopyDepth => GPUCopy
                 //m_GBufferCopyDepthPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.activeDepthTexture, true, "GBuffer Depth Copy");
-                m_GPUCopyPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.activeDepthTexture);
+                m_GPUCopyPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.activeDepthTexture, true);
 
-                // TODO: DepthPyramid
+                // DepthPyramid
+                m_GPUCopyPass.Render(renderGraph, frameData, resourceData.cameraDepthPyramidTexture, resourceData.activeDepthTexture);
+                m_DepthPyramidPass.Render(renderGraph, frameData, resourceData.cameraDepthPyramidTexture, m_DepthBufferMipChainInfo);
 
                 // MotionVectors
                 // Depends on the camera (copy) depth texture. Depth is reprojected to calculate motion vectors.
@@ -2074,6 +2078,31 @@ namespace UnityEngine.Rendering.Universal
             }
 
             resourceData.cameraDepthTexture = CreateRenderGraphTexture(renderGraph, depthDescriptor, "_CameraDepthTexture", true);
+        }
+
+        void CreateCameraDepthPyramidTexture(RenderGraph renderGraph, RenderTextureDescriptor descriptor)
+        {
+            UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
+
+            // DepthBufferMipChain Allocate
+            int actualWidth = descriptor.width;
+            int actualHeight = descriptor.height;
+            Vector2Int nonScaledViewport = new Vector2Int(actualWidth, actualHeight);
+
+            m_DepthBufferMipChainInfo.ComputePackedMipChainInfo(nonScaledViewport);
+
+            var depthMipChainDescriptor = descriptor;
+            // Same as depthDescriptor
+            depthMipChainDescriptor.msaaSamples = 1;// Depth-Only pass don't use MSAA
+            depthMipChainDescriptor.graphicsFormat = GraphicsFormat.R32_SFloat;
+            depthMipChainDescriptor.depthStencilFormat = GraphicsFormat.None;
+            depthMipChainDescriptor.depthBufferBits = 0;
+            // Set mipChainDepthcirptor
+            depthMipChainDescriptor.width = depthMipChainSize.x;
+            depthMipChainDescriptor.height = depthMipChainSize.y;
+            depthMipChainDescriptor.enableRandomWrite = true;
+
+            resourceData.cameraDepthPyramidTexture = CreateRenderGraphTexture(renderGraph, depthMipChainDescriptor, "_CameraDepthBufferMipChain", true);
         }
 
         void CreateMotionVectorTextures(RenderGraph renderGraph, RenderTextureDescriptor descriptor)

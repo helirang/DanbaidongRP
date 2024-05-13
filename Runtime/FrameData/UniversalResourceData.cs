@@ -185,6 +185,16 @@ namespace UnityEngine.Rendering.Universal
         private TextureHandle _cameraDepthTexture;
 
         /// <summary>
+        /// Camera depth pyramid texture. Contains the scene min depth mips.
+        /// </summary>
+        public TextureHandle cameraDepthPyramidTexture
+        {
+            get => CheckAndGetTextureHandle(ref _cameraDepthPyramidTexture);
+            set => CheckAndSetTextureHandle(ref _cameraDepthPyramidTexture, value);
+        }
+        private TextureHandle _cameraDepthPyramidTexture;
+
+        /// <summary>
         /// Camera normals texture. Contains the scene depth if the DepthNormals Prepass pass is executed.
         /// </summary>
         public TextureHandle cameraNormalsTexture

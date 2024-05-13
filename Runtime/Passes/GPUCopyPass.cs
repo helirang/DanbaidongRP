@@ -37,7 +37,7 @@ namespace UnityEngine.Rendering.Universal.Internal
         /// <seealso cref="RenderPassEvent"/>
         public GPUCopyPass(RenderPassEvent evt, ComputeShader computeShader, bool shouldClear = false)
         {
-            base.profilingSampler = new ProfilingSampler(nameof(GPUCopyPass));
+            base.profilingSampler = new ProfilingSampler("GPUCopyDepth");
             renderPassEvent = evt;
             m_ShouldClear = shouldClear;
 
@@ -151,7 +151,7 @@ namespace UnityEngine.Rendering.Universal.Internal
         }
 
         //RenderGraph
-        internal void Render(RenderGraph renderGraph, ContextContainer frameData, TextureHandle destination, TextureHandle source)
+        internal void Render(RenderGraph renderGraph, ContextContainer frameData, TextureHandle destination, TextureHandle source, bool setGlobal = false)
         {
             if (m_GPUCopy == null)
                 return;
@@ -168,7 +168,8 @@ namespace UnityEngine.Rendering.Universal.Internal
                 builder.UseTexture(source, AccessFlags.Read);
                 builder.UseTexture(destination, AccessFlags.ReadWrite);
                 builder.AllowPassCulling(false);
-                builder.SetGlobalTextureAfterPass(destination, Shader.PropertyToID("_CameraDepthTexture"));
+                if (setGlobal)
+                    builder.SetGlobalTextureAfterPass(destination, Shader.PropertyToID("_CameraDepthTexture"));
 
                 builder.SetRenderFunc((PassData data, ComputeGraphContext context) =>
                 {

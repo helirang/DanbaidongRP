@@ -1888,6 +1888,7 @@ namespace UnityEngine.Rendering.Universal
         DepthPrepass,
         UpdateReflectionProbeAtlas,
         GPUCopy,
+        DepthPyramid,
 
         // DrawObjectsPass
         DrawOpaqueObjects,

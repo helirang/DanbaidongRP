@@ -96,6 +96,18 @@ namespace UnityEngine.Rendering.Universal
             set => this.SetValueAndNotify(ref m_CopyChannelCS, value);
         }
 
+        [SerializeField, ResourcePath("Shaders/Utils/DepthPyramid.compute")]
+        private ComputeShader m_DepthPyramidCS;
+
+        /// <summary>
+        /// DepthPyramid computeshader
+        /// </summary>
+        public ComputeShader depthPyramidCS
+        {
+            get => m_DepthPyramidCS;
+            set => this.SetValueAndNotify(ref m_DepthPyramidCS, value);
+        }
+
 #if UNITY_EDITOR
         public void EnsureShadersCompiled()
         {
