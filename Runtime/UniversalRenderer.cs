@@ -155,6 +155,9 @@ namespace UnityEngine.Rendering.Universal
         RTHandle m_MotionVectorColor;
         RTHandle m_MotionVectorDepth;
 
+        internal GPULightsDataBuildSystem m_GPULightsDataBuildSystem;
+
+        GPULights m_GPULights;
         ForwardLights m_ForwardLights;
         DeferredLights m_DeferredLights;
         RenderingMode m_RenderingMode;
@@ -250,6 +253,8 @@ namespace UnityEngine.Rendering.Universal
             this.stripAdditionalLightOffVariants = !PlatformAutoDetect.isXRMobile;
 #endif
 #endif
+            m_GPULights = new GPULights(runtimeShaders, RenderPassEvent.AfterRenderingGbuffer);
+            m_GPULightsDataBuildSystem = new GPULightsDataBuildSystem();
 
             ForwardLights.InitParams forwardInitParams;
             forwardInitParams.lightCookieManager = m_LightCookieManager;
@@ -408,6 +413,7 @@ namespace UnityEngine.Rendering.Universal
         /// <inheritdoc />
         protected override void Dispose(bool disposing)
         {
+            m_GPULightsDataBuildSystem.Cleanup();
             m_ForwardLights.Cleanup();
             m_GBufferPass?.Dispose();
             m_PostProcessPasses.Dispose();
@@ -656,6 +662,13 @@ namespace UnityEngine.Rendering.Universal
                     {
                         DebugHandler.hdrDebugViewPass.Setup(cameraData, DebugHandler.DebugDisplaySettings.lightingSettings.hdrDebugMode);
                         EnqueuePass(DebugHandler.hdrDebugViewPass);
+                    }
+
+                    if (DebugHandler.TileClusterDebugIsActive(cameraData.resolveFinalTarget))
+                    {
+                        DebugHandler.tileClusterDebugPass.Setup(cameraData, DebugHandler.DebugDisplaySettings.lightingSettings.tileClusterDebugMode,
+                                                            DebugHandler.DebugDisplaySettings.lightingSettings.clusterDebugID, m_GPULights.lightCBuffer);
+                        EnqueuePass(DebugHandler.tileClusterDebugPass);
                     }
                 }
             }

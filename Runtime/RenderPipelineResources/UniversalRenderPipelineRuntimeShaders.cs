@@ -130,6 +130,46 @@ namespace UnityEngine.Rendering.Universal
         }
 
 
+        /// <summary>
+        /// GPU lights list compute shader.
+        /// </summary>
+        [SerializeField, ResourcePath("Shaders/Lights/GPULightsClearLists.compute")]
+        private ComputeShader m_GpuLightsClearLists;
+
+        public ComputeShader gpuLightsClearLists
+        {
+            get => m_GpuLightsClearLists;
+            set => this.SetValueAndNotify(ref m_GpuLightsClearLists, value);
+        }
+
+        [SerializeField, ResourcePath("Shaders/Lights/GPULightsCoarseCulling.compute")]
+        private ComputeShader m_GpuLightsCoarseCullingCS;
+
+        public ComputeShader gpuLightsCoarseCullingCS
+        {
+            get => m_GpuLightsCoarseCullingCS;
+            set => this.SetValueAndNotify(ref m_GpuLightsCoarseCullingCS, value);
+        }
+
+        [SerializeField, ResourcePath("Shaders/Lights/GPULightsFPTL.compute")]
+        private ComputeShader m_GpuLightsFPTL;
+
+        public ComputeShader gpuLightsFPTL
+        {
+            get => m_GpuLightsFPTL;
+            set => this.SetValueAndNotify(ref m_GpuLightsFPTL, value);
+        }
+
+        [SerializeField, ResourcePath("Shaders/Lights/GPULightsCluster.compute")]
+        private ComputeShader m_GpuLightsCluster;
+
+        public ComputeShader gpuLightsCluster
+        {
+            get => m_GpuLightsCluster;
+            set => this.SetValueAndNotify(ref m_GpuLightsCluster, value);
+        }
+
+
 #if UNITY_EDITOR
         public void EnsureShadersCompiled()
         {

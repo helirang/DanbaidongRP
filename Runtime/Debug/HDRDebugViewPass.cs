@@ -127,10 +127,10 @@ namespace UnityEngine.Rendering.Universal
                 Vector4 scaleBias = RenderingUtils.GetFinalBlitScaleBias(sourceTexture, destination, data.cameraData);
 
                 RenderTargetIdentifier cameraTarget = BuiltinRenderTextureType.CameraTarget;
-                #if ENABLE_VR && ENABLE_XR_MODULE
-                    if (data.cameraData.xr.enabled)
-                        cameraTarget = data.cameraData.xr.renderTarget;
-                #endif
+#if ENABLE_VR && ENABLE_XR_MODULE
+                if (data.cameraData.xr.enabled)
+                    cameraTarget = data.cameraData.xr.renderTarget;
+#endif
 
                 if (destination.nameID == cameraTarget || data.cameraData.targetTexture != null)
                     cmd.SetViewport(data.cameraData.pixelRect);
@@ -204,9 +204,9 @@ namespace UnityEngine.Rendering.Universal
             ExecuteHDRDebugViewFinalPass(rasterCmd, dataDebugView, sourceTexture, destTexture, xyTarget);
 
             // Disable obsolete warning for internal usage
-            #pragma warning disable CS0618
+#pragma warning disable CS0618
             dataDebugView.cameraData.renderer.ConfigureCameraTarget(destTexture, destTexture);
-            #pragma warning restore CS0618
+#pragma warning restore CS0618
         }
 
         //RenderGraph path

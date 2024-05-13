@@ -1764,6 +1764,14 @@ namespace UnityEngine.Rendering.Universal
 
             lightData.mainLightIndex = GetMainLightIndex(settings, visibleLights);
 
+            var lightCount = visibleLights.Length;
+            var dirlightOffset = 0;
+            while (dirlightOffset < lightCount && visibleLights[dirlightOffset].lightType == LightType.Directional)
+            {
+                dirlightOffset++;
+            }
+            lightData.directionalLightsCount = dirlightOffset;
+
             if (settings.additionalLightsRenderingMode != LightRenderingMode.Disabled)
             {
                 lightData.additionalLightsCount = Math.Min((lightData.mainLightIndex != -1) ? visibleLights.Length - 1 : visibleLights.Length, maxVisibleAdditionalLights);

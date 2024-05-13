@@ -1449,6 +1449,9 @@ namespace UnityEngine.Rendering.Universal
 
         /// <summary> Keyword used for per object shadow. </summary>
         public const string PerObjectScreenSpaceShadow = "_PEROBJECT_SCREEN_SPACE_SHADOW";
+
+        /// <summary> Keyword used for GPULights.</summary>
+        public const string GPULightsCluster = "_GPU_LIGHTS_CLUSTER";
     }
 
     public sealed partial class UniversalRenderPipeline
@@ -1889,6 +1892,9 @@ namespace UnityEngine.Rendering.Universal
         UpdateReflectionProbeAtlas,
         GPUCopy,
         DepthPyramid,
+        BuildGPULightsData,
+        GPULights,
+        GPULightsGlobalAsync,
 
         // DrawObjectsPass
         DrawOpaqueObjects,

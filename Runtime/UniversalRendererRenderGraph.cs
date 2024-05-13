@@ -856,6 +856,8 @@ namespace UnityEngine.Rendering.Universal
             m_RenderTransparentForwardPass.Render(renderGraph, frameData, TextureHandle.nullHandle, resourceData.backBufferDepth, TextureHandle.nullHandle, TextureHandle.nullHandle, uint.MaxValue);
             RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingTransparents, RenderPassEvent.AfterRendering);
         }
+
+#if ORIGINAL_URP_RENDERING
         private void OnBeforeRendering(RenderGraph renderGraph)
         {
             UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
@@ -889,40 +891,24 @@ namespace UnityEngine.Rendering.Universal
 
             RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingShadows);
         }
-        
+#endif
         private void OnBeforeDanbaidongRPRendering(RenderGraph renderGraph)
         {
-            //UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
-            //UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
-            //UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
-            //UniversalLightData lightData = frameData.Get<UniversalLightData>();
-            //UniversalShadowData shadowData = frameData.Get<UniversalShadowData>();
+            UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
+            UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+            UniversalLightData lightData = frameData.Get<UniversalLightData>();
 
-            //m_ForwardLights.PreSetup(renderingData, cameraData, lightData);
+            // GPULights
+            {
+                var punctualLightCount = lightData.additionalLightsCount;
+                var reflectionProbes = renderingData.cullResults.visibleReflectionProbes;
+                var reflectionProbeCount = Mathf.Min(reflectionProbes.Length, UniversalRenderPipeline.maxVisibleReflectionProbes);
+                m_GPULightsDataBuildSystem.NewFrame(punctualLightCount + reflectionProbeCount, m_AdditionalLightsShadowCasterPass, m_LightCookieManager);
+                m_GPULightsDataBuildSystem.BuildGPULightList(lightData, cameraData);
 
-            //RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingShadows);
+                m_GPULights.PreSetup(lightData, cameraData, m_GPULightsDataBuildSystem);
+            }
 
-            //bool renderShadows = false;
-
-            //if (m_MainLightShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))
-            //{
-            //    renderShadows = true;
-            //    resourceData.mainShadowsTexture = m_MainLightShadowCasterPass.Render(renderGraph, frameData);
-            //}
-
-            //if (m_AdditionalLightsShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))
-            //{
-            //    renderShadows = true;
-            //    resourceData.additionalShadowsTexture = m_AdditionalLightsShadowCasterPass.Render(renderGraph, frameData);
-            //}
-
-            // The camera need to be setup again after the shadows since those passes override some settings
-            // TODO RENDERGRAPH: move the setup code into the shadow passes
-            //if (renderShadows)
-            //    SetupRenderGraphCameraProperties(renderGraph, resourceData.isActiveTargetBackBuffer);
-
-
-            //RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingShadows);
         }
 
         private void UpdateInstanceOccluders(RenderGraph renderGraph, UniversalCameraData cameraData, TextureHandle depthTexture)
@@ -974,6 +960,7 @@ namespace UnityEngine.Rendering.Universal
             GPUResidentDrawer.InstanceOcclusionTest(renderGraph, settings, subviewOcclusionTests);
         }
 
+#if ORIGINAL_URP_RENDERING
         private void OnMainRendering(RenderGraph renderGraph, ScriptableRenderContext context)
         {
             UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
@@ -1271,7 +1258,7 @@ namespace UnityEngine.Rendering.Universal
                 resourceData.overlayUITexture = overlayUI;
             }
         }
-
+#endif
         private void OnMainDanbaidongRPRendering(RenderGraph renderGraph, ScriptableRenderContext context)
         {
             UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
@@ -1423,6 +1410,8 @@ namespace UnityEngine.Rendering.Universal
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingGbuffer);
 
                 // TODO: GPULightList
+                m_GPULights.Render(renderGraph, frameData);
+
                 // TODO: SSAO
                 // TODO: SSR
                 // TODO: SSGI
@@ -1451,11 +1440,8 @@ namespace UnityEngine.Rendering.Universal
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingShadows, RenderPassEvent.BeforeRenderingDeferredLights);
 
-                //var gfxDeviceType = SystemInfo.graphicsDeviceType;
-                // We double check for features in between GBuffer and Deferred passes just in case to know whether we need to reload the attachments
-                //if (InterruptFramebufferFetch(FramebufferFetchEvent.FetchGbufferInDeferred, RenderPassEvent.AfterRenderingGbuffer, RenderPassEvent.BeforeRenderingDeferredLights))
-                    //GBufferPass.ResetGlobalGBufferTextures(renderGraph, resourceData.gBuffer, resourceData.activeDepthTexture, resourceData, ref m_DeferredLights);
-
+                m_GPULights.RenderSetGlobalAsync(renderGraph, frameData);
+                // TODO: DeferredLighting
                 //m_DeferredPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, resourceData.gBuffer);
 
                 // TODO: CharacterForwardLights
@@ -1559,6 +1545,7 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
+#if ORIGINAL_URP_RENDERING
         private void OnAfterRendering(RenderGraph renderGraph)
         {
             UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
@@ -1774,7 +1761,7 @@ namespace UnityEngine.Rendering.Universal
             if (drawGizmos)
                 DrawRenderGraphGizmos(renderGraph, frameData, resourceData.backBufferColor, resourceData.activeDepthTexture, GizmoSubset.PostImageEffects);
         }
-
+#endif
         private void OnAfterDanbaidongRPRendering(RenderGraph renderGraph)
         {
             UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
@@ -1970,7 +1957,7 @@ namespace UnityEngine.Rendering.Universal
                 TextureHandle overlayUITexture = resourceData.overlayUITexture;
                 TextureHandle debugScreenTexture = resourceData.debugScreenColor;
 
-                debugHandler.Render(renderGraph, cameraData, debugScreenTexture, overlayUITexture, debugHandlerColorTarget);
+                debugHandler.Render(renderGraph, frameData, cameraData, debugScreenTexture, overlayUITexture, debugHandlerColorTarget);
             }
 
 #if UNITY_EDITOR
