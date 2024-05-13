@@ -629,8 +629,6 @@ namespace UnityEngine.Rendering.Universal.Internal
 
             using (new ProfilingScope(cmd, m_ProfilingDeferredPass))
             {
-                // Bind PreIntegratedFGD before deferred shading.
-                PreIntegratedFGD.instance.Bind(cmd, PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse);
                 // This does 2 things:
                 // - baked geometry are skipped (do not receive dynamic lighting)
                 // - non-baked geometry (== non-static geometry) use shadowMask/occlusionProbes to emulate baked shadows influences.

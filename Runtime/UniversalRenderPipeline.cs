@@ -251,6 +251,10 @@ namespace UnityEngine.Rendering.Universal
             XRSystem.SetDisplayMSAASamples(msaaSamples);
             XRSystem.SetRenderScale(asset.renderScale);
 
+            // We always create this.
+            // TODO: Create a switch button for users.
+            PreIntegratedFGD.instance.Build(PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse);
+
             Lightmapping.SetDelegate(lightsDelegate);
 
             CameraCaptureBridge.enabled = true;
@@ -320,6 +324,8 @@ namespace UnityEngine.Rendering.Universal
             SupportedRenderingFeatures.active = new SupportedRenderingFeatures();
             ShaderData.instance.Dispose();
             XRSystem.Dispose();
+
+            PreIntegratedFGD.instance.Cleanup(PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse);
 
             s_RenderGraph.Cleanup();
             s_RenderGraph = null;
@@ -729,6 +735,7 @@ namespace UnityEngine.Rendering.Universal
                 context.ExecuteCommandBuffer(cmd); // Send all the commands enqueued so far in the CommandBuffer cmd, to the ScriptableRenderContext context
                 cmd.Clear();
 
+                PreIntegratedFGD.instance.RenderInit(PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse, cmd);
                 SetupPerCameraShaderConstants(cmd);
 
                 bool supportProbeVolume = asset != null && asset.lightProbeSystem == LightProbeSystem.ProbeVolumes;

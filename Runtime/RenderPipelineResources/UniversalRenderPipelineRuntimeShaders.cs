@@ -108,6 +108,28 @@ namespace UnityEngine.Rendering.Universal
             set => this.SetValueAndNotify(ref m_DepthPyramidCS, value);
         }
 
+        /// <summary>
+        /// PreIntegratedFGD
+        /// </summary>
+        [SerializeField, ResourcePath("Shaders/PreIntegratedFGD/PreIntegratedFGD_GGXDisneyDiffuse.shader")]
+        private Shader m_PreIntegratedFGD_GGXDisneyDiffusePS;
+
+        public Shader preIntegratedFGD_GGXDisneyDiffusePS
+        {
+            get => m_PreIntegratedFGD_GGXDisneyDiffusePS;
+            set => this.SetValueAndNotify(ref m_PreIntegratedFGD_GGXDisneyDiffusePS, value);
+        }
+
+        [SerializeField, ResourcePath("Shaders/PreIntegratedFGD/PreIntegratedFGD_CharlieFabricLambert.shader")]
+        private Shader m_PreIntegratedFGD_CharlieFabricLambertPS;
+
+        public Shader preIntegratedFGD_CharlieFabricLambertPS
+        {
+            get => m_PreIntegratedFGD_CharlieFabricLambertPS;
+            set => this.SetValueAndNotify(ref m_PreIntegratedFGD_CharlieFabricLambertPS, value);
+        }
+
+
 #if UNITY_EDITOR
         public void EnsureShadersCompiled()
         {
