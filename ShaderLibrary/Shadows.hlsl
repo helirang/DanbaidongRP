@@ -54,7 +54,6 @@
 #endif
 
 TEXTURE2D_X(_ScreenSpaceShadowmapTexture);
-TEXTURE2D_X(_PerObjectScreenSpaceShadowmapTexture);
 
 TEXTURE2D_SHADOW(_MainLightShadowmapTexture);
 TEXTURE2D_SHADOW(_AdditionalLightsShadowmapTexture);
@@ -130,12 +129,12 @@ ShadowSamplingData GetMainLightShadowSamplingData()
     ShadowSamplingData shadowSamplingData;
 
     // shadowOffsets are used in SampleShadowmapFiltered for low quality soft shadows.
-    shadowSamplingData.shadowOffset0 = half4(_MainLightShadowOffset0);
-    shadowSamplingData.shadowOffset1 = half4(_MainLightShadowOffset1);
+    shadowSamplingData.shadowOffset0 = _MainLightShadowOffset0;
+    shadowSamplingData.shadowOffset1 = _MainLightShadowOffset1;
 
     // shadowmapSize is used in SampleShadowmapFiltered otherwise
     shadowSamplingData.shadowmapSize = _MainLightShadowmapSize;
-    shadowSamplingData.softShadowQuality = half(_MainLightShadowParams.y);
+    shadowSamplingData.softShadowQuality = _MainLightShadowParams.y;
 
     return shadowSamplingData;
 }
@@ -162,7 +161,7 @@ ShadowSamplingData GetAdditionalLightShadowSamplingData(int index)
 // y: 1.0 if shadow is soft, 0.0 otherwise
 half4 GetMainLightShadowParams()
 {
-    return half4(_MainLightShadowParams);
+    return _MainLightShadowParams;
 }
 
 
@@ -198,10 +197,12 @@ half SampleScreenSpaceShadowmap(float4 shadowCoord)
     half attenuation = half(SAMPLE_TEXTURE2D(_ScreenSpaceShadowmapTexture, sampler_PointClamp, shadowCoord.xy).x);
 #endif
 
-#if defined(_PEROBJECT_SCREEN_SPACE_SHADOW)
-    half objectAttenuation = half(SAMPLE_TEXTURE2D(_PerObjectScreenSpaceShadowmapTexture, sampler_PointClamp, shadowCoord.xy).x);
-    attenuation = min(attenuation, objectAttenuation);
-#endif
+    return attenuation;
+}
+
+float LoadScreenSpaceShadowmap(uint2 coordSS)
+{
+    float attenuation = LOAD_TEXTURE2D(_ScreenSpaceShadowmapTexture, coordSS).x;
 
     return attenuation;
 }
@@ -515,7 +516,7 @@ float ApplyShadowFade(float shadowAttenuation, float3 positionWS)
 // Deprecated: Use GetMainLightShadowParams instead.
 half GetMainLightShadowStrength()
 {
-    return half(_MainLightShadowData.x);
+    return _MainLightShadowData.x;
 }
 
 // Deprecated: Use GetAdditionalLightShadowParams instead.
@@ -523,9 +524,9 @@ half GetAdditionalLightShadowStrenth(int lightIndex)
 {
     #if defined(ADDITIONAL_LIGHT_CALCULATE_SHADOWS)
         #if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
-            return half(_AdditionalShadowParams_SSBO[lightIndex].x);
+            return _AdditionalShadowParams_SSBO[lightIndex].x;
         #else
-            return half(_AdditionalShadowParams[lightIndex].x);
+            return _AdditionalShadowParams[lightIndex].x;
         #endif
     #else
         return half(1.0);

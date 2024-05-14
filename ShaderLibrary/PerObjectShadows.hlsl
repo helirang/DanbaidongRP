@@ -4,7 +4,7 @@
 
 float4 _PerObjectShadowmapTexture_TexelSize;
 TEXTURE2D_SHADOW(_PerObjectShadowmapTexture);
-//TEXTURE2D_X(_PerObjectScreenSpaceShadowmapTexture);
+TEXTURE2D_X(_PerObjectScreenSpaceShadowmapTexture);
 
 // x: softShadowQuality
 // y: shadowStrength

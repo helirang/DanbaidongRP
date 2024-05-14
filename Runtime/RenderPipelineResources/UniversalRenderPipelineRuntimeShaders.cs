@@ -169,6 +169,17 @@ namespace UnityEngine.Rendering.Universal
             set => this.SetValueAndNotify(ref m_GpuLightsCluster, value);
         }
 
+        /// <summary>
+        /// Deferred lighting compute shader.
+        /// </summary>
+        [SerializeField, ResourcePath("Shaders/Lighting/DeferredLighting.compute")]
+        private ComputeShader m_DeferredLightingCS;
+
+        public ComputeShader deferredLightingCS
+        {
+            get => m_DeferredLightingCS;
+            set => this.SetValueAndNotify(ref m_DeferredLightingCS, value);
+        }
 
 #if UNITY_EDITOR
         public void EnsureShadersCompiled()

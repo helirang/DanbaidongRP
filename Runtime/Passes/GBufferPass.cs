@@ -267,9 +267,11 @@ namespace UnityEngine.Rendering.Universal.Internal
                 builder.UseRendererList(passData.rendererListHdl);
                 builder.UseRendererList(passData.objectsWithErrorRendererListHdl);
 
-                // With NRP GBuffer textures are set after Deferred, we do this to avoid breaking the pass
-                if (!renderGraph.nativeRenderPassesEnabled)
-                    GBufferPass.SetGlobalGBufferTextures(builder, gbuffer, ref m_DeferredLights);
+                //// With NRP GBuffer textures are set after Deferred, we do this to avoid breaking the pass
+                //if (!renderGraph.nativeRenderPassesEnabled)
+                //    GBufferPass.SetGlobalGBufferTextures(builder, gbuffer, ref m_DeferredLights);
+                // Danbaidong RP need this.
+                GBufferPass.SetGlobalGBufferTextures(builder, gbuffer, ref m_DeferredLights);
 
                 builder.AllowPassCulling(false);
                 builder.AllowGlobalStateModification(true);

@@ -577,6 +577,8 @@ namespace UnityEngine.Rendering.Universal
                 cameraTargetDescriptor.useMipMap = false;
                 cameraTargetDescriptor.autoGenerateMips = false;
                 cameraTargetDescriptor.depthBufferBits = (int)DepthBits.None;
+                // Change camera color target to UAV for compute shader. Danbaidong 20240514.
+                cameraTargetDescriptor.enableRandomWrite = true;
 
                 RenderingUtils.ReAllocateHandleIfNeeded(ref m_RenderGraphCameraColorHandles[0], cameraTargetDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: _CameraTargetAttachmentAName);
                 RenderingUtils.ReAllocateHandleIfNeeded(ref m_RenderGraphCameraColorHandles[1], cameraTargetDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: _CameraTargetAttachmentBName);
@@ -829,6 +831,8 @@ namespace UnityEngine.Rendering.Universal
         {
             if (this.renderingModeActual == RenderingMode.Deferred)
                 m_DeferredPass.OnCameraCleanup(cmd);
+
+            m_DeferredLighting.OnCameraCleanup(cmd);
 
             m_CopyDepthPass.OnCameraCleanup(cmd);
             m_DepthNormalPrepass.OnCameraCleanup(cmd);
@@ -1441,8 +1445,8 @@ namespace UnityEngine.Rendering.Universal
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingShadows, RenderPassEvent.BeforeRenderingDeferredLights);
 
                 m_GPULights.RenderSetGlobalAsync(renderGraph, frameData);
-                // TODO: DeferredLighting
-                //m_DeferredPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, resourceData.gBuffer);
+                // DeferredLighting
+                m_DeferredLighting.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, resourceData.gBuffer);
 
                 // TODO: CharacterForwardLights
 

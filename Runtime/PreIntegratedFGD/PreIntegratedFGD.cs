@@ -1,5 +1,6 @@
 
 using UnityEngine.Experimental.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -40,6 +41,7 @@ namespace UnityEngine.Rendering.Universal
 
         Material[] m_PreIntegratedFGDMaterial = new Material[(int)FGDIndex.Count];
         RenderTexture[] m_PreIntegratedFGD = new RenderTexture[(int)FGDIndex.Count];
+        RTHandle[] m_PreIntegratedFGDHandles = new RTHandle[(int)FGDIndex.Count];
 
         PreIntegratedFGD()
         {
@@ -93,6 +95,7 @@ namespace UnityEngine.Rendering.Universal
                     name = CoreUtils.GetRenderTargetAutoName(res, res, 1, GraphicsFormat.A2B10G10R10_UNormPack32, $"preIntegrated{index}")
                 };
                 m_PreIntegratedFGD[(int)index].Create();
+                m_PreIntegratedFGDHandles[(int)index] = RTHandles.Alloc(m_PreIntegratedFGD[(int)index]);
                 m_isInit[(int)index] = false;
             }
 
@@ -161,6 +164,46 @@ namespace UnityEngine.Rendering.Universal
 
                 default:
                     break;
+            }
+        }
+
+        /// <summary>
+        /// Bind material textures.
+        /// </summary>
+        /// <param name="cmd"></param>
+        /// <param name="index"></param>
+        public void Bind(ComputeCommandBuffer cmd, FGDIndex index, TextureHandle texture)
+        {
+            switch (index)
+            {
+                case FGDIndex.FGD_GGXAndDisneyDiffuse:
+                    cmd.SetGlobalTexture(ShaderConstants._PreIntegratedFGD_GGXDisneyDiffuse, texture);
+                    break;
+
+                case FGDIndex.FGD_CharlieAndFabricLambert:
+                    cmd.SetGlobalTexture(ShaderConstants._PreIntegratedFGD_CharlieAndFabric, texture);
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// RenderGraph Path, Import texture and add it to your passData.
+        /// </summary>
+        /// <param name="renderGraph"></param>
+        /// <param name="index"></param>
+        public TextureHandle ImportToRenderGraph(RenderGraph renderGraph, FGDIndex index)
+        {
+            switch (index)
+            {
+                case FGDIndex.FGD_GGXAndDisneyDiffuse:
+                    return renderGraph.ImportTexture(m_PreIntegratedFGDHandles[(int)index]);
+                case FGDIndex.FGD_CharlieAndFabricLambert:
+                    return renderGraph.ImportTexture(m_PreIntegratedFGDHandles[(int)index]);
+                default:
+                    return TextureHandle.nullHandle;
             }
         }
 

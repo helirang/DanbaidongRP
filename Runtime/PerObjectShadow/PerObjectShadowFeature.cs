@@ -109,7 +109,7 @@ namespace UnityEngine.Rendering.Universal
             m_PerObjectScreenSpaceShadowsPass = new PerObjectScreenSpaceShadowsPass(m_ObjectShadowDrawSystem);
 
             m_PerObjectShadowCasterPass.renderPassEvent = RenderPassEvent.BeforeRenderingShadows;
-            m_PerObjectScreenSpaceShadowsPass.renderPassEvent = RenderPassEvent.AfterRenderingGbuffer;
+            m_PerObjectScreenSpaceShadowsPass.renderPassEvent = RenderPassEvent.BeforeRenderingDeferredLights;
 
             m_RecreateSystems = false;
             return true;
