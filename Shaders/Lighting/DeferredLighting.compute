@@ -586,8 +586,8 @@ void DEFERRED_COMPUTE_ENTRY(uint3 dispatchThreadId : SV_DispatchThreadID, uint2 
 
     float3 diffuseLighting = lightOutput.diffuseLighting;
     float3 specularLighting = lightOutput.specularLighting;
-
-    _LightingTexture[coordSS] = float4(diffuseLighting + specularLighting, 1.0);
+    float3 emission = _LightingTexture[coordSS].rgb;
+    _LightingTexture[coordSS] = float4(diffuseLighting + specularLighting + emission, 1.0);
 }
 
 #endif

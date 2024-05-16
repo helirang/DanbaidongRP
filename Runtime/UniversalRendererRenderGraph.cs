@@ -1487,6 +1487,11 @@ namespace UnityEngine.Rendering.Universal
                 resourceData.cameraOpaqueTexture = cameraOpaqueTexture;
             }
 
+            // ColorPyramid
+            {
+                m_ColorPyramidPass.Render(renderGraph, frameData, resourceData.activeColorTexture);
+            }
+
 #if UNITY_EDITOR
             {
                 TextureHandle cameraDepthTexture = resourceData.cameraDepthTexture;

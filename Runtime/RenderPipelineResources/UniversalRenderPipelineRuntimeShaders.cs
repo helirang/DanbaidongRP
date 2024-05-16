@@ -110,6 +110,20 @@ namespace UnityEngine.Rendering.Universal
             set => this.SetValueAndNotify(ref m_DepthPyramidCS, value);
         }
 
+
+        [SerializeField, ResourcePath("Shaders/Utils/ColorPyramid.compute")]
+        private ComputeShader m_ColorPyramidCS;
+
+        /// <summary>
+        /// ColorPyramid computeshader
+        /// </summary>
+        public ComputeShader colorPyramidCS
+        {
+            get => m_ColorPyramidCS;
+            set => this.SetValueAndNotify(ref m_ColorPyramidCS, value);
+        }
+
+
         /// <summary>
         /// PreIntegratedFGD
         /// </summary>

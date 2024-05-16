@@ -701,6 +701,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                 // Access resources.
                 UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
                 UniversalLightData lightData = frameData.Get<UniversalLightData>();
+                UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
 
                 // Set passData
                 GPULightsOutPassData outPassData = frameData.GetOrCreate<GPULightsOutPassData>();
@@ -717,6 +718,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                 builder.UseBuffer(passData.perVoxelOffset, AccessFlags.Write);
                 builder.UseBuffer(passData.perVoxelLightLists, AccessFlags.Write);
                 builder.UseBuffer(passData.perTileLogBaseTweak, AccessFlags.Write);
+                builder.UseTexture(resourceData.cameraDepthTexture, AccessFlags.Read);
 
                 // Setup builder state
 #if DANBAIDONGRP_ASYNC_COMPUTE

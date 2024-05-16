@@ -200,6 +200,9 @@ namespace UnityEngine.Rendering.Universal
         // asset.
         private readonly UniversalRenderPipelineAsset pipelineAsset;
 
+        // Use to detect frame changes (for accurate frame count in editor, consider using hdCamera.GetCameraFrameCount)
+        int m_FrameCount;
+
         /// <inheritdoc/>
         public override string ToString() => pipelineAsset?.ToString();
 
@@ -335,6 +338,8 @@ namespace UnityEngine.Rendering.Universal
 
             GraphicsBufferSystem.ClearAll();
 
+            HistoryFrameRTSystem.ClearAll();
+
 #if UNITY_EDITOR
             SceneViewDrawMode.ResetDrawMode();
 #endif
@@ -410,6 +415,30 @@ namespace UnityEngine.Rendering.Universal
             GraphicsSettings.lightsUseColorTemperature = true;
             SetupPerFrameShaderConstants();
             XRSystem.SetDisplayMSAASamples((MSAASamples)asset.msaaSampleCount);
+
+            // For CleanHistoryFrameRTSystem to remove unused Cameras
+            // Copy from HDRenderPipeline, which is HDCamera.CleanUnused()
+            // TODO: Should I handle for m_ProbeCameraCache as HDRP?
+            // TODO: Should I handle for m_FrameCount <= 1 skipped RenderSteps as HDRP?
+#if UNITY_EDITOR
+            int newCount = m_FrameCount;
+            foreach (var c in cameras)
+            {
+                if (c.cameraType != CameraType.Preview)
+                {
+                    newCount++;
+                    break;
+                }
+            }
+#else
+            int newCount = Time.frameCount;
+#endif
+            if (newCount != m_FrameCount)
+            {
+                m_FrameCount = newCount;
+
+                HistoryFrameRTSystem.CleanUnused();
+            }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             if (DebugManager.instance.isAnyDebugUIActive)
@@ -786,6 +815,14 @@ namespace UnityEngine.Rendering.Universal
                     UpdateTemporalAATargets(cameraData);
 
                 RTHandles.SetReferenceSize(cameraData.cameraTargetDescriptor.width, cameraData.cameraTargetDescriptor.height);
+
+                /* 
+                 * TODO: We must check this Security, HDCamera doing this at every begining in "BeginRender" function.
+                 * "Updating RTHandle needs to be done at the beginning of rendering (not during update of HDCamera which happens in batches)
+                 * The reason is that RTHandle will hold data necessary to setup RenderTargets and viewports properly."
+                 */
+                var historyFrameRTSystem = HistoryFrameRTSystem.GetOrCreate(camera);
+                historyFrameRTSystem.SetReferenceSize(cameraData.cameraTargetDescriptor.width, cameraData.cameraTargetDescriptor.height);
 
                 // Do NOT use cameraData after 'InitializeRenderingData'. CameraData state may diverge otherwise.
                 // RenderingData takes a copy of the CameraData.

@@ -160,15 +160,15 @@ namespace UnityEngine.Rendering.Universal.Internal
                 passData.reflectionDefault = renderGraph.ImportTexture(RTHandles.Alloc(ReflectionProbe.defaultTexture));
 
                 // Declare input/output
-                builder.UseTexture(passData.lightingHandle);
-                builder.UseTexture(passData.stencilHandle);
+                builder.UseTexture(passData.lightingHandle, AccessFlags.ReadWrite);
+                builder.UseTexture(passData.stencilHandle, AccessFlags.Read);
                 builder.UseBuffer(passData.dispatchIndirectBuffer, AccessFlags.ReadWrite);
                 builder.UseBuffer(passData.tileListBuffer, AccessFlags.ReadWrite);
-                builder.UseTexture(passData.FGD_GGXAndDisneyDiffuse);
-                builder.UseTexture(passData.reflectionDefault);
+                builder.UseTexture(passData.FGD_GGXAndDisneyDiffuse, AccessFlags.Read);
+                builder.UseTexture(passData.reflectionDefault, AccessFlags.Read);
 
                 // TODO: Delete
-                builder.UseTexture(resourceData.cameraDepthPyramidTexture);
+                builder.UseTexture(resourceData.cameraDepthPyramidTexture, AccessFlags.Read);
 
                 for (int i = 0; i < gbuffer.Length; ++i)
                 {

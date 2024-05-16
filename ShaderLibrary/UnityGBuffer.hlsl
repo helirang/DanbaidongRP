@@ -171,7 +171,7 @@ SurfaceData SurfaceDataFromGbuffer(float4 gbuffer0, float4 gbuffer1, float4 gbuf
 }
 
 // This will encode SurfaceData into GBuffer
-FragmentOutput BRDFDataToGbuffer(BRDFData brdfData, InputData inputData, float smoothness, float3 globalIllumination, float occlusion = 1.0)
+FragmentOutput BRDFDataToGbuffer(BRDFData brdfData, InputData inputData, float smoothness, float3 emission, float occlusion = 1.0)
 {
     float3 packedNormalWS = PackNormal(inputData.normalWS);
 
@@ -207,7 +207,7 @@ FragmentOutput BRDFDataToGbuffer(BRDFData brdfData, InputData inputData, float s
     output.GBuffer0 = float4(brdfData.albedo.rgb, PackMaterialFlags(materialFlags));  // diffuse           diffuse         diffuse         materialFlags   (sRGB rendertarget)
     output.GBuffer1 = float4(packedSpecular, occlusion);                              // metallic/specular specular        specular        occlusion
     output.GBuffer2 = float4(packedNormalWS, smoothness);                             // encoded-normal    encoded-normal  encoded-normal  smoothness
-    output.GBuffer3 = float4(globalIllumination, 1);                                  // GI                GI              GI              unused          (lighting buffer)
+    output.GBuffer3 = float4(emission, 1);                                            // emission          emission        emission        unused          (lighting buffer)
     #if _RENDER_PASS_ENABLED
     output.GBuffer4 = inputData.positionCS.z;
     #endif

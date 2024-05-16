@@ -114,6 +114,7 @@ namespace UnityEngine.Rendering.Universal
         CopyDepthPass m_GBufferCopyDepthPass;
         GPUCopyPass m_GPUCopyPass;
         DepthPyramidPass m_DepthPyramidPass;
+        ColorPyramidPass m_ColorPyramidPass;
         DeferredPass m_DeferredPass;
         DeferredLighting m_DeferredLighting;
         DrawObjectsPass m_RenderOpaqueForwardOnlyPass;
@@ -348,6 +349,7 @@ namespace UnityEngine.Rendering.Universal
 
             m_DrawSkyboxPass = new DrawSkyboxPass(RenderPassEvent.BeforeRenderingSkybox);
             m_CopyColorPass = new CopyColorPass(RenderPassEvent.AfterRenderingSkybox, m_SamplingMaterial, m_BlitMaterial);
+            m_ColorPyramidPass = new ColorPyramidPass(RenderPassEvent.AfterRenderingSkybox, runtimeShaders.colorPyramidCS);
 #if ADAPTIVE_PERFORMANCE_2_1_0_OR_NEWER
             if (needTransparencyPass)
 #endif
