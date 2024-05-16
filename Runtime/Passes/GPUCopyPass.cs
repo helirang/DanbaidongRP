@@ -148,7 +148,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             if (m_GPUCopy == null)
                 return;
 
-            using (var builder = renderGraph.AddComputePass<PassData>("GPU Copy Depth", out var passData, base.profilingSampler))
+            using (var builder = renderGraph.AddComputePass<PassData>("GPUCopy Depth", out var passData, base.profilingSampler))
             {
                 UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
                 passData.source = source;
@@ -187,7 +187,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                 return TextureHandle.nullHandle;
             }
 
-            using (var builder = renderGraph.AddComputePass<PassData>("GPU Copy Depth", out var passData, base.profilingSampler))
+            using (var builder = renderGraph.AddComputePass<PassData>("GPUCopy DepthPyramidMip0", out var passData, base.profilingSampler))
             {
                 UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
                 var createdTexture = UniversalRenderer.CreateRenderGraphTexture(renderGraph, depthPyramidDesc, "_CameraDepthBufferMipChain", true);
