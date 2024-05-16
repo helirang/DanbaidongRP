@@ -162,10 +162,14 @@ namespace UnityEngine.Rendering.Universal.Internal
                 // Declare input/output
                 builder.UseTexture(passData.lightingHandle);
                 builder.UseTexture(passData.stencilHandle);
-                builder.UseBuffer(passData.dispatchIndirectBuffer);
-                builder.UseBuffer(passData.tileListBuffer);
+                builder.UseBuffer(passData.dispatchIndirectBuffer, AccessFlags.ReadWrite);
+                builder.UseBuffer(passData.tileListBuffer, AccessFlags.ReadWrite);
                 builder.UseTexture(passData.FGD_GGXAndDisneyDiffuse);
                 builder.UseTexture(passData.reflectionDefault);
+
+                // TODO: Delete
+                builder.UseTexture(resourceData.cameraDepthPyramidTexture);
+
                 for (int i = 0; i < gbuffer.Length; ++i)
                 {
                     if (i != m_DeferredLights.GBufferLightingIndex)

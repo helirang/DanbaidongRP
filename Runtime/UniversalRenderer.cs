@@ -1922,15 +1922,10 @@ namespace UnityEngine.Rendering.Universal
 
         internal override bool supportsNativeRenderPassRendergraphCompiler
         {
-            // I don’t know why Unity writes that DX12 does not support Render Pass.
-            // If we don't block this place, Many features will not working properly, such as RenderLists and RenderGraphViewer.
-            // Add by Danbaidong, 20240511.
-            get => SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLES3
-                   && SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLCore;
-            //get => SystemInfo.graphicsDeviceType != GraphicsDeviceType.Direct3D12
-            //       && SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLES3 // GLES doesn't support backbuffer MSAA resolve with the NRP API
-            //       && SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLCore
-            //;
+            get => SystemInfo.graphicsDeviceType != GraphicsDeviceType.Direct3D12 // DX12 has bugs on NRP, There is a bug currently but a fix in in the works, ie, RenderGraph with NRP will work with DX12 soon.
+                   && SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLES3 // GLES doesn't support backbuffer MSAA resolve with the NRP API
+                   && SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLCore
+            ;
         }
     }
 }

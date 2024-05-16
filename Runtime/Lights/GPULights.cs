@@ -472,31 +472,32 @@ namespace UnityEngine.Rendering.Universal.Internal
             internal int nrClustersX;
             internal int nrClustersY;
 
+            // LightsData
             internal ShaderVariablesLightList lightListCB;
             internal BufferHandle lightBoundsBuffer;
             internal BufferHandle lightVolumeDataBuffer;
+
+            // AABB, CoarseCull Buffer
             internal BufferHandle AABBBoundsBuffer;
             internal BufferHandle coarseLightList;
 
             // ClusterBuffer
+            internal BufferHandle globalLightListAtomic;
             internal BufferHandle perVoxelOffset;
             internal BufferHandle perVoxelLightLists;
             internal BufferHandle perTileLogBaseTweak;
-            internal BufferHandle globalLightListAtomic;
-
-            // LightsDataBuffer
-            internal BufferHandle GPULightsData;
-            internal BufferHandle directionalLightsData;
-            //internal BufferHandle envLightsData;
         }
 
         public class GPULightsOutPassData : ContextItem
         {
             internal ShaderVariablesLightList lightListCB;
             // LightsDataBuffer
-            internal BufferHandle coarseLightList;
             internal BufferHandle GPULightsData;
             internal BufferHandle directionalLightsData;
+            //internal BufferHandle envLightsData;
+
+            // CoarseBuffer
+            internal BufferHandle coarseLightList;
             // ClusterBuffer
             internal BufferHandle perVoxelOffset;
             internal BufferHandle perVoxelLightLists;
@@ -513,10 +514,13 @@ namespace UnityEngine.Rendering.Universal.Internal
             }
         }
 
-        private void InitResources(RenderGraph renderGraph, GPULightsPassData passData, UniversalCameraData cameraData)
+        private void InitResources(RenderGraph renderGraph, GPULightsPassData passData, UniversalLightData lightData, GPULightsOutPassData outData, UniversalCameraData cameraData)
         {
             // Copy the constant buffer into the parameter struct.
             passData.lightListCB = lightCBuffer;
+
+            passData.lightData = lightData;
+            passData.gpuLightsDataBuildSystem = m_GPULightsDataBuildSystem;
 
             // Compute Shaders
             passData.gpuLightsClearLists = m_gpulightsCS_ClearLists;
@@ -532,11 +536,20 @@ namespace UnityEngine.Rendering.Universal.Internal
             var height = cameraData.cameraTargetDescriptor.height;
             passData.nrBigTilesX = RenderingUtils.DivRoundUp(width, 64);
             passData.nrBigTilesY = RenderingUtils.DivRoundUp(height, 64);
-            passData.lightBoundsBuffer = renderGraph.CreateBuffer(new BufferDesc(m_MaxLightOnScreen, Marshal.SizeOf(typeof(SFiniteLightBound)), "lightBoundsBuffer"));
-            passData.lightVolumeDataBuffer = renderGraph.CreateBuffer(new BufferDesc(m_MaxLightOnScreen, Marshal.SizeOf(typeof(LightVolumeData)), "lightVolumeDataBuffer"));
 
-            passData.AABBBoundsBuffer = renderGraph.CreateBuffer(new BufferDesc(m_MaxLightOnScreen, Marshal.SizeOf(typeof(float4)), "AABBBoundsBuffer"));
 
+            var bufferSystem = GraphicsBufferSystem.instance;
+            int allLightsBufferSize = m_MaxLightOnScreen;
+
+            GraphicsBuffer lightBoundsBuf = bufferSystem.GetGraphicsBuffer<SFiniteLightBound>(GraphicsBufferSystemBufferID.GPULightsLightBoundsBuffer, m_MaxLightOnScreen, "lightBoundsBuffer");
+            GraphicsBuffer lightVolumeDataBuf = bufferSystem.GetGraphicsBuffer<LightVolumeData>(GraphicsBufferSystemBufferID.GPULightsLightVolumeDataBuffer, m_MaxLightOnScreen, "lightVolumeDataBuffer");
+
+            passData.lightBoundsBuffer = renderGraph.ImportBuffer(lightBoundsBuf);
+            passData.lightVolumeDataBuffer = renderGraph.ImportBuffer(lightVolumeDataBuf);
+            //passData.lightBoundsBuffer = renderGraph.CreateBuffer(new BufferDesc(allLightsBufferSize, Marshal.SizeOf(typeof(SFiniteLightBound)), "lightBoundsBuffer"));
+            //passData.lightVolumeDataBuffer = renderGraph.CreateBuffer(new BufferDesc(allLightsBufferSize, Marshal.SizeOf(typeof(LightVolumeData)), "lightVolumeDataBuffer"));
+
+            passData.AABBBoundsBuffer = renderGraph.CreateBuffer(new BufferDesc(allLightsBufferSize, Marshal.SizeOf(typeof(float4)), "AABBBoundsBuffer"));
             passData.coarseLightList = renderGraph.CreateBuffer(new BufferDesc(LightDefinitions.s_MaxNrBigTileLightsPlusOne * passData.nrBigTilesX * passData.nrBigTilesY, sizeof(uint), "coarseLightList"));
 
 
@@ -550,9 +563,16 @@ namespace UnityEngine.Rendering.Universal.Internal
             passData.perVoxelOffset = renderGraph.CreateBuffer(new BufferDesc((int)LightCategory.Count * (1 << k_Log2NumClusters) * nrClusterTiles, sizeof(uint), "perVoxelOffset")); 
             passData.perTileLogBaseTweak = renderGraph.CreateBuffer(new BufferDesc(nrClusterTiles, sizeof(float), "perTileLogBaseTweak"));
 
-            // LightsData buffers
-            passData.GPULightsData = renderGraph.CreateBuffer(new BufferDesc(m_MaxPunctualLightsOnScreen, Marshal.SizeOf(typeof(GPULightData)), "GPULightsData"));
-            passData.directionalLightsData = renderGraph.CreateBuffer(new BufferDesc(m_MaxDirectionalLightsOnScreen, Marshal.SizeOf(typeof(DirectionalLightData)), "directionalLightsData"));
+            // Outdata
+            outData.lightListCB = passData.lightListCB;
+            outData.GPULightsData = renderGraph.CreateBuffer(new BufferDesc(m_MaxPunctualLightsOnScreen, Marshal.SizeOf(typeof(GPULightData)), "GPULightsData"));
+            outData.directionalLightsData = renderGraph.CreateBuffer(new BufferDesc(m_MaxDirectionalLightsOnScreen, Marshal.SizeOf(typeof(DirectionalLightData)), "directionalLightsData"));
+
+            outData.coarseLightList = passData.coarseLightList;
+
+            outData.perVoxelOffset = passData.perVoxelOffset;
+            outData.perVoxelLightLists = passData.perVoxelLightLists;
+            outData.perTileLogBaseTweak = passData.perTileLogBaseTweak;
         }
 
         /// <summary>
@@ -599,24 +619,6 @@ namespace UnityEngine.Rendering.Universal.Internal
             }
         }
 
-        static void ResolveGPULightsData(ComputeCommandBuffer cmd, GPULightsPassData data)
-        {
-            cmd.SetBufferData(data.GPULightsData, data.gpuLightsDataBuildSystem.gpuLightsData, 0, 0, data.gpuLightsDataBuildSystem.lightsCount);
-            cmd.SetBufferData(data.directionalLightsData, data.gpuLightsDataBuildSystem.directionalLightsData, 0, 0, data.gpuLightsDataBuildSystem.directionalLightCount);
-
-            // We inited lightCBuffer at preSetup.
-            ConstantBuffer.PushGlobal(cmd, data.lightListCB, ShaderConstants.ShaderVariablesLightList);
-
-            cmd.SetGlobalBuffer(ShaderConstants.g_CoarseLightList, data.coarseLightList);
-            cmd.SetGlobalBuffer(ShaderConstants.g_GPULightDatas, data.GPULightsData);
-            cmd.SetGlobalBuffer(ShaderConstants.g_DirectionalLightDatas, data.directionalLightsData);
-
-            cmd.SetGlobalBuffer(ShaderConstants.g_vLightListCluster, data.perVoxelLightLists);
-            cmd.SetGlobalBuffer(ShaderConstants.g_vLayeredOffsetsBuffer, data.perVoxelOffset);
-            cmd.SetGlobalBuffer(ShaderConstants.g_logBaseBuffer, data.perTileLogBaseTweak);
-
-            CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.GPULightsCluster, true);
-        }
 
 
         static void ExecutePass(GPULightsPassData data, ComputeGraphContext context)
@@ -626,35 +628,34 @@ namespace UnityEngine.Rendering.Universal.Internal
             if (totalLightCount == 0)
             {
                 ClearAllLightLists(context.cmd, data);
-                //ResolveGPULightsData(context.cmd, data);
                 return;
             }
 
             var cmd = context.cmd;
+            // Set lightsData here.
             cmd.SetBufferData(data.lightBoundsBuffer, data.gpuLightsDataBuildSystem.lightBounds, 0, 0, data.gpuLightsDataBuildSystem.boundsCount);
             cmd.SetBufferData(data.lightVolumeDataBuffer, data.gpuLightsDataBuildSystem.lightVolumes, 0, 0, data.gpuLightsDataBuildSystem.boundsCount);
+            // Push Constant buffer
+            ConstantBuffer.Push(cmd, data.lightListCB, data.gpuLightsCoarseCullingCS, ShaderConstants.ShaderVariablesLightList);
 
             // GenerateLightsScreenSpaceAABBs
             {
-                cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.screenSpaceAABBKernel, ShaderConstants.g_LightBounds, data.lightBoundsBuffer);
-                cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.screenSpaceAABBKernel, ShaderConstants.g_vBoundsBuffer, data.AABBBoundsBuffer);
-                ConstantBuffer.Push(cmd, data.lightListCB, data.gpuLightsCoarseCullingCS, ShaderConstants.ShaderVariablesLightList);
+                cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.screenSpaceAABBKernel, ShaderConstants.g_LightBounds, data.lightBoundsBuffer);// in
+                cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.screenSpaceAABBKernel, ShaderConstants.g_vBoundsBuffer, data.AABBBoundsBuffer);// out
 
                 const int threadsPerLight = 4;  // Shader: THREADS_PER_LIGHT (4)
                 const int threadsPerGroup = 64; // Shader: THREADS_PER_GROUP (64)
 
                 int groupCount = RenderingUtils.DivRoundUp(totalLightCount * threadsPerLight, threadsPerGroup);
-
                 cmd.DispatchCompute(data.gpuLightsCoarseCullingCS, data.screenSpaceAABBKernel, groupCount, 1, 1);
             }
 
             // CoarseCullingLights
             {
-                cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.coarseCullingLightsKernel, ShaderConstants.g_vBoundsBuffer, data.AABBBoundsBuffer);
-                cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.coarseCullingLightsKernel, ShaderConstants.g_LightVolumeData, data.lightVolumeDataBuffer);
-                cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.coarseCullingLightsKernel, ShaderConstants.g_LightBounds, data.lightBoundsBuffer);
-                cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.coarseCullingLightsKernel, ShaderConstants.g_vLightList, data.coarseLightList);
-                ConstantBuffer.Push(cmd, data.lightListCB, data.gpuLightsCoarseCullingCS, ShaderConstants.ShaderVariablesLightList);
+                cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.coarseCullingLightsKernel, ShaderConstants.g_LightVolumeData, data.lightVolumeDataBuffer);// in
+                cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.coarseCullingLightsKernel, ShaderConstants.g_LightBounds, data.lightBoundsBuffer);// in
+                cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.coarseCullingLightsKernel, ShaderConstants.g_vBoundsBuffer, data.AABBBoundsBuffer);// in
+                cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.coarseCullingLightsKernel, ShaderConstants.g_vLightList, data.coarseLightList);// out
 
                 cmd.DispatchCompute(data.gpuLightsCoarseCullingCS, data.coarseCullingLightsKernel, data.nrBigTilesX, data.nrBigTilesY, 1);
             }
@@ -662,25 +663,26 @@ namespace UnityEngine.Rendering.Universal.Internal
             // FPTLLights
             {
                 // no implementation
-
             }
 
             // ClusterLights
             {
-                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_vBoundsBuffer, data.AABBBoundsBuffer);
-                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_LightVolumeData, data.lightVolumeDataBuffer);
-                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_LightBounds, data.lightBoundsBuffer);
-                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_CoarseLightList, data.coarseLightList);
+                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_LightVolumeData, data.lightVolumeDataBuffer);// in
+                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_LightBounds, data.lightBoundsBuffer);// in
 
-                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_vLayeredLightList, data.perVoxelLightLists);
-                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_LayeredOffset, data.perVoxelOffset);
-                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_LayeredSingleIdxBuffer, data.globalLightListAtomic);
-                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_logBaseBuffer, data.perTileLogBaseTweak);
+                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_vBoundsBuffer, data.AABBBoundsBuffer);// in
+                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_CoarseLightList, data.coarseLightList);// in
+
+                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_vLayeredLightList, data.perVoxelLightLists);// out
+                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_LayeredOffset, data.perVoxelOffset);// out
+                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_LayeredSingleIdxBuffer, data.globalLightListAtomic);// used
+                cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_logBaseBuffer, data.perTileLogBaseTweak);// out
                 ConstantBuffer.Push(cmd, data.lightListCB, data.gpuLightsCluster, ShaderConstants.ShaderVariablesLightList);
 
                 cmd.DispatchCompute(data.gpuLightsCluster, data.clusterCullingLightsKernel, data.nrClustersX, data.nrClustersY, 1);
             }
 
+            // Use RenderSetGlobalAsync to set global
             // Resolve
             {
                 //ResolveGPULightsData(cmd, data);
@@ -701,35 +703,25 @@ namespace UnityEngine.Rendering.Universal.Internal
                 UniversalLightData lightData = frameData.Get<UniversalLightData>();
 
                 // Set passData
-                passData.lightData = lightData;
-                passData.gpuLightsDataBuildSystem = m_GPULightsDataBuildSystem;
-                InitResources(renderGraph, passData, cameraData);
-
-                // Output
                 GPULightsOutPassData outPassData = frameData.GetOrCreate<GPULightsOutPassData>();
-                outPassData.lightListCB = passData.lightListCB;
-                outPassData.coarseLightList = passData.coarseLightList;
-                outPassData.GPULightsData = passData.GPULightsData;
-                outPassData.directionalLightsData = passData.directionalLightsData;
-
-                outPassData.perVoxelOffset = passData.perVoxelOffset;
-                outPassData.perVoxelLightLists = passData.perVoxelLightLists;
-                outPassData.perTileLogBaseTweak = passData.perTileLogBaseTweak;
+                InitResources(renderGraph, passData, lightData, outPassData, cameraData);
 
                 // Declare input/output
-                builder.UseBuffer(passData.lightBoundsBuffer);
-                builder.UseBuffer(passData.lightVolumeDataBuffer);
-                builder.UseBuffer(passData.AABBBoundsBuffer);
-                builder.UseBuffer(passData.coarseLightList);
-                builder.UseBuffer(passData.perVoxelOffset);
-                builder.UseBuffer(passData.perVoxelLightLists);
-                builder.UseBuffer(passData.perTileLogBaseTweak);
-                builder.UseBuffer(passData.globalLightListAtomic);
-                builder.UseBuffer(passData.GPULightsData);
-                builder.UseBuffer(passData.directionalLightsData);
+                builder.UseBuffer(passData.lightBoundsBuffer, AccessFlags.Write);
+                builder.UseBuffer(passData.lightVolumeDataBuffer, AccessFlags.Write);
+
+                builder.UseBuffer(passData.AABBBoundsBuffer, AccessFlags.Write);
+                builder.UseBuffer(passData.coarseLightList, AccessFlags.Write);
+
+                builder.UseBuffer(passData.globalLightListAtomic, AccessFlags.Write);
+                builder.UseBuffer(passData.perVoxelOffset, AccessFlags.Write);
+                builder.UseBuffer(passData.perVoxelLightLists, AccessFlags.Write);
+                builder.UseBuffer(passData.perTileLogBaseTweak, AccessFlags.Write);
 
                 // Setup builder state
-                //builder.EnableAsyncCompute(true);
+#if DANBAIDONGRP_ASYNC_COMPUTE
+                builder.EnableAsyncCompute(true);
+#endif
                 builder.AllowPassCulling(false);
 
                 builder.SetRenderFunc((GPULightsPassData data, ComputeGraphContext context) =>
@@ -739,9 +731,36 @@ namespace UnityEngine.Rendering.Universal.Internal
             }
         }
 
-        internal void RenderSetGlobalAsync(RenderGraph renderGraph, ContextContainer frameData)
+        private class GlobalSyncPassData
         {
-            using (var builder = renderGraph.AddUnsafePass<GPULightsPassData>("GPU Lights Global Async", out var passData, ProfilingSampler.Get(URPProfileId.GPULightsGlobalAsync)))
+            internal GPULightsDataBuildSystem gpuLightsDataBuildSystem;
+            internal GPULightsOutPassData outData;
+        }
+
+        static void ResolveGPULightsData(ComputeCommandBuffer cmd, GlobalSyncPassData data)
+        {
+            var outData = data.outData;
+            cmd.SetBufferData(outData.GPULightsData, data.gpuLightsDataBuildSystem.gpuLightsData, 0, 0, data.gpuLightsDataBuildSystem.lightsCount);
+            cmd.SetBufferData(outData.directionalLightsData, data.gpuLightsDataBuildSystem.directionalLightsData, 0, 0, data.gpuLightsDataBuildSystem.directionalLightCount);
+
+            // We inited lightCBuffer at preSetup.
+            ConstantBuffer.PushGlobal(cmd, outData.lightListCB, ShaderConstants.ShaderVariablesLightList);
+            // Lights data ref
+            cmd.SetGlobalBuffer(ShaderConstants.g_GPULightDatas, outData.GPULightsData);
+            cmd.SetGlobalBuffer(ShaderConstants.g_DirectionalLightDatas, outData.directionalLightsData);
+            // Coarse cull result
+            cmd.SetGlobalBuffer(ShaderConstants.g_CoarseLightList, outData.coarseLightList);
+            // Cluster cull result
+            cmd.SetGlobalBuffer(ShaderConstants.g_vLightListCluster, outData.perVoxelLightLists);
+            cmd.SetGlobalBuffer(ShaderConstants.g_vLayeredOffsetsBuffer, outData.perVoxelOffset);
+            cmd.SetGlobalBuffer(ShaderConstants.g_logBaseBuffer, outData.perTileLogBaseTweak);
+
+            CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.GPULightsCluster, true);
+        }
+
+        internal void RenderSetGlobalSync(RenderGraph renderGraph, ContextContainer frameData)
+        {
+            using (var builder = renderGraph.AddComputePass<GlobalSyncPassData>("GPU Lights Global Sync", out var passData, ProfilingSampler.Get(URPProfileId.GPULightsGlobalAsync)))
             {
                 if (!frameData.Contains<GPULightsOutPassData>())
                 {
@@ -749,36 +768,23 @@ namespace UnityEngine.Rendering.Universal.Internal
                 }
                 var outData = frameData.Get<GPULightsOutPassData>();
                 passData.gpuLightsDataBuildSystem = m_GPULightsDataBuildSystem;
+                passData.outData = outData;
+
+                builder.UseBuffer(outData.GPULightsData, AccessFlags.Write);
+                builder.UseBuffer(outData.directionalLightsData, AccessFlags.Write);
 
                 builder.UseBuffer(outData.coarseLightList);
+
                 builder.UseBuffer(outData.perVoxelOffset);
                 builder.UseBuffer(outData.perVoxelLightLists);
-
                 builder.UseBuffer(outData.perTileLogBaseTweak);
-                builder.UseBuffer(outData.GPULightsData);
-                builder.UseBuffer(outData.directionalLightsData);
 
                 builder.AllowPassCulling(false);
+                builder.AllowGlobalStateModification(true);
 
-                builder.SetRenderFunc((GPULightsPassData data, UnsafeGraphContext context) =>
+                builder.SetRenderFunc((GlobalSyncPassData data, ComputeGraphContext context) =>
                 {
-                    CommandBuffer cmd = CommandBufferHelpers.GetNativeCommandBuffer(context.cmd);
-
-                    cmd.SetBufferData(outData.GPULightsData, data.gpuLightsDataBuildSystem.gpuLightsData, 0, 0, data.gpuLightsDataBuildSystem.lightsCount);
-                    cmd.SetBufferData(outData.directionalLightsData, data.gpuLightsDataBuildSystem.directionalLightsData, 0, 0, data.gpuLightsDataBuildSystem.directionalLightCount);
-
-                    // We inited lightCBuffer at preSetup.
-                    ConstantBuffer.PushGlobal(cmd, outData.lightListCB, ShaderConstants.ShaderVariablesLightList);
-
-                    cmd.SetGlobalBuffer(ShaderConstants.g_CoarseLightList, outData.coarseLightList);
-                    cmd.SetGlobalBuffer(ShaderConstants.g_GPULightDatas, outData.GPULightsData);
-                    cmd.SetGlobalBuffer(ShaderConstants.g_DirectionalLightDatas, outData.directionalLightsData);
-
-                    cmd.SetGlobalBuffer(ShaderConstants.g_vLightListCluster, outData.perVoxelLightLists);
-                    cmd.SetGlobalBuffer(ShaderConstants.g_vLayeredOffsetsBuffer, outData.perVoxelOffset);
-                    cmd.SetGlobalBuffer(ShaderConstants.g_logBaseBuffer, outData.perTileLogBaseTweak);
-
-                    CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.GPULightsCluster, true);
+                    ResolveGPULightsData(context.cmd, data);
                 });
             }
 

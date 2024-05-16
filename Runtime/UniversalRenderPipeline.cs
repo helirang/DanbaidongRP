@@ -332,6 +332,9 @@ namespace UnityEngine.Rendering.Universal
 
             s_RTHandlePool.Cleanup();
             s_RTHandlePool = null;
+
+            GraphicsBufferSystem.ClearAll();
+
 #if UNITY_EDITOR
             SceneViewDrawMode.ResetDrawMode();
 #endif

@@ -21,8 +21,8 @@ namespace UnityEngine.Rendering.Universal.Internal
         internal bool m_ShouldClear;
 
         private ComputeShader m_GPUCopy;
-        private int k_SampleKernel_xyzw2x_8;
-        private int k_SampleKernel_xyzw2x_1;
+        private int m_SampleKernel_xyzw2x_8;
+        private int m_SampleKernel_xyzw2x_1;
 
         static readonly int s_RectOffset = Shader.PropertyToID("_RectOffset");
         static readonly int s_Result = Shader.PropertyToID("_Result");
@@ -42,23 +42,13 @@ namespace UnityEngine.Rendering.Universal.Internal
             m_ShouldClear = shouldClear;
 
             m_GPUCopy = computeShader;
-            k_SampleKernel_xyzw2x_8 = m_GPUCopy.FindKernel("KSampleCopy4_1_x_8");
-            k_SampleKernel_xyzw2x_1 = m_GPUCopy.FindKernel("KSampleCopy4_1_x_1");
+            m_SampleKernel_xyzw2x_8 = m_GPUCopy.FindKernel("KSampleCopy4_1_x_8");
+            m_SampleKernel_xyzw2x_1 = m_GPUCopy.FindKernel("KSampleCopy4_1_x_1");
         }
 
-        /// <summary>
-        /// Configure the pass with the source and destination to execute on.
-        /// </summary>
-        /// <param name="source">Source Render Target</param>
-        /// <param name="destination">Destination Render Target</param>
-        public void Setup(RTHandle source, RTHandle destination)
-        {
-            this.m_Source = source;
-            this.m_Destination = destination;
-        }
-
-        void SampleCopyChannel(
+        static void SampleCopyChannel(
             ComputeCommandBuffer cmd,
+            ComputeShader cs,
             RectInt rect,
             int sourceID,
             TextureHandle source,
@@ -106,10 +96,10 @@ namespace UnityEngine.Rendering.Universal.Internal
                     ++dispatch1RectCount;
                 }
 
-                cmd.SetComputeTextureParam(m_GPUCopy, kernel8, sourceID, source);
-                cmd.SetComputeTextureParam(m_GPUCopy, kernel1, sourceID, source);
-                cmd.SetComputeTextureParam(m_GPUCopy, kernel8, targetID, target);
-                cmd.SetComputeTextureParam(m_GPUCopy, kernel1, targetID, target);
+                cmd.SetComputeTextureParam(cs, kernel8, sourceID, source);
+                cmd.SetComputeTextureParam(cs, kernel1, sourceID, source);
+                cmd.SetComputeTextureParam(cs, kernel8, targetID, target);
+                cmd.SetComputeTextureParam(cs, kernel1, targetID, target);
 
                 if (dispatch8Rect.width > 0 && dispatch8Rect.height > 0)
                 {
@@ -117,8 +107,8 @@ namespace UnityEngine.Rendering.Universal.Internal
                     // Use intermediate array to avoid garbage
                     s_IntParams[0] = r.x;
                     s_IntParams[1] = r.y;
-                    cmd.SetComputeIntParams(m_GPUCopy, s_RectOffset, s_IntParams);
-                    cmd.DispatchCompute(m_GPUCopy, kernel8, (int)Mathf.Max(r.width / 8, 1), (int)Mathf.Max(r.height / 8, 1), slices);
+                    cmd.SetComputeIntParams(cs, s_RectOffset, s_IntParams);
+                    cmd.DispatchCompute(cs, kernel8, (int)Mathf.Max(r.width / 8, 1), (int)Mathf.Max(r.height / 8, 1), slices);
                 }
 
                 for (int i = 0, c = dispatch1RectCount; i < c; ++i)
@@ -127,25 +117,27 @@ namespace UnityEngine.Rendering.Universal.Internal
                     // Use intermediate array to avoid garbage
                     s_IntParams[0] = r.x;
                     s_IntParams[1] = r.y;
-                    cmd.SetComputeIntParams(m_GPUCopy, s_RectOffset, s_IntParams);
-                    cmd.DispatchCompute(m_GPUCopy, kernel1, (int)Mathf.Max(r.width, 1), (int)Mathf.Max(r.height, 1), slices);
+                    cmd.SetComputeIntParams(cs, s_RectOffset, s_IntParams);
+                    cmd.DispatchCompute(cs, kernel1, (int)Mathf.Max(r.width, 1), (int)Mathf.Max(r.height, 1), slices);
                 }
             }
         }
 
-        public void SampleCopyChannel_xyzw2x(ComputeCommandBuffer cmd, TextureHandle source, TextureHandle target, RectInt rect)
+        static void SampleCopyChannel_xyzw2x(ComputeCommandBuffer cmd, PassData data)
         {
-            RTHandle s = (RTHandle)source;
-            RTHandle t = (RTHandle)source;
+            RTHandle s = (RTHandle)data.source;
+            RTHandle t = (RTHandle)data.destination;
             Debug.Assert(s.rt.volumeDepth == t.rt.volumeDepth);
-            SampleCopyChannel(cmd, rect, s_Source, source, s_Result, target, s.rt.volumeDepth, k_SampleKernel_xyzw2x_8, k_SampleKernel_xyzw2x_1);
+            SampleCopyChannel(cmd, data.cs, new RectInt(0, 0, data.width, data.height), s_Source, data.source, s_Result, data.destination, s.rt.volumeDepth, data.kernel8Step, data.kernel1Step);
         }
 
         private class PassData
         {
             internal TextureHandle source;
             internal TextureHandle destination;
-            internal GPUCopyPass gpuCopyPass;
+            internal ComputeShader cs;
+            internal int kernel1Step;
+            internal int kernel8Step;
             internal int width;
             internal int height;
         }
@@ -161,20 +153,66 @@ namespace UnityEngine.Rendering.Universal.Internal
                 UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
                 passData.source = source;
                 passData.destination = destination;
-                passData.gpuCopyPass = this;
+                passData.cs = m_GPUCopy;
+                passData.kernel1Step = m_SampleKernel_xyzw2x_1;
+                passData.kernel8Step = m_SampleKernel_xyzw2x_8;
                 passData.width = cameraData.pixelWidth;
                 passData.height = cameraData.pixelHeight;
 
                 builder.UseTexture(source, AccessFlags.Read);
-                builder.UseTexture(destination, AccessFlags.ReadWrite);
+                builder.UseTexture(destination, AccessFlags.Write);
                 builder.AllowPassCulling(false);
                 if (setGlobal)
                     builder.SetGlobalTextureAfterPass(destination, Shader.PropertyToID("_CameraDepthTexture"));
 
                 builder.SetRenderFunc((PassData data, ComputeGraphContext context) =>
                 {
-                    data.gpuCopyPass.SampleCopyChannel_xyzw2x(context.cmd, source, destination, new RectInt(0, 0, data.width, data.height));
+                    SampleCopyChannel_xyzw2x(context.cmd, data);
                 });
+            }
+        }
+
+        /// <summary>
+        /// For Depthpyramid copy mip0, we will create pyramid texture here
+        /// </summary>
+        /// <param name="renderGraph"></param>
+        /// <param name="frameData"></param>
+        /// <param name="source"></param>
+        /// <param name="depthPyramidDesc"></param>
+        /// <returns>DepthPyramid texture.</returns>
+        internal TextureHandle RenderDepthPyramidMip0(RenderGraph renderGraph, ContextContainer frameData, TextureHandle source, RenderTextureDescriptor depthPyramidDesc)
+        {
+            if (m_GPUCopy == null)
+            {
+                return TextureHandle.nullHandle;
+            }
+
+            using (var builder = renderGraph.AddComputePass<PassData>("GPU Copy Depth", out var passData, base.profilingSampler))
+            {
+                UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+                var createdTexture = UniversalRenderer.CreateRenderGraphTexture(renderGraph, depthPyramidDesc, "_CameraDepthBufferMipChain", true);
+
+                passData.source = source;
+                passData.destination = createdTexture;
+                passData.cs = m_GPUCopy;
+                passData.kernel1Step = m_SampleKernel_xyzw2x_1;
+                passData.kernel8Step = m_SampleKernel_xyzw2x_8;
+                passData.width = cameraData.pixelWidth;
+                passData.height = cameraData.pixelHeight;
+
+                builder.UseTexture(source, AccessFlags.Read);
+                builder.UseTexture(passData.destination, AccessFlags.Write);
+                builder.AllowPassCulling(false);
+#if DANBAIDONGRP_ASYNC_COMPUTE
+                builder.EnableAsyncCompute(true);
+#endif
+
+                builder.SetRenderFunc((PassData data, ComputeGraphContext context) =>
+                {
+                    SampleCopyChannel_xyzw2x(context.cmd, data);
+                });
+
+                return createdTexture;
             }
         }
     }

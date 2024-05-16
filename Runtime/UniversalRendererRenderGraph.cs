@@ -661,7 +661,8 @@ namespace UnityEngine.Rendering.Universal
 
             CreateCameraDepthCopyTexture(renderGraph, cameraData.cameraTargetDescriptor, RequireDepthPrepass(cameraData, ref renderPassInputs) && this.renderingModeActual != RenderingMode.Deferred);
 
-            CreateCameraDepthPyramidTexture(renderGraph, cameraData.cameraTargetDescriptor);
+            // We need create it at pyramid pass for async compute.
+            //CreateCameraDepthPyramidTexture(renderGraph, cameraData.cameraTargetDescriptor);
 
             CreateCameraNormalsTexture(renderGraph, cameraData.cameraTargetDescriptor);
 
@@ -1392,15 +1393,15 @@ namespace UnityEngine.Rendering.Universal
 
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingGbuffer);
-
+                // GBuffer
                 m_GBufferPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture);
 
-                // GBufferCopyDepth => GPUCopy
-                //m_GBufferCopyDepthPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.activeDepthTexture, true, "GBuffer Depth Copy");
+                // GPUCopy GBuffer Depth
                 m_GPUCopyPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.activeDepthTexture, true);
 
                 // DepthPyramid
-                m_GPUCopyPass.Render(renderGraph, frameData, resourceData.cameraDepthPyramidTexture, resourceData.activeDepthTexture);
+                var depthpyramidDesc = GetCameraDepthPyramidDescriptor(cameraData.cameraTargetDescriptor);
+                resourceData.cameraDepthPyramidTexture = m_GPUCopyPass.RenderDepthPyramidMip0(renderGraph, frameData, resourceData.cameraDepthTexture, depthpyramidDesc);
                 m_DepthPyramidPass.Render(renderGraph, frameData, resourceData.cameraDepthPyramidTexture, m_DepthBufferMipChainInfo);
 
                 // MotionVectors
@@ -1409,7 +1410,6 @@ namespace UnityEngine.Rendering.Universal
                 {
                     m_MotionVectorPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.motionVectorColor, resourceData.motionVectorDepth);
                 }
-
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingGbuffer);
 
@@ -1444,7 +1444,8 @@ namespace UnityEngine.Rendering.Universal
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingShadows, RenderPassEvent.BeforeRenderingDeferredLights);
 
-                m_GPULights.RenderSetGlobalAsync(renderGraph, frameData);
+                m_GPULights.RenderSetGlobalSync(renderGraph, frameData);
+
                 // DeferredLighting
                 m_DeferredLighting.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, resourceData.gBuffer);
 
@@ -2071,18 +2072,25 @@ namespace UnityEngine.Rendering.Universal
             resourceData.cameraDepthTexture = CreateRenderGraphTexture(renderGraph, depthDescriptor, "_CameraDepthTexture", true);
         }
 
-        void CreateCameraDepthPyramidTexture(RenderGraph renderGraph, RenderTextureDescriptor descriptor)
+        void CreateCameraDepthPyramidTexture(RenderGraph renderGraph, RenderTextureDescriptor cameraTargetDesc)
         {
             UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
 
+            var depthMipChainDescriptor = GetCameraDepthPyramidDescriptor(cameraTargetDesc);
+
+            resourceData.cameraDepthPyramidTexture = CreateRenderGraphTexture(renderGraph, depthMipChainDescriptor, "_CameraDepthBufferMipChain", true);
+        }
+
+        RenderTextureDescriptor GetCameraDepthPyramidDescriptor(RenderTextureDescriptor cameraTargetDesc)
+        {
             // DepthBufferMipChain Allocate
-            int actualWidth = descriptor.width;
-            int actualHeight = descriptor.height;
+            int actualWidth = cameraTargetDesc.width;
+            int actualHeight = cameraTargetDesc.height;
             Vector2Int nonScaledViewport = new Vector2Int(actualWidth, actualHeight);
 
             m_DepthBufferMipChainInfo.ComputePackedMipChainInfo(nonScaledViewport);
 
-            var depthMipChainDescriptor = descriptor;
+            var depthMipChainDescriptor = cameraTargetDesc;
             // Same as depthDescriptor
             depthMipChainDescriptor.msaaSamples = 1;// Depth-Only pass don't use MSAA
             depthMipChainDescriptor.graphicsFormat = GraphicsFormat.R32_SFloat;
@@ -2093,7 +2101,7 @@ namespace UnityEngine.Rendering.Universal
             depthMipChainDescriptor.height = depthMipChainSize.y;
             depthMipChainDescriptor.enableRandomWrite = true;
 
-            resourceData.cameraDepthPyramidTexture = CreateRenderGraphTexture(renderGraph, depthMipChainDescriptor, "_CameraDepthBufferMipChain", true);
+            return depthMipChainDescriptor;
         }
 
         void CreateMotionVectorTextures(RenderGraph renderGraph, RenderTextureDescriptor descriptor)

@@ -1,6 +1,8 @@
 using System;
 using System.Reflection;
+#if UNITY_EDITOR
 using UnityEditor.Rendering;
+#endif
 
 namespace UnityEngine.Rendering.Universal
 {
