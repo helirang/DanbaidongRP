@@ -1,3 +1,4 @@
+
 namespace UnityEngine.Rendering.Universal
 {
     public class ProceduralToonSkyRenderer : SkyRenderer
@@ -12,7 +13,7 @@ namespace UnityEngine.Rendering.Universal
 
         }
 
-        public override void RenderSky(CommandBuffer cmd, ref RenderingData renderingData, SkySettings skySettings, bool renderForCubemap)
+        public override void RenderSky(CommandBuffer cmd, SkyBasePassData basePassData, SkySettings skySettings, bool renderForCubemap)
         {
 
         }

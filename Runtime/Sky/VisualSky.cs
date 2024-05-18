@@ -39,7 +39,8 @@ namespace UnityEngine.Rendering.Universal
     /// VisualSky Volume Component.
     /// This component setups the sky used for rendering as well as the way ambient probe should be computed.
     /// </summary>
-    [Serializable, VolumeComponentMenuForRenderPipeline("Sky/VisualSky", typeof(UniversalRenderPipeline))]
+    [Serializable, VolumeComponentMenu("Sky/VisualSky")]
+    [SupportedOnRenderPipeline(typeof(UniversalRenderPipelineAsset))]
     public sealed class VisualSky : VolumeComponent
     {
         /// <summary>Type of sky that should be used for rendering.</summary>

@@ -2,7 +2,8 @@ using System;
 
 namespace UnityEngine.Rendering.Universal
 {
-    [Serializable, VolumeComponentMenuForRenderPipeline("Sky/ProceduralToon Sky", typeof(UniversalRenderPipeline))]
+    [Serializable, VolumeComponentMenu("Sky/ProceduralToon Sky")]
+    [SupportedOnRenderPipeline(typeof(UniversalRenderPipelineAsset))]
     [SkyUniqueID((int)SkyType.ProceduralToon)]
     public sealed class ProceduralToonSky : SkySettings
     {

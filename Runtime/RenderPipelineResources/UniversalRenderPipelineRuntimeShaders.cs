@@ -197,6 +197,77 @@ namespace UnityEngine.Rendering.Universal
             set => this.SetValueAndNotify(ref m_DeferredLightingCS, value);
         }
 
+        // SkyBox
+
+        /// <summary>
+        /// Sky.
+        /// </summary>
+        [SerializeField, ResourcePath("Shaders/Sky/HDRISky.shader")]
+        private Shader m_HdriSkyPS;
+
+        public Shader hdriSkyPS
+        {
+            get => m_HdriSkyPS;
+            set => this.SetValueAndNotify(ref m_HdriSkyPS, value);
+        }
+
+        [SerializeField, ResourcePath("Shaders/Sky/GradientSky.shader")]
+        private Shader m_GradientSkyPS;
+
+        public Shader gradientSkyPS
+        {
+            get => m_GradientSkyPS;
+            set => this.SetValueAndNotify(ref m_GradientSkyPS, value);
+        }
+
+        [SerializeField, ResourcePath("Shaders/Sky/ProceduralToonSky.shader")]
+        private Shader m_ProceduralToonSkyPS;
+
+        public Shader proceduralToonSkyPS
+        {
+            get => m_ProceduralToonSkyPS;
+            set => this.SetValueAndNotify(ref m_ProceduralToonSkyPS, value);
+        }
+
+        [SerializeField, ResourcePath("Shaders/Sky/AmbientProbeConvolution.compute")]
+        private ComputeShader m_AmbientProbeConvolutionCS;
+
+        public ComputeShader ambientProbeConvolutionCS
+        {
+            get => m_AmbientProbeConvolutionCS;
+            set => this.SetValueAndNotify(ref m_AmbientProbeConvolutionCS, value);
+        }
+
+        /// <summary>
+        /// GGX Convolution
+        /// </summary>
+        [SerializeField, ResourcePath("Shaders/IBLFilter/BuildProbabilityTables.compute")]
+        private ComputeShader m_BuildProbabilityTablesCS;
+
+        public ComputeShader buildProbabilityTablesCS
+        {
+            get => m_BuildProbabilityTablesCS;
+            set => this.SetValueAndNotify(ref m_BuildProbabilityTablesCS, value);
+        }
+
+        [SerializeField, ResourcePath("Shaders/IBLFilter/ComputeGgxIblSampleData.compute")]
+        private ComputeShader m_ComputeGgxIblSampleDataCS;
+
+        public ComputeShader computeGgxIblSampleDataCS
+        {
+            get => m_ComputeGgxIblSampleDataCS;
+            set => this.SetValueAndNotify(ref m_ComputeGgxIblSampleDataCS, value);
+        }
+
+        [SerializeField, ResourcePath("Shaders/IBLFilter/GGXConvolve.shader")]
+        private Shader m_GGXConvolvePS;
+
+        public Shader GGXConvolvePS
+        {
+            get => m_GGXConvolvePS;
+            set => this.SetValueAndNotify(ref m_GGXConvolvePS, value);
+        }
+
 #if UNITY_EDITOR
         public void EnsureShadersCompiled()
         {

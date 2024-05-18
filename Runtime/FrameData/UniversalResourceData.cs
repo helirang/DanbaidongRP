@@ -335,6 +335,20 @@ namespace UnityEngine.Rendering.Universal
         }
         private TextureHandle _stpDebugView;
 
+        internal BufferHandle skyAmbientProbe
+        {
+            get => CheckAndGetBufferHandle(ref _skyAmbientProbe);
+            set => CheckAndSetBufferHandle(ref _skyAmbientProbe, value);
+        }
+        private BufferHandle _skyAmbientProbe;
+
+        internal TextureHandle skyReflectionProbe
+        {
+            get => CheckAndGetTextureHandle(ref _skyReflectionProbe);
+            set => CheckAndSetTextureHandle(ref _skyReflectionProbe, value);
+        }
+        private TextureHandle _skyReflectionProbe;
+
         /// <inheritdoc />
         public override void Reset()
         {
@@ -342,6 +356,7 @@ namespace UnityEngine.Rendering.Universal
             _backBufferDepth = TextureHandle.nullHandle;
             _cameraColor = TextureHandle.nullHandle;
             _cameraDepth = TextureHandle.nullHandle;
+            _cameraDepthPyramidTexture = TextureHandle.nullHandle;
             _mainShadowsTexture = TextureHandle.nullHandle;
             _additionalShadowsTexture = TextureHandle.nullHandle;
             _cameraOpaqueTexture = TextureHandle.nullHandle;
@@ -358,6 +373,8 @@ namespace UnityEngine.Rendering.Universal
             _dBufferDepth = TextureHandle.nullHandle;
             _ssaoTexture = TextureHandle.nullHandle;
             _stpDebugView = TextureHandle.nullHandle;
+            _skyAmbientProbe = BufferHandle.nullHandle;
+            _skyReflectionProbe = TextureHandle.nullHandle;
 
             for (int i = 0; i < _gBuffer.Length; i++)
                 _gBuffer[i] = TextureHandle.nullHandle;

@@ -86,7 +86,7 @@ namespace UnityEngine.Rendering.Universal
                 public static readonly ProfilingSampler getPerObjectLightFlags = new ProfilingSampler($"{k_Name}.{nameof(GetPerObjectLightFlags)}");
                 public static readonly ProfilingSampler getMainLightIndex = new ProfilingSampler($"{k_Name}.{nameof(GetMainLightIndex)}");
                 public static readonly ProfilingSampler setupPerFrameShaderConstants = new ProfilingSampler($"{k_Name}.{nameof(SetupPerFrameShaderConstants)}");
-                public static readonly ProfilingSampler setupPerCameraShaderConstants = new ProfilingSampler($"{k_Name}.{nameof(SetupPerCameraShaderConstants)}");
+                public static readonly ProfilingSampler setupPerCameraEnvShaderConstants = new ProfilingSampler($"{k_Name}.{nameof(SetupPerCameraEnvironmentShaderConstants)}");
 
                 public static class Renderer
                 {
@@ -258,6 +258,12 @@ namespace UnityEngine.Rendering.Universal
             // TODO: Create a switch button for users.
             PreIntegratedFGD.instance.Build(PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse);
 
+            SkySystem.instance.Build(asset, shaders);
+
+            IBLFilterGGX.instance.Initialize(shaders);
+
+            Hammersley.Initialize();
+
             Lightmapping.SetDelegate(lightsDelegate);
 
             CameraCaptureBridge.enabled = true;
@@ -329,6 +335,10 @@ namespace UnityEngine.Rendering.Universal
             XRSystem.Dispose();
 
             PreIntegratedFGD.instance.Cleanup(PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse);
+
+            SkySystem.ClearAll();
+
+            IBLFilterGGX.instance.Cleanup();
 
             s_RenderGraph.Cleanup();
             s_RenderGraph = null;
@@ -768,7 +778,9 @@ namespace UnityEngine.Rendering.Universal
                 cmd.Clear();
 
                 PreIntegratedFGD.instance.RenderInit(PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse, cmd);
-                SetupPerCameraShaderConstants(cmd);
+                SkySystem.instance.UpdateCurrentSky();
+                SetupPerCameraEnvironmentShaderConstants(cmd);// TODO: use SkySystem.instance.UpdateEnvironment();
+                //SetupPerCameraShaderConstants(cmd);
 
                 bool supportProbeVolume = asset != null && asset.lightProbeSystem == LightProbeSystem.ProbeVolumes;
                 ProbeReferenceVolume.instance.SetEnableStateFromSRP(supportProbeVolume);
@@ -1564,6 +1576,14 @@ namespace UnityEngine.Rendering.Universal
             Matrix4x4 jitterMat = TemporalAA.CalculateJitterMatrix(cameraData, jitterFunc);
             cameraData.SetViewProjectionAndJitterMatrix(camera.worldToCameraMatrix, projectionMatrix, jitterMat);
 
+            // SetPixelCoordToViewDirWSMatrix for Sky and compute shader
+            var screenSize = new Vector4(cameraData.cameraTargetDescriptor.width, cameraData.cameraTargetDescriptor.height,
+                                        1.0f / cameraData.cameraTargetDescriptor.width, 1.0f / cameraData.cameraTargetDescriptor.height);
+            var gpuProj = cameraData.GetGPUProjectionMatrix(true);
+            var gpuProjAspect = RenderingUtils.ProjectionMatrixAspect(gpuProj);
+            cameraData.SetPixelCoordToViewDirWSMatrix(
+                RenderingUtils.ComputePixelCoordToWorldSpaceViewDirectionMatrix(camera, camera.worldToCameraMatrix, gpuProj, screenSize, gpuProjAspect));
+
             cameraData.worldSpaceCameraPos = camera.transform.position;
 
             var backgroundColorSRGB = camera.backgroundColor;
@@ -2027,9 +2047,9 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        static void SetupPerCameraShaderConstants(CommandBuffer cmd)
+        static void SetupPerCameraEnvironmentShaderConstants(CommandBuffer cmd)
         {
-            using var profScope = new ProfilingScope(Profiling.Pipeline.setupPerCameraShaderConstants);
+            using var profScope = new ProfilingScope(Profiling.Pipeline.setupPerCameraEnvShaderConstants);
 
             // When glossy reflections are OFF in the shader we set a constant color to use as indirect specular
             SphericalHarmonicsL2 ambientSH = RenderSettings.ambientProbe;

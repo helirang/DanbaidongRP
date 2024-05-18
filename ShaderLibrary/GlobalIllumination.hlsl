@@ -6,7 +6,9 @@
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/ImageBasedLighting.hlsl"
 #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/RealtimeLights.hlsl"
 
-#define AMBIENT_PROBE_BUFFER 0
+#define AMBIENT_PROBE_BUFFER 1
+TEXTURECUBE(_SkyTexture);
+StructuredBuffer<float4>    _AmbientProbeData;
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/AmbientProbe.hlsl"
 
 #if defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2)
@@ -22,6 +24,21 @@
 #if !defined(_MIXED_LIGHTING_SUBTRACTIVE) && defined(LIGHTMAP_SHADOW_MIXING) && !defined(SHADOWS_SHADOWMASK)
     #define _MIXED_LIGHTING_SUBTRACTIVE
 #endif
+
+float4 SampleSkyTexture(float3 texCoord, float lod, int sliceIndex = 0)
+{
+    return SAMPLE_TEXTURECUBE_LOD(_SkyTexture, sampler_TrilinearClamp, texCoord, lod);
+}
+
+// TODO: need add reflection probe
+float4 SampleEnvironment(float3 reflectVector, float perceptualRoughness, float occlusion)
+{
+    float4 color = float4(0.0, 0.0, 0.0, 1.0);
+    float mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness);
+    color.rgb = SampleSkyTexture(reflectVector, mip).rgb;
+
+    return color;
+}
 
 // SH Vertex Evaluation. Depending on target SH sampling might be
 // done completely per vertex or mixed with L2 term per vertex and L0, L1

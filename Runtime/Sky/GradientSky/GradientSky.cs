@@ -2,16 +2,17 @@ using System;
 
 namespace UnityEngine.Rendering.Universal
 {
-    [Serializable, VolumeComponentMenuForRenderPipeline("Sky/GradientSky Sky", typeof(UniversalRenderPipeline))]
+    [Serializable, VolumeComponentMenu("Sky/GradientSky Sky")]
+    [SupportedOnRenderPipeline(typeof(UniversalRenderPipelineAsset))]
     [SkyUniqueID((int)SkyType.Gradient)]
     public sealed class GradientSky : SkySettings
     {
         /// <summary>Top color of the gradient sky.</summary>
         [Tooltip("Specifies the color of the upper hemisphere of the sky.")]
-        public ColorParameter top = new ColorParameter(Color.blue, true, false, true);
+        public ColorParameter top = new ColorParameter(new Color(0.747f, 0.0f, 1.0f), true, false, true);
         /// <summary>Middle color of the gradient sky.</summary>
         [Tooltip("Specifies the color at the horizon.")]
-        public ColorParameter middle = new ColorParameter(new Color(0.3f, 0.7f, 1f), true, false, true);
+        public ColorParameter middle = new ColorParameter(new Color(1.0f, 0.667f, 0.676f), true, false, true);
         /// <summary>Bottom color of the gradient sky.</summary>
         [Tooltip("Specifies the color of the lower hemisphere of the sky. This is below the horizon.")]
         public ColorParameter bottom = new ColorParameter(Color.white, true, false, true);

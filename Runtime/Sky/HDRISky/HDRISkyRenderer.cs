@@ -3,6 +3,7 @@ namespace UnityEngine.Rendering.Universal
     public class HDRISkyRenderer : SkyRenderer
     {
         private Material m_SkyHDRIMaterial;
+        private Cubemap m_DefaultHDRISky;
         private MaterialPropertyBlock m_PropertyBlock;
 
         public HDRISkyRenderer()
@@ -17,8 +18,16 @@ namespace UnityEngine.Rendering.Universal
         {
             if (m_SkyHDRIMaterial == null)
             {
-                m_SkyHDRIMaterial = CoreUtils.CreateEngineMaterial(UniversalRenderPipelineGlobalSettings.instance.renderPipelineRuntimeResources.shaders.hdriSkyPS);
+                var runtimeShaders = GraphicsSettings.GetRenderPipelineSettings<UniversalRenderPipelineRuntimeShaders>();
+                m_SkyHDRIMaterial = CoreUtils.CreateEngineMaterial(runtimeShaders.hdriSkyPS);
             }
+
+            if (m_DefaultHDRISky == null)
+            {
+                var runtimeTextures = GraphicsSettings.GetRenderPipelineSettings<UniversalRenderPipelineRuntimeTextures>();
+                m_DefaultHDRISky = runtimeTextures.defaultHDRISky;
+            }
+
 
             m_PropertyBlock = new MaterialPropertyBlock();
         }
@@ -31,7 +40,7 @@ namespace UnityEngine.Rendering.Universal
             CoreUtils.Destroy(m_SkyHDRIMaterial);
         }
 
-        public override void RenderSky(CommandBuffer cmd, ref RenderingData renderingData, SkySettings skySettings, bool renderForCubemap)
+        public override void RenderSky(CommandBuffer cmd, SkyBasePassData basePassData, SkySettings skySettings, bool renderForCubemap)
         {
             HDRISky hdriSky = skySettings as HDRISky;
 
@@ -39,10 +48,9 @@ namespace UnityEngine.Rendering.Universal
             float phi = -Mathf.Deg2Rad * hdriSky.rotation.value;
             
             
-            m_SkyHDRIMaterial.SetTexture(ShaderConstants._Cubemap, hdriSky.hdriSky.value != null ? hdriSky.hdriSky.value
-                                                                    : UniversalRenderPipelineGlobalSettings.instance.renderPipelineRuntimeResources.textures.defaultHDRISky);
+            m_SkyHDRIMaterial.SetTexture(ShaderConstants._Cubemap, hdriSky.hdriSky.value != null ? hdriSky.hdriSky.value : m_DefaultHDRISky);
             m_SkyHDRIMaterial.SetVector(ShaderConstants._SkyParam, new Vector4(intensity, 0.0f, Mathf.Cos(phi), Mathf.Sin(phi)));
-            m_PropertyBlock.SetMatrix(ShaderConstants._PixelCoordToViewDirWS, renderingData.cameraData.GetPixelCoordToViewDirWSMatrix());
+            m_PropertyBlock.SetMatrix(ShaderConstants._PixelCoordToViewDirWS, basePassData.pixelCoordToViewDirMatrix);
 
             CoreUtils.DrawFullScreen(cmd, m_SkyHDRIMaterial, m_PropertyBlock, renderForCubemap ? 0 : 1);
         }

@@ -335,6 +335,12 @@ namespace UnityEditor.Rendering.Universal
             EditorGUI.indentLevel--;
             EditorGUILayout.Space();
 
+            // Sky
+            EditorGUILayout.LabelField(Styles.skySettingsText);
+            EditorGUI.indentLevel++;
+            EditorGUILayout.PropertyField(serialized.skyReflectionSizeProp, Styles.skyReflectionSizeContent);
+            EditorGUI.indentLevel--;
+
             // Reflection Probes
             EditorGUILayout.LabelField(Styles.reflectionProbesSettingsText);
             EditorGUI.indentLevel++;

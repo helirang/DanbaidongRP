@@ -447,7 +447,7 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
     //  2. Environment Reflection / Refraction
     //  3. Sky Reflection / Refraction
 
-    float3 SHColor = SampleSH(normalWS);
+    float3 SHColor = SampleSH9(_AmbientProbeData, normalWS);//EvaluateAmbientProbe(normalWS);
     indirectDiffuse += diffuseFGD * SHColor * shadingData.diffuseColor;
     // TODO: ModifyBakedDiffuseLighting Function
 
@@ -461,7 +461,7 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
         // Formula is empirical.
         reflectDirWS = lerp(specDominantDirWS, reflectDirWS, saturate(smoothstep(0, 1, shadingData.roughness2)));
     }
-    float3 envReflection = GlossyEnvironmentReflection(reflectDirWS, shadingData.perceptualRoughness, shadingData.occlusion);// TODO: reflection is so different from HDRP
+    float3 envReflection = SampleEnvironment(reflectDirWS, shadingData.perceptualRoughness, shadingData.occlusion).rgb;
     indirectSpecular += specularFGD * envReflection;
 
     // Post evaluate indirect diffuse or energy.

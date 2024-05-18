@@ -57,5 +57,18 @@ namespace UnityEngine.Rendering.Universal
             get => m_DebugFontTex;
             set => this.SetValueAndNotify(ref m_DebugFontTex, value, nameof(m_DebugFontTex));
         }
+
+        /// <summary>
+        /// Default HDRI Sky
+        /// </summary>
+        [SerializeField]
+        [ResourcePath("Textures/Sky/DefaultHDRISky.exr")]
+        private Cubemap m_DefaultHDRISky;
+
+        public Cubemap defaultHDRISky
+        {
+            get => m_DefaultHDRISky;
+            set => this.SetValueAndNotify(ref m_DefaultHDRISky, value, nameof(m_DefaultHDRISky));
+        }
     }
 }

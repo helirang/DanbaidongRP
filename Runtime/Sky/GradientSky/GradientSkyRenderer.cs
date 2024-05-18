@@ -12,7 +12,11 @@ namespace UnityEngine.Rendering.Universal
 
         public override void Build()
         {
-            m_GradientSkyMaterial = CoreUtils.CreateEngineMaterial(UniversalRenderPipelineGlobalSettings.instance.renderPipelineRuntimeResources.shaders.gradientSkyPS);
+            if (m_GradientSkyMaterial == null)
+            {
+                var runtimeShaders = GraphicsSettings.GetRenderPipelineSettings<UniversalRenderPipelineRuntimeShaders>();
+                m_GradientSkyMaterial = CoreUtils.CreateEngineMaterial(runtimeShaders.gradientSkyPS);
+            }
         }
 
         public override void Cleanup()
@@ -20,7 +24,7 @@ namespace UnityEngine.Rendering.Universal
             CoreUtils.Destroy(m_GradientSkyMaterial);
         }
 
-        public override void RenderSky(CommandBuffer cmd, ref RenderingData renderingData, SkySettings skySettings, bool renderForCubemap)
+        public override void RenderSky(CommandBuffer cmd, SkyBasePassData basePassData, SkySettings skySettings, bool renderForCubemap)
         {
             var gradientSky = skySettings as GradientSky;
             m_GradientSkyMaterial.SetColor(ShaderConstants._GradientBottom, gradientSky.bottom.value);
@@ -30,7 +34,7 @@ namespace UnityEngine.Rendering.Universal
             m_GradientSkyMaterial.SetFloat(ShaderConstants._SkyIntensity, GetSkyIntensity(gradientSky));
 
             // This matrix needs to be updated at the draw call frequency.
-            m_PropertyBlock.SetMatrix(ShaderConstants._PixelCoordToViewDirWS, renderingData.cameraData.GetPixelCoordToViewDirWSMatrix());
+            m_PropertyBlock.SetMatrix(ShaderConstants._PixelCoordToViewDirWS, basePassData.pixelCoordToViewDirMatrix);
 
             CoreUtils.DrawFullScreen(cmd, m_GradientSkyMaterial, m_PropertyBlock, renderForCubemap ? 0 : 1);
         }

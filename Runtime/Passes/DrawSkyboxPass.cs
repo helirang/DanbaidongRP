@@ -21,7 +21,7 @@ namespace UnityEngine.Rendering.Universal
         /// <seealso cref="RenderPassEvent"/>
         public DrawSkyboxPass(RenderPassEvent evt)
         {
-            base.profilingSampler = new ProfilingSampler(nameof(DrawSkyboxPass));
+            base.profilingSampler = new ProfilingSampler("Render Sky");
 
             renderPassEvent = evt;
         }
@@ -171,6 +171,42 @@ namespace UnityEngine.Rendering.Universal
                 builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
                 {
                     ExecutePass(context.cmd, data.xr, data.skyRendererListHandle);
+                });
+            }
+        }
+
+        private class ScrTrianglePassData
+        {
+            internal TextureHandle colorTarget;
+            internal TextureHandle depthTarget;
+        }
+
+        /// <summary>
+        /// Use a screen triangle to render sky.
+        /// </summary>
+        /// <param name="renderGraph"></param>
+        /// <param name="frameData"></param>
+        /// <param name="colorTarget"></param>
+        /// <param name="depthTarget"></param>
+        internal void Render(RenderGraph renderGraph, ContextContainer frameData, TextureHandle colorTarget, TextureHandle depthTarget)
+        {
+            using (var builder = renderGraph.AddUnsafePass<ScrTrianglePassData>("Draw Skybox Pass", out var passData, base.profilingSampler))
+            {
+                UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+
+                passData.colorTarget = colorTarget;
+                passData.depthTarget = depthTarget;
+
+                builder.UseTexture(colorTarget, AccessFlags.Write);
+                builder.UseTexture(depthTarget, AccessFlags.Write);
+                
+                builder.AllowPassCulling(false);
+
+                builder.SetRenderFunc((ScrTrianglePassData data, UnsafeGraphContext context) =>
+                {
+                    var cmd = CommandBufferHelpers.GetNativeCommandBuffer(context.cmd);
+                    cmd.SetRenderTarget(passData.colorTarget, passData.depthTarget);
+                    SkySystem.instance.RenderSky(cmd, cameraData);
                 });
             }
         }

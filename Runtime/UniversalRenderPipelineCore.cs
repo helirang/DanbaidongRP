@@ -1895,6 +1895,11 @@ namespace UnityEngine.Rendering.Universal
         BuildGPULightsData,
         GPULights,
         GPULightsGlobalAsync,
+        RenderSkyToCubemap,
+        GenerateMipmaps,
+        UpdateSkyAmbientProbe,
+        UpdataSkyEnvConvolution,
+        FilterCubemapGGX,
 
         // DrawObjectsPass
         DrawOpaqueObjects,

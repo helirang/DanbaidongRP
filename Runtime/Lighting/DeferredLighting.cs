@@ -1,5 +1,4 @@
 
-using System;
 using UnityEngine.Rendering.RenderGraphModule;
 
 namespace UnityEngine.Rendering.Universal.Internal
@@ -60,8 +59,10 @@ namespace UnityEngine.Rendering.Universal.Internal
             // PreIntergratedFGD
             internal TextureHandle FGD_GGXAndDisneyDiffuse;
 
-            // Reflection
-            internal TextureHandle reflectionDefault;
+            // Sky Ambient
+            internal BufferHandle ambientProbe;
+            // Sky Reflect
+            internal TextureHandle reflectProbe;
         }
 
         static void InitIndirectComputeBufferValue(GraphicsBuffer buffer)
@@ -94,15 +95,23 @@ namespace UnityEngine.Rendering.Universal.Internal
                 // Bind PreIntegratedFGD before deferred shading.
                 PreIntegratedFGD.instance.Bind(cmd, PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse, data.FGD_GGXAndDisneyDiffuse);
 
-                var SHValues = new SHCoefficients(RenderSettings.ambientProbe);
-                cmd.SetComputeVectorParam(data.deferredLightingCS, "unity_SHAr", SHValues.SHAr);
-                cmd.SetComputeVectorParam(data.deferredLightingCS, "unity_SHAg", SHValues.SHAg);
-                cmd.SetComputeVectorParam(data.deferredLightingCS, "unity_SHAb", SHValues.SHAb);
-                cmd.SetComputeVectorParam(data.deferredLightingCS, "unity_SHBr", SHValues.SHBr);
-                cmd.SetComputeVectorParam(data.deferredLightingCS, "unity_SHBg", SHValues.SHBg);
-                cmd.SetComputeVectorParam(data.deferredLightingCS, "unity_SHBb", SHValues.SHBb);
-                cmd.SetComputeVectorParam(data.deferredLightingCS, "unity_SHC", SHValues.SHC);
 
+                Matrix4x4 viewMatrix = data.cameraData.GetViewMatrix();
+                // Jittered, non-gpu
+                Matrix4x4 projectionMatrix = data.cameraData.GetProjectionMatrix();
+                // Jittered, gpu
+                Matrix4x4 gpuProjectionMatrix = data.cameraData.GetGPUProjectionMatrix(true);
+                Matrix4x4 viewAndProjectionMatrix = gpuProjectionMatrix * viewMatrix;
+                Matrix4x4 inverseViewMatrix = Matrix4x4.Inverse(viewMatrix);
+                Matrix4x4 inverseProjectionMatrix = Matrix4x4.Inverse(gpuProjectionMatrix);
+                Matrix4x4 inverseViewProjection = inverseViewMatrix * inverseProjectionMatrix;
+
+                Matrix4x4 proj = data.cameraData.GetProjectionMatrix(0);
+                Matrix4x4 view = data.cameraData.GetViewMatrix(0);
+                Matrix4x4 gpuProj = GL.GetGPUProjectionMatrix(proj, true);
+                var targetMat = Matrix4x4.Inverse(gpuProj * view);
+
+                cmd.SetComputeMatrixParam(data.deferredLightingCS, "_MATRIX_TEST", targetMat);
 
                 for (int modelIndex = 0; modelIndex < (int)ShadingModels.CurModelsNum; modelIndex++)
                 {
@@ -114,8 +123,9 @@ namespace UnityEngine.Rendering.Universal.Internal
                     cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "_LightingTexture", data.lightingHandle);
                     cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "_StencilTexture", data.stencilHandle, 0, RenderTextureSubElement.Stencil);
 
-                    cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "unity_SpecCube0", data.reflectionDefault);
-                    cmd.SetComputeVectorParam(data.deferredLightingCS, "unity_SpecCube0_HDR", ReflectionProbe.defaultTextureHDRDecodeValues);
+                    cmd.SetComputeBufferParam(data.deferredLightingCS, kernelIndex, "_AmbientProbeData", data.ambientProbe);
+                    cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "_SkyTexture", data.reflectProbe);
+
                     cmd.DispatchCompute(data.deferredLightingCS, kernelIndex, data.dispatchIndirectBuffer, (uint)modelIndex * 3 * sizeof(uint));
                 }
             }
@@ -157,7 +167,10 @@ namespace UnityEngine.Rendering.Universal.Internal
                 passData.tileListBuffer = renderGraph.CreateBuffer(tileListBufferDesc);
 
                 passData.FGD_GGXAndDisneyDiffuse = PreIntegratedFGD.instance.ImportToRenderGraph(renderGraph, PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse);
-                passData.reflectionDefault = renderGraph.ImportTexture(RTHandles.Alloc(ReflectionProbe.defaultTexture));
+
+                // Sky Environment
+                passData.ambientProbe = resourceData.skyAmbientProbe;
+                passData.reflectProbe = resourceData.skyReflectionProbe;
 
                 // Declare input/output
                 builder.UseTexture(passData.lightingHandle, AccessFlags.ReadWrite);
@@ -165,7 +178,9 @@ namespace UnityEngine.Rendering.Universal.Internal
                 builder.UseBuffer(passData.dispatchIndirectBuffer, AccessFlags.ReadWrite);
                 builder.UseBuffer(passData.tileListBuffer, AccessFlags.ReadWrite);
                 builder.UseTexture(passData.FGD_GGXAndDisneyDiffuse, AccessFlags.Read);
-                builder.UseTexture(passData.reflectionDefault, AccessFlags.Read);
+
+                builder.UseBuffer(passData.ambientProbe, AccessFlags.Read);
+                builder.UseTexture(passData.reflectProbe, AccessFlags.Read);
 
                 // TODO: Delete
                 builder.UseTexture(resourceData.cameraDepthPyramidTexture, AccessFlags.Read);

@@ -914,6 +914,8 @@ namespace UnityEngine.Rendering.Universal
                 m_GPULights.PreSetup(lightData, cameraData, m_GPULightsDataBuildSystem);
             }
 
+            // Sky Environment
+            SkySystem.instance.UpdateEnvironment(renderGraph, frameData, lightData, false, false, false, SkyAmbientMode.Dynamic);
         }
 
         private void UpdateInstanceOccluders(RenderGraph renderGraph, UniversalCameraData cameraData, TextureHandle depthTexture)
@@ -1475,7 +1477,7 @@ namespace UnityEngine.Rendering.Universal
             if (cameraData.camera.clearFlags == CameraClearFlags.Skybox && cameraData.renderType != CameraRenderType.Overlay)
             {
                 if (RenderSettings.skybox != null || (cameraData.camera.TryGetComponent(out Skybox cameraSkybox) && cameraSkybox.material != null))
-                    m_DrawSkyboxPass.Render(renderGraph, frameData, context, resourceData.activeColorTexture, resourceData.activeDepthTexture, requiresDepthCopyPass && m_CopyDepthMode != CopyDepthMode.AfterTransparents);
+                    m_DrawSkyboxPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture);
             }
 
             if (requiresColorCopyPass)

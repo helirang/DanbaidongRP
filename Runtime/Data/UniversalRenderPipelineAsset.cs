@@ -535,6 +535,9 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField] int m_AdditionalLightsShadowResolutionTierMedium = AdditionalLightsDefaultShadowResolutionTierMedium;
         [SerializeField] int m_AdditionalLightsShadowResolutionTierHigh = AdditionalLightsDefaultShadowResolutionTierHigh;
 
+        // Sky Settings
+        [SerializeField] SkyResolution m_SkyReflectionSize = SkyResolution.SkyResolution512;
+
         // Reflection Probes
 #if UNITY_EDITOR // multi_compile_fragment _ _REFLECTION_PROBE_BLENDING
         [ShaderKeywordFilter.SelectOrRemove(true, keywordNames: ShaderKeywordStrings.ReflectionProbeBlending)]
@@ -1364,6 +1367,15 @@ namespace UnityEngine.Rendering.Universal
                 return additionalLightsShadowResolutionTierHigh;
 
             return additionalLightsShadowResolutionTierMedium;
+        }
+
+        /// <summary>
+        /// Resolution of the sky reflection cubemap.
+        /// </summary>
+        public SkyResolution skyReflectionSize
+        {
+            get => m_SkyReflectionSize;
+            internal set => m_SkyReflectionSize = value;
         }
 
         /// <summary>

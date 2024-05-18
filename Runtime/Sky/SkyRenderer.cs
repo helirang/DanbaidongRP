@@ -41,7 +41,7 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         /// <param name="skySettings"></param>
         /// <param name="renderForCubemap"></param>
-        public abstract void RenderSky(CommandBuffer cmd, ref RenderingData renderingData, SkySettings skySettings, bool renderForCubemap);
+        public abstract void RenderSky(CommandBuffer cmd, SkyBasePassData basePassData, SkySettings skySettings, bool renderForCubemap);
 
         /// <summary>
         /// Returns exposure setting for the provided SkySettings.

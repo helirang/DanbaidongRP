@@ -2,7 +2,8 @@ using System;
 
 namespace UnityEngine.Rendering.Universal
 {
-    [Serializable, VolumeComponentMenuForRenderPipeline("Sky/HDRI Sky", typeof(UniversalRenderPipeline))]
+    [Serializable, VolumeComponentMenu("Sky/HDRI Sky")]
+    [SupportedOnRenderPipeline(typeof(UniversalRenderPipelineAsset))]
     [SkyUniqueID((int)SkyType.HDRI)]
     public sealed class HDRISky : SkySettings
     {

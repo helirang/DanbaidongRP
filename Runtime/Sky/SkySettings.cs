@@ -38,6 +38,14 @@ namespace UnityEngine.Rendering.Universal
     }
 
     /// <summary>
+    /// Parameters passed to sky rendering functions.
+    /// </summary>
+    public class SkyBasePassData
+    {
+        internal Matrix4x4 pixelCoordToViewDirMatrix;
+    }
+
+    /// <summary>
     /// This attribute is used to associate a unique ID to a sky class.
     /// This is needed to be able to automatically register sky classes and avoid collisions and refactoring class names causing data compatibility issues.
     /// </summary>

@@ -51,6 +51,8 @@ namespace UnityEditor.Rendering.Universal
         public SerializedProperty additionalLightCookieResolutionProp { get; }
         public SerializedProperty additionalLightCookieFormatProp { get; }
 
+        public SerializedProperty skyReflectionSizeProp { get; }
+
         public SerializedProperty reflectionProbeBlendingProp { get; }
         public SerializedProperty reflectionProbeBoxProjectionProp { get; }
 
@@ -141,6 +143,8 @@ namespace UnityEditor.Rendering.Universal
 
             additionalLightCookieResolutionProp = serializedObject.FindProperty("m_AdditionalLightsCookieResolution");
             additionalLightCookieFormatProp = serializedObject.FindProperty("m_AdditionalLightsCookieFormat");
+
+            skyReflectionSizeProp = serializedObject.FindProperty("m_SkyReflectionSize");
 
             reflectionProbeBlendingProp = serializedObject.FindProperty("m_ReflectionProbeBlending");
             reflectionProbeBoxProjectionProp = serializedObject.FindProperty("m_ReflectionProbeBoxProjection");
