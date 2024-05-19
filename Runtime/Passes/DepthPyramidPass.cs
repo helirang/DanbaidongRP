@@ -1,3 +1,4 @@
+using Unity.Mathematics;
 using UnityEngine.Rendering.RenderGraphModule;
 
 namespace UnityEngine.Rendering.Universal.Internal
@@ -8,10 +9,6 @@ namespace UnityEngine.Rendering.Universal.Internal
     /// </summary>
     public class DepthPyramidPass : ScriptableRenderPass
     {
-        private RTHandle m_DepthMipChainTexture { get; set; }
-        private RenderingUtils.PackedMipChainInfo m_PackedMipChainInfo;
-        private bool m_Mip0AlreadyComputed;
-
         private ComputeShader m_Shader;
         private int m_DepthDownsampleKernel;
 
@@ -30,17 +27,6 @@ namespace UnityEngine.Rendering.Universal.Internal
 
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="depthMipChainTexture"></param>
-        internal void Setup(RTHandle depthMipChainTexture, RenderingUtils.PackedMipChainInfo info, bool mip0AlreadyComputed = false)
-        {
-            this.m_DepthMipChainTexture = depthMipChainTexture;
-            this.m_PackedMipChainInfo = info;
-            this.m_Mip0AlreadyComputed = mip0AlreadyComputed;
-        }
-
         private class PassData
         {
             internal TextureHandle targetTexture;
@@ -55,6 +41,14 @@ namespace UnityEngine.Rendering.Universal.Internal
         {
             using (var builder = renderGraph.AddComputePass<PassData>("Depth Pyramid", out var passData, base.profilingSampler))
             {
+                UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
+
+                var mipLevelOffsetBuffer = GraphicsBufferSystem.instance.GetGraphicsBuffer<int2>(GraphicsBufferSystemBufferID.DepthPyramidMipLevelOffset, 15, "depthPramidMipLevelOffsetBuffer");
+                mipChainInfo.GetOffsetBufferData(mipLevelOffsetBuffer);
+
+                resourceData.cameraDepthPyramidInfo = mipChainInfo;
+                resourceData.cameraDepthPyramidMipLevelOffsets = renderGraph.ImportBuffer(mipLevelOffsetBuffer);
+
                 passData.targetTexture = depthMipChainTexture;
                 passData.mipChainInfo = mipChainInfo;
                 passData.cs = m_Shader;
@@ -62,6 +56,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                 passData.mip0AlreadyComputed = mip0AlreadyComputed;
 
                 builder.UseTexture(passData.targetTexture, AccessFlags.Write);
+                builder.UseBuffer(resourceData.cameraDepthPyramidMipLevelOffsets, AccessFlags.Write); // Assign to Write
 
                 builder.AllowPassCulling(false);
 #if DANBAIDONGRP_ASYNC_COMPUTE

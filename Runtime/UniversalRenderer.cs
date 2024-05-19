@@ -98,9 +98,11 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// DepthBufferMipChain
         /// </summary>
-        internal RenderingUtils.PackedMipChainInfo m_DepthBufferMipChainInfo = new RenderingUtils.PackedMipChainInfo();
-        internal ref RenderingUtils.PackedMipChainInfo depthBufferMipChainInfo => ref m_DepthBufferMipChainInfo;
-        internal Vector2Int depthMipChainSize => m_DepthBufferMipChainInfo.textureSize;
+        internal RenderingUtils.PackedMipChainInfo m_DepthPyramidInfo = new RenderingUtils.PackedMipChainInfo();
+        /// <summary>
+        /// Color history mipCount, we need move this with camera.
+        /// </summary>
+        internal int colorPyramidHistoryMipCount = 0;
 
         /// <summary>Property to control the depth priming behavior of the forward rendering path.</summary>
         public DepthPrimingMode depthPrimingMode { get { return m_DepthPrimingMode; } set { m_DepthPrimingMode = value; } }
@@ -115,6 +117,7 @@ namespace UnityEngine.Rendering.Universal
         GPUCopyPass m_GPUCopyPass;
         DepthPyramidPass m_DepthPyramidPass;
         ColorPyramidPass m_ColorPyramidPass;
+        ScreenSpaceReflectionPass m_ScreenSpaceReflectionPass;
         DeferredPass m_DeferredPass;
         DeferredLighting m_DeferredLighting;
         DrawObjectsPass m_RenderOpaqueForwardOnlyPass;
@@ -277,7 +280,7 @@ namespace UnityEngine.Rendering.Universal
             this.m_DepthPrimingRecommended = true;
 #endif
             // DepthBufferMipChain Allocate
-            m_DepthBufferMipChainInfo.Allocate();
+            m_DepthPyramidInfo.Allocate();
 
 
             // Note: Since all custom render passes inject first and we have stable sort,
@@ -326,6 +329,9 @@ namespace UnityEngine.Rendering.Universal
                 m_GBufferCopyDepthPass = new CopyDepthPass(RenderPassEvent.BeforeRenderingGbuffer + 1, copyDephPS, true);
                 m_GPUCopyPass = new GPUCopyPass(RenderPassEvent.BeforeRenderingGbuffer + 1, runtimeShaders.copyChannelCS, true);
                 m_DepthPyramidPass = new DepthPyramidPass(RenderPassEvent.BeforeRenderingGbuffer + 2, runtimeShaders.depthPyramidCS);
+
+                m_ScreenSpaceReflectionPass = new ScreenSpaceReflectionPass(RenderPassEvent.BeforeRenderingDeferredLights, runtimeShaders.screenSpaceReflectionsCS);
+
                 m_DeferredPass = new DeferredPass(RenderPassEvent.BeforeRenderingDeferredLights, m_DeferredLights);
                 m_DeferredLighting = new DeferredLighting(RenderPassEvent.BeforeRenderingDeferredLights, m_DeferredLights, runtimeShaders.deferredLightingCS);
                 m_RenderOpaqueForwardOnlyPass = new DrawObjectsPass("Render Opaques Forward Only", forwardOnlyShaderTagIds, true, RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask, forwardOnlyStencilState, forwardOnlyStencilRef);
@@ -1728,6 +1734,13 @@ namespace UnityEngine.Rendering.Universal
             // TAA in postprocess requires it to function.
             if (isTemporalAAEnabled)
                 inputSummary.requiresMotionVectors = true;
+
+            if (inputSummary.requiresMotionVectors == false)
+            {
+                var ssrSettings = VolumeManager.instance.stack.GetComponent<ScreenSpaceReflection>();
+                if (ssrSettings != null && ssrSettings.IsActive())
+                    inputSummary.requiresMotionVectors = true;
+            }
 
             // Object motion blur requires motion vectors.
             if (postProcessingEnabled)

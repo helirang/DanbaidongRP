@@ -175,6 +175,16 @@ namespace UnityEngine.Rendering.Universal
         private TextureHandle _cameraOpaqueTexture;
 
         /// <summary>
+        /// Camera depth color texture. Contains the scene gaussian color mips.
+        /// </summary>
+        public TextureHandle cameraColorPyramidTexture
+        {
+            get => CheckAndGetTextureHandle(ref _cameraColorPyramidTexture);
+            set => CheckAndSetTextureHandle(ref _cameraColorPyramidTexture, value);
+        }
+        private TextureHandle _cameraColorPyramidTexture;
+
+        /// <summary>
         /// Camera depth texture. Contains the scene depth if the CopyDepth or Depth Prepass passes are executed.
         /// </summary>
         public TextureHandle cameraDepthTexture
@@ -193,6 +203,15 @@ namespace UnityEngine.Rendering.Universal
             set => CheckAndSetTextureHandle(ref _cameraDepthPyramidTexture, value);
         }
         private TextureHandle _cameraDepthPyramidTexture;
+
+        internal BufferHandle cameraDepthPyramidMipLevelOffsets
+        {
+            get => CheckAndGetBufferHandle(ref _cameraDepthPyramidMipLevelOffsets);
+            set => CheckAndSetBufferHandle(ref _cameraDepthPyramidMipLevelOffsets, value);
+        }
+        private BufferHandle _cameraDepthPyramidMipLevelOffsets;
+
+        internal RenderingUtils.PackedMipChainInfo cameraDepthPyramidInfo;
 
         /// <summary>
         /// Camera normals texture. Contains the scene depth if the DepthNormals Prepass pass is executed.
@@ -326,6 +345,16 @@ namespace UnityEngine.Rendering.Universal
         private TextureHandle _ssaoTexture;
 
         /// <summary>
+        /// Screen Space Reflection texture. Written to by the SSR pass.
+        /// </summary>
+        public TextureHandle ssrLightingTexture
+        {
+            get => CheckAndGetTextureHandle(ref _ssrLightingTexture);
+            set => CheckAndSetTextureHandle(ref _ssrLightingTexture, value);
+        }
+        private TextureHandle _ssrLightingTexture;
+
+        /// <summary>
         /// STP debug visualization written to by the STP upscaler.
         /// </summary>
         internal TextureHandle stpDebugView
@@ -355,8 +384,11 @@ namespace UnityEngine.Rendering.Universal
             _backBufferColor = TextureHandle.nullHandle;
             _backBufferDepth = TextureHandle.nullHandle;
             _cameraColor = TextureHandle.nullHandle;
+            _cameraColorPyramidTexture = TextureHandle.nullHandle;
             _cameraDepth = TextureHandle.nullHandle;
             _cameraDepthPyramidTexture = TextureHandle.nullHandle;
+            _cameraDepthPyramidMipLevelOffsets = BufferHandle.nullHandle;
+            cameraDepthPyramidInfo = default;
             _mainShadowsTexture = TextureHandle.nullHandle;
             _additionalShadowsTexture = TextureHandle.nullHandle;
             _cameraOpaqueTexture = TextureHandle.nullHandle;
@@ -372,6 +404,7 @@ namespace UnityEngine.Rendering.Universal
             _renderingLayersTexture = TextureHandle.nullHandle;
             _dBufferDepth = TextureHandle.nullHandle;
             _ssaoTexture = TextureHandle.nullHandle;
+            _ssrLightingTexture = TextureHandle.nullHandle;
             _stpDebugView = TextureHandle.nullHandle;
             _skyAmbientProbe = BufferHandle.nullHandle;
             _skyReflectionProbe = TextureHandle.nullHandle;

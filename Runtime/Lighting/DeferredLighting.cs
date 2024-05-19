@@ -35,6 +35,7 @@ namespace UnityEngine.Rendering.Universal.Internal
 
         private class PassData
         {
+            internal UniversalResourceData resourceData;
             internal UniversalCameraData cameraData;
             internal UniversalLightData lightData;
             internal UniversalShadowData shadowData;
@@ -63,16 +64,9 @@ namespace UnityEngine.Rendering.Universal.Internal
             internal BufferHandle ambientProbe;
             // Sky Reflect
             internal TextureHandle reflectProbe;
-        }
 
-        static void InitIndirectComputeBufferValue(GraphicsBuffer buffer)
-        {
-            uint[] array = new uint[buffer.count];
-            for (int i = 0; i < array.Length; i++)
-            {
-                array[i] = (i % 3) == 0 ? 0u : 1u;
-            }
-            buffer.SetData(array);
+            // Lighting Buffers (SSAO, SSR, SSGI, SSShadow)
+            internal TextureHandle ssrLightingTexture;
         }
 
         static void ExecutePass(PassData data, ComputeGraphContext context)
@@ -81,7 +75,6 @@ namespace UnityEngine.Rendering.Universal.Internal
 
             // BuildIndirect
             {
-                InitIndirectComputeBufferValue(data.dispatchIndirectBuffer);
                 cmd.SetComputeTextureParam(data.deferredLightingCS, data.deferredClassifyTilesKernel, "_StencilTexture", data.stencilHandle, 0, RenderTextureSubElement.Stencil);
 
                 cmd.SetComputeBufferParam(data.deferredLightingCS, data.deferredClassifyTilesKernel, "g_DispatchIndirectBuffer", data.dispatchIndirectBuffer);
@@ -94,24 +87,6 @@ namespace UnityEngine.Rendering.Universal.Internal
             {
                 // Bind PreIntegratedFGD before deferred shading.
                 PreIntegratedFGD.instance.Bind(cmd, PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse, data.FGD_GGXAndDisneyDiffuse);
-
-
-                Matrix4x4 viewMatrix = data.cameraData.GetViewMatrix();
-                // Jittered, non-gpu
-                Matrix4x4 projectionMatrix = data.cameraData.GetProjectionMatrix();
-                // Jittered, gpu
-                Matrix4x4 gpuProjectionMatrix = data.cameraData.GetGPUProjectionMatrix(true);
-                Matrix4x4 viewAndProjectionMatrix = gpuProjectionMatrix * viewMatrix;
-                Matrix4x4 inverseViewMatrix = Matrix4x4.Inverse(viewMatrix);
-                Matrix4x4 inverseProjectionMatrix = Matrix4x4.Inverse(gpuProjectionMatrix);
-                Matrix4x4 inverseViewProjection = inverseViewMatrix * inverseProjectionMatrix;
-
-                Matrix4x4 proj = data.cameraData.GetProjectionMatrix(0);
-                Matrix4x4 view = data.cameraData.GetViewMatrix(0);
-                Matrix4x4 gpuProj = GL.GetGPUProjectionMatrix(proj, true);
-                var targetMat = Matrix4x4.Inverse(gpuProj * view);
-
-                cmd.SetComputeMatrixParam(data.deferredLightingCS, "_MATRIX_TEST", targetMat);
 
                 for (int modelIndex = 0; modelIndex < (int)ShadingModels.CurModelsNum; modelIndex++)
                 {
@@ -126,6 +101,12 @@ namespace UnityEngine.Rendering.Universal.Internal
                     cmd.SetComputeBufferParam(data.deferredLightingCS, kernelIndex, "_AmbientProbeData", data.ambientProbe);
                     cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "_SkyTexture", data.reflectProbe);
 
+                    // ScreenSpaceLighting ShaderVariables
+                    if (data.ssrLightingTexture.IsValid())
+                    {
+                        cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "_SSRLightingTexture", data.ssrLightingTexture);
+                    }
+
                     cmd.DispatchCompute(data.deferredLightingCS, kernelIndex, data.dispatchIndirectBuffer, (uint)modelIndex * 3 * sizeof(uint));
                 }
             }
@@ -133,8 +114,6 @@ namespace UnityEngine.Rendering.Universal.Internal
 
         internal void Render(RenderGraph renderGraph, ContextContainer frameData, TextureHandle color, TextureHandle depth, TextureHandle[] gbuffer)
         {
-
-
             using (var builder = renderGraph.AddComputePass<PassData>("Deferred Lighting", out var passData, base.profilingSampler))
             {
                 // Access resources
@@ -161,8 +140,12 @@ namespace UnityEngine.Rendering.Universal.Internal
                 passData.numTilesX = RenderingUtils.DivRoundUp(width, c_deferredLightingTileSize);
                 passData.numTilesY = RenderingUtils.DivRoundUp(height, c_deferredLightingTileSize);
 
-                var indirectBufferDesc = new BufferDesc((int)ShadingModels.CurModelsNum * 3, sizeof(uint), "dispatchIndirectBuffer", GraphicsBuffer.Target.IndirectArguments);
-                passData.dispatchIndirectBuffer = renderGraph.CreateBuffer(indirectBufferDesc);
+                var bufferSystem = GraphicsBufferSystem.instance;
+                var dispatchIndirectBuffer = bufferSystem.GetGraphicsBuffer<uint>(GraphicsBufferSystemBufferID.DeferredLightingIndirect, 
+                    (int)ShadingModels.CurModelsNum * 3, 
+                    "dispatchIndirectBuffer", 
+                    GraphicsBuffer.Target.IndirectArguments);
+                passData.dispatchIndirectBuffer = renderGraph.ImportBuffer(dispatchIndirectBuffer);
                 var tileListBufferDesc = new BufferDesc((int)ShadingModels.CurModelsNum * passData.numTilesX * passData.numTilesY, sizeof(uint), "tileListBuffer");
                 passData.tileListBuffer = renderGraph.CreateBuffer(tileListBufferDesc);
 
@@ -171,6 +154,9 @@ namespace UnityEngine.Rendering.Universal.Internal
                 // Sky Environment
                 passData.ambientProbe = resourceData.skyAmbientProbe;
                 passData.reflectProbe = resourceData.skyReflectionProbe;
+
+                // Lighting Buffers (SSAO, SSR, SSGI, SSShadow)
+                passData.ssrLightingTexture = resourceData.ssrLightingTexture;
 
                 // Declare input/output
                 builder.UseTexture(passData.lightingHandle, AccessFlags.ReadWrite);
@@ -181,6 +167,9 @@ namespace UnityEngine.Rendering.Universal.Internal
 
                 builder.UseBuffer(passData.ambientProbe, AccessFlags.Read);
                 builder.UseTexture(passData.reflectProbe, AccessFlags.Read);
+
+                if (passData.ssrLightingTexture.IsValid())
+                    builder.UseTexture(passData.ssrLightingTexture, AccessFlags.Read);
 
                 // TODO: Delete
                 builder.UseTexture(resourceData.cameraDepthPyramidTexture, AccessFlags.Read);

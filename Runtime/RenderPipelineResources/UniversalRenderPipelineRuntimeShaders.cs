@@ -185,6 +185,15 @@ namespace UnityEngine.Rendering.Universal
             set => this.SetValueAndNotify(ref m_GpuLightsCluster, value);
         }
 
+        [SerializeField, ResourcePath("Shaders/ScreenSpaceLighting/ScreenSpaceReflections.compute")]
+        private ComputeShader m_ScreenSpaceReflectionsCS;
+
+        public ComputeShader screenSpaceReflectionsCS
+        {
+            get => m_ScreenSpaceReflectionsCS;
+            set => this.SetValueAndNotify(ref m_ScreenSpaceReflectionsCS, value);
+        }
+
         /// <summary>
         /// Deferred lighting compute shader.
         /// </summary>

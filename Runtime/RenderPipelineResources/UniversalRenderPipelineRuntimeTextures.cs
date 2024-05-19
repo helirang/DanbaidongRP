@@ -70,5 +70,29 @@ namespace UnityEngine.Rendering.Universal
             get => m_DefaultHDRISky;
             set => this.SetValueAndNotify(ref m_DefaultHDRISky, value, nameof(m_DefaultHDRISky));
         }
+
+        /// <summary>
+        /// STBN, Spatial-Temporal Blue Noise, vec1
+        /// </summary>
+        [SerializeField]
+        [ResourceFormattedPaths("Textures/STBN/vec1/stbn_vec1_2Dx1D_128x128x64_{0}.png", 0, 64)]
+        private Texture2D[] m_BlueNoise128RTex = new Texture2D[64];
+        public Texture2D[] blueNoise128RTex
+        {
+            get => m_BlueNoise128RTex;
+            set => this.SetValueAndNotify(ref m_BlueNoise128RTex, value);
+        }
+
+        /// <summary>
+        /// STBN, Spatial-Temporal Blue Noise, vec2
+        /// </summary>
+        [SerializeField]
+        [ResourceFormattedPaths("Textures/STBN/vec2/stbn_vec2_2Dx1D_128x128x64_{0}.png", 0, 64)]
+        private Texture2D[] m_BlueNoise128RGTex = new Texture2D[64];
+        public Texture2D[] blueNoise128RGTex
+        {
+            get => m_BlueNoise128RGTex;
+            set => this.SetValueAndNotify(ref m_BlueNoise128RGTex, value);
+        }
     }
 }

@@ -14,7 +14,7 @@ namespace UnityEngine.Rendering.Universal
         //AdditionalLightShadowParamsStructuredBuffer,
         //AdditionalLightShadowSliceMatricesStructuredBuffer,
         /// <summary>SSR GraphicsBuffer.</summary>
-        //SSRDispatchIndirectBuffer,
+        SSRDispatchIndirectBuffer,
         //SSRTileListBuffer,
         /// <summary>GPU Lights GraphicsBuffer.</summary>
         GPULightsLightBoundsBuffer,
@@ -27,13 +27,15 @@ namespace UnityEngine.Rendering.Universal
         //GPULightsGlobalLightLIstAtomic,
         //GPULightsData,
         //DirectionalLightsData,
+        /// <summary>DepthPyramid MipLevelOffset GraphicsBuffer.</summary>
+        DepthPyramidMipLevelOffset,
         /// <summary>Deferred Lighting GraphicsBuffer.</summary>
-        //DeferredLightingIndirect,
+        DeferredLightingIndirect,
         //DeferredLightingTileList,
     }
 
     /// <summary>
-    /// GraphicsBufferSystem used for managing GraphicsBuffers in DanbaidongRP.
+    /// GraphicsBufferSystem only used for managing "Persistent" GraphicsBuffers in DanbaidongRP. "Transient" Buffer use renderGraph.
     /// Each camera uses one system, and the GraphicsBuffer will be set to the maximum size across cameras.
     /// 
     /// !!!IMPORTANT!!!

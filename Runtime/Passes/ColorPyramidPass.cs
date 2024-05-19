@@ -33,6 +33,23 @@ namespace UnityEngine.Rendering.Universal.Internal
             }
         }
 
+        static int GetMipCount(Vector2Int pyramidSize)
+        {
+            int srcMipLevel = 0;
+            int srcMipWidth = pyramidSize.x;
+            int srcMipHeight = pyramidSize.y;
+
+            while (srcMipWidth >= 8 || srcMipHeight >= 8)
+            {
+                int dstMipWidth = Mathf.Max(1, srcMipWidth >> 1);
+                int dstMipHeight = Mathf.Max(1, srcMipHeight >> 1);
+
+                srcMipLevel++;
+                srcMipWidth >>= 1;
+                srcMipHeight >>= 1;
+            }
+            return srcMipLevel + 1;
+        }
 
         static int ComputeColorGaussianPyramid(ComputeCommandBuffer cmd, PassData data)
         {
@@ -93,18 +110,17 @@ namespace UnityEngine.Rendering.Universal.Internal
             internal int gaussianKernel;
         }
 
-        internal void Render(RenderGraph renderGraph, ContextContainer frameData, TextureHandle source)
+        internal void Render(RenderGraph renderGraph, ContextContainer frameData, in TextureHandle source, out TextureHandle destination, out int mipCount)
         {
             using (var builder = renderGraph.AddComputePass<PassData>("Color Pyramid", out var passData, base.profilingSampler))
             {
                 // Access resources.
-                UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
                 UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
-                UniversalLightData lightData = frameData.Get<UniversalLightData>();
-                UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
                 var camHistoryRTSystem = HistoryFrameRTSystem.GetOrCreate(cameraData.camera);
                 if (camHistoryRTSystem == null)
                 {
+                    destination = TextureHandle.nullHandle;
+                    mipCount = 0;
                     return;
                 }
 
@@ -112,8 +128,9 @@ namespace UnityEngine.Rendering.Universal.Internal
                 int actualWidth = cameraData.cameraTargetDescriptor.width;
                 int actualHeight = cameraData.cameraTargetDescriptor.height;
                 Vector2Int pyramidSize = new Vector2Int(actualWidth, actualHeight);
-                if (camHistoryRTSystem.GetNumFramesAllocated(HistoryFrameType.ColorBufferMipChain) == 0)
+                if (camHistoryRTSystem.GetCurrentFrameRT(HistoryFrameType.ColorBufferMipChain) == null)
                 {
+                    camHistoryRTSystem.ReleaseHistoryFrameRT(HistoryFrameType.ColorBufferMipChain);
                     camHistoryRTSystem.AllocHistoryFrameRT((int)HistoryFrameType.ColorBufferMipChain, cameraData.camera.name,
                                                                         HistoryBufferAllocatorFunction, cameraData.cameraTargetDescriptor.graphicsFormat, 2);
                 }
@@ -153,6 +170,8 @@ namespace UnityEngine.Rendering.Universal.Internal
                     ComputeColorGaussianPyramid(context.cmd, data);
                 });
 
+                destination = passData.destination;
+                mipCount = GetMipCount(passData.pyramidSize);
             }
         }
 

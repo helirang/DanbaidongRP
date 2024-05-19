@@ -1402,9 +1402,11 @@ namespace UnityEngine.Rendering.Universal
                 m_GPUCopyPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.activeDepthTexture, true);
 
                 // DepthPyramid
-                var depthpyramidDesc = GetCameraDepthPyramidDescriptor(cameraData.cameraTargetDescriptor);
-                resourceData.cameraDepthPyramidTexture = m_GPUCopyPass.RenderDepthPyramidMip0(renderGraph, frameData, resourceData.cameraDepthTexture, depthpyramidDesc);
-                m_DepthPyramidPass.Render(renderGraph, frameData, resourceData.cameraDepthPyramidTexture, m_DepthBufferMipChainInfo);
+                {
+                    var depthpyramidDesc = GetCameraDepthPyramidDescriptor(cameraData.cameraTargetDescriptor);
+                    resourceData.cameraDepthPyramidTexture = m_GPUCopyPass.RenderDepthPyramidMip0(renderGraph, frameData, resourceData.cameraDepthTexture, depthpyramidDesc);
+                    m_DepthPyramidPass.Render(renderGraph, frameData, resourceData.cameraDepthPyramidTexture, m_DepthPyramidInfo);
+                }
 
                 // MotionVectors
                 // Depends on the camera (copy) depth texture. Depth is reprojected to calculate motion vectors.
@@ -1420,6 +1422,10 @@ namespace UnityEngine.Rendering.Universal
 
                 // TODO: SSAO
                 // TODO: SSR
+                if (m_ScreenSpaceReflectionPass.Setup())
+                {
+                    resourceData.ssrLightingTexture = m_ScreenSpaceReflectionPass.RenderSSR(renderGraph, frameData, colorPyramidHistoryMipCount);
+                }
                 // TODO: SSGI
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingShadows);
@@ -1491,7 +1497,10 @@ namespace UnityEngine.Rendering.Universal
 
             // ColorPyramid
             {
-                m_ColorPyramidPass.Render(renderGraph, frameData, resourceData.activeColorTexture);
+                TextureHandle activeColor = resourceData.activeColorTexture;
+                TextureHandle cameraColorPyramidTexture;
+                m_ColorPyramidPass.Render(renderGraph, frameData, in activeColor, out cameraColorPyramidTexture, out colorPyramidHistoryMipCount);
+                resourceData.cameraColorPyramidTexture = cameraColorPyramidTexture;
             }
 
 #if UNITY_EDITOR
@@ -2079,15 +2088,6 @@ namespace UnityEngine.Rendering.Universal
             resourceData.cameraDepthTexture = CreateRenderGraphTexture(renderGraph, depthDescriptor, "_CameraDepthTexture", true);
         }
 
-        void CreateCameraDepthPyramidTexture(RenderGraph renderGraph, RenderTextureDescriptor cameraTargetDesc)
-        {
-            UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
-
-            var depthMipChainDescriptor = GetCameraDepthPyramidDescriptor(cameraTargetDesc);
-
-            resourceData.cameraDepthPyramidTexture = CreateRenderGraphTexture(renderGraph, depthMipChainDescriptor, "_CameraDepthBufferMipChain", true);
-        }
-
         RenderTextureDescriptor GetCameraDepthPyramidDescriptor(RenderTextureDescriptor cameraTargetDesc)
         {
             // DepthBufferMipChain Allocate
@@ -2095,7 +2095,8 @@ namespace UnityEngine.Rendering.Universal
             int actualHeight = cameraTargetDesc.height;
             Vector2Int nonScaledViewport = new Vector2Int(actualWidth, actualHeight);
 
-            m_DepthBufferMipChainInfo.ComputePackedMipChainInfo(nonScaledViewport);
+            m_DepthPyramidInfo.ComputePackedMipChainInfo(nonScaledViewport);
+            Vector2Int depthMipChainSize = m_DepthPyramidInfo.textureSize;
 
             var depthMipChainDescriptor = cameraTargetDesc;
             // Same as depthDescriptor

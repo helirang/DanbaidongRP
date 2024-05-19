@@ -254,6 +254,8 @@ namespace UnityEngine.Rendering.Universal
             XRSystem.SetDisplayMSAASamples(msaaSamples);
             XRSystem.SetRenderScale(asset.renderScale);
 
+            BlueNoiseSystem.Initialize(runtimeTextures);
+
             // We always create this.
             // TODO: Create a switch button for users.
             PreIntegratedFGD.instance.Build(PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse);
@@ -333,6 +335,8 @@ namespace UnityEngine.Rendering.Universal
             SupportedRenderingFeatures.active = new SupportedRenderingFeatures();
             ShaderData.instance.Dispose();
             XRSystem.Dispose();
+
+            BlueNoiseSystem.ClearAll();
 
             PreIntegratedFGD.instance.Cleanup(PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse);
 

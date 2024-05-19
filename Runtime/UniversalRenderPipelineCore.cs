@@ -1917,6 +1917,7 @@ namespace UnityEngine.Rendering.Universal
         MainLightShadow,
         ResolveShadows,
         SSAO,
+        RenderSSR,
 
         // PostProcessPass
         StopNaNs,

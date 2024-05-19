@@ -100,7 +100,7 @@ float3 PackNormal(float3 n)
 
 float3 UnpackNormal(float3 pn)
 {
-    float2 remappedOctNormalWS = float2(Unpack888ToFloat2(pn));          // values between [ 0, +1]
+    float2 remappedOctNormalWS = Unpack888ToFloat2(pn);          // values between [ 0, +1]
     float2 octNormalWS = remappedOctNormalWS.xy * 2.0 - 1.0;// values between [-1, +1]
     return float3(UnpackNormalOctQuadEncode(octNormalWS));              // values between [-1, +1]
 }

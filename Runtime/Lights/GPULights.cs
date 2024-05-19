@@ -303,6 +303,16 @@ namespace UnityEngine.Rendering.Universal.Internal
     /// </summary>
     public class GPULights : ScriptableRenderPass
     {
+        // Profiling tag
+        private static string m_ScreenSpaceAABBTag = "ScreenSpaceAABB";
+        private static string m_CoarseCullingTag = "CoarseCulling";
+        private static string m_ClusterCullingTag = "ClusterCulling";
+        private static string m_ClearLightListsTag = "ClearLightLists";
+        private static ProfilingSampler m_ScreenSpaceAABBSampler = new ProfilingSampler(m_ScreenSpaceAABBTag);
+        private static ProfilingSampler m_CoarseCullingSampler = new ProfilingSampler(m_CoarseCullingTag);
+        private static ProfilingSampler m_ClusterCullingSampler = new ProfilingSampler(m_ClusterCullingTag);
+        private static ProfilingSampler m_ClearLightListsSampler = new ProfilingSampler(m_ClearLightListsTag);
+
         // Public Variables
         internal ShaderVariablesLightList lightCBuffer;
 
@@ -321,29 +331,7 @@ namespace UnityEngine.Rendering.Universal.Internal
         private int m_CoarseCullingLightsKernel;
         private int m_ClusterCullingLightsKernel;
 
-        //private ComputeBuffer m_LightBoundsBuffer;
-        //private ComputeBuffer m_LightVolumeDataBuffer;
-        //private ComputeBuffer m_AABBBoundsBuffer;
-        //private ComputeBuffer m_CoarseLightList;
-
-        // ClusterBuffer
-        //private ComputeBuffer m_PerVoxelOffset;
-        //private ComputeBuffer m_PerVoxelLightLists;
-        //private ComputeBuffer m_PerTileLogBaseTweak;
-        //private ComputeBuffer m_GlobalLightListAtomic;
-
-        // LightsDataBuffer
-        //private ComputeBuffer m_GPULightsData;
-        //private ComputeBuffer m_DirectionalLightsData;
-        //private ComputeBuffer m_EnvLightsData;
-
         private GPULightsDataBuildSystem m_GPULightsDataBuildSystem;
-
-        //private int m_nrBigTilesX;
-        //private int m_nrBigTilesY;
-
-        //private int m_nrClustersX;
-        //private int m_nrClustersY;
 
         // Constants
         private const int k_Log2NumClusters = 6; // accepted range is from 0 to 6 (NR_THREADS is set to 64). NumClusters is 1<<g_iLog2NumClusters
@@ -609,7 +597,7 @@ namespace UnityEngine.Rendering.Universal.Internal
         /// <param name="cmd"></param>
         static void ClearAllLightLists(ComputeCommandBuffer cmd, GPULightsPassData data)
         {
-            using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.GPULights)))
+            using (new ProfilingScope(cmd, m_ClearLightListsSampler))
             {
                 if (data.coarseLightList.IsValid())
                 {
@@ -639,6 +627,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             ConstantBuffer.Push(cmd, data.lightListCB, data.gpuLightsCoarseCullingCS, ShaderConstants.ShaderVariablesLightList);
 
             // GenerateLightsScreenSpaceAABBs
+            using (new ProfilingScope(cmd, m_ScreenSpaceAABBSampler))
             {
                 cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.screenSpaceAABBKernel, ShaderConstants.g_LightBounds, data.lightBoundsBuffer);// in
                 cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.screenSpaceAABBKernel, ShaderConstants.g_vBoundsBuffer, data.AABBBoundsBuffer);// out
@@ -651,6 +640,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             }
 
             // CoarseCullingLights
+            using (new ProfilingScope(cmd, m_CoarseCullingSampler))
             {
                 cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.coarseCullingLightsKernel, ShaderConstants.g_LightVolumeData, data.lightVolumeDataBuffer);// in
                 cmd.SetComputeBufferParam(data.gpuLightsCoarseCullingCS, data.coarseCullingLightsKernel, ShaderConstants.g_LightBounds, data.lightBoundsBuffer);// in
@@ -666,6 +656,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             }
 
             // ClusterLights
+            using (new ProfilingScope(cmd, m_ClusterCullingSampler))
             {
                 cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_LightVolumeData, data.lightVolumeDataBuffer);// in
                 cmd.SetComputeBufferParam(data.gpuLightsCluster, data.clusterCullingLightsKernel, ShaderConstants.g_LightBounds, data.lightBoundsBuffer);// in

@@ -80,6 +80,7 @@ namespace UnityEngine.Rendering.Universal
         private BufferedRTHandleSystem m_BufferedRTHandleSystem;
 
         public Camera camera;
+        public int historyFrameCount = 0;
         /// <summary>Camera name.</summary>
         public string name { get; private set; } // Needs to be cached because camera.name generates GCAllocs
 
@@ -143,6 +144,7 @@ namespace UnityEngine.Rendering.Universal
         /// <param name="actualHeight"></param>
         public void SetReferenceSize(int actualWidth, int actualHeight)
         {
+            historyFrameCount++;
             m_BufferedRTHandleSystem.SwapAndSetReferenceSize(actualWidth, actualHeight);
         }
 
