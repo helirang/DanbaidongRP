@@ -101,10 +101,6 @@ RWStructuredBuffer<uint> gTileList;
 #endif
 
 // Use constant buffer instead
-// float4x4 _SSR_MATRIX_VP;
-// float4x4 _SSR_MATRIX_I_VP;
-
-// float4x4 _SSR_PREV_MATRIX_VP;
 // float4x4 _SSR_MATRIX_CLIP_TO_PREV_CLIP;
 
 // float4 _SsrTraceScreenSize;
@@ -364,7 +360,7 @@ void ScreenSpaceReflectionsTracing(uint3 dispatchThreadId : SV_DispatchThreadID,
     }
 
 
-    float3 positionWS = ComputeWorldSpacePosition(screenUV, deviceDepth, _SSR_MATRIX_I_VP); // Jittered
+    float3 positionWS = ComputeWorldSpacePosition(screenUV, deviceDepth, UNITY_MATRIX_I_VP); // Jittered
     float3 V = GetWorldSpaceNormalizeViewDir(positionWS);
 
     float3 originPosWS = positionWS;
@@ -379,13 +375,11 @@ void ScreenSpaceReflectionsTracing(uint3 dispatchThreadId : SV_DispatchThreadID,
     {
         float2 blueNoiseRandom = 0;
         blueNoiseRandom.xy = GetSpatiotemporalBlueNoiseVec2(coordSS);
-        // Bias will make the sampled points cluster more towards the top of the hemisphere.
-        blueNoiseRandom.x = lerp(blueNoiseRandom.x, 0.0f, _SsrPBRBias);
-
 
         float NdotL, VdotH, NdotV;
         float3x3 localToWorld = GetLocalFrame(N);
         float roughness = PerceptualRoughnessToRoughness(perceptualRoughness);
+        roughness = lerp(roughness, 0.0f, _SsrPBRBias);
         roughness = clamp(roughness, MIN_GGX_ROUGHNESS, MAX_GGX_ROUGHNESS);
 
         float3 localV, localH;
@@ -412,7 +406,7 @@ void ScreenSpaceReflectionsTracing(uint3 dispatchThreadId : SV_DispatchThreadID,
     // Apply normal bias with the magnitude dependent on the distance from the camera.
     // Unfortunately, we only have access to the shading normal, which is less than ideal...
     positionWS = camPosWS + (positionWS - camPosWS) * (1 - 0.001 * rcp(max(dot(N, V), FLT_EPS)));
-    deviceDepth = ComputeNormalizedDeviceCoordinatesWithZ(positionWS, _SSR_MATRIX_VP).z;
+    deviceDepth = ComputeNormalizedDeviceCoordinatesWithZ(positionWS, UNITY_MATRIX_VP).z;
     bool killRay = deviceDepth == UNITY_RAW_FAR_CLIP_VALUE;
 
     // Ref. #1: Michal Drobot - Quadtree Displacement Mapping with Height Blending.
@@ -424,7 +418,7 @@ void ScreenSpaceReflectionsTracing(uint3 dispatchThreadId : SV_DispatchThreadID,
     float3 rayOrigin = float3(coordSS + 0.5, deviceDepth);
 
     float3 reflPosWS  = positionWS + R;
-    float3 reflPosNDC = ComputeNormalizedDeviceCoordinatesWithZ(reflPosWS, _SSR_MATRIX_VP); // Jittered
+    float3 reflPosNDC = ComputeNormalizedDeviceCoordinatesWithZ(reflPosWS, UNITY_MATRIX_VP); // Jittered
     float3 reflPosSS  = float3(reflPosNDC.xy * _SsrTraceScreenSize.xy, reflPosNDC.z);
     float3 rayDir     = reflPosSS - rayOrigin;
     float3 rcpRayDir  = rcp(rayDir);
@@ -581,7 +575,7 @@ void ScreenSpaceReflectionsTracing(uint3 dispatchThreadId : SV_DispatchThreadID,
         _SSRHitPointTexture[coordSS] = hitScreenUV.xy;
 
         float  hitDeviceZ = LOAD_TEXTURE2D_X(_CameraDepthTexture, hitCoordSS).r;
-        float3 hitPosWS = ComputeWorldSpacePosition(hitScreenUV, hitDeviceZ, _SSR_MATRIX_I_VP);
+        float3 hitPosWS = ComputeWorldSpacePosition(hitScreenUV, hitDeviceZ, UNITY_MATRIX_I_VP);
         float hitDistance = length(hitPosWS - originPosWS);
         _SSRRayInfoTexture[coordSS] = float2(max(ConeAngle, HALF_MIN), 1 / hitDistance);
     }
@@ -767,7 +761,7 @@ void ScreenSpaceReflectionsResolve(uint3 dispatchThreadId : SV_DispatchThreadID,
     {
         float2 screenUV = TransformCoordSSToScreenUV(coordSS, _ScreenSize);
         float  centerDeviceZ = LOAD_TEXTURE2D_X(_CameraDepthTexture, coordSS).r;
-        float3 centerPosWS = ComputeWorldSpacePosition(screenUV, centerDeviceZ, _SSR_MATRIX_I_VP);
+        float3 centerPosWS = ComputeWorldSpacePosition(screenUV, centerDeviceZ, UNITY_MATRIX_I_VP);
         float3 V = GetWorldSpaceNormalizeViewDir(centerPosWS);
         
         float closestHitDistance = center.hitDistance;
@@ -822,7 +816,7 @@ void ScreenSpaceReflectionsResolve(uint3 dispatchThreadId : SV_DispatchThreadID,
 
 
             float3 virtualPosWS = centerPosWS - V * closestHitDistance;
-            float3 virtualPosNDC = ComputeNormalizedDeviceCoordinatesWithZ(virtualPosWS, _SSR_MATRIX_VP);
+            float3 virtualPosNDC = ComputeNormalizedDeviceCoordinatesWithZ(virtualPosWS, UNITY_MATRIX_VP);
             _SSRHitDepthTexture[coordSS] = virtualPosNDC.z;
         }
     }
@@ -1179,7 +1173,7 @@ void ScreenSpaceReflectionsAccumulate(uint3 dispatchThreadId : SV_DispatchThread
         float roughnessFade = PerceptualRoughnessFade(perceptualRoughness, _SsrRoughnessFadeRcpLength, _SsrRoughnessFadeEndTimesRcpLength);
 
         // Write texture
-        _SsrLightingTexture[coordSS] = float4(result * roughnessFade, Luminance(neighborhood.variance));
+        _SsrLightingTexture[coordSS] = float4(result * roughnessFade, 0);
         _SSRAccumTexture[coordSS] = float4(result, bResultValid);
         _SSRNumFramesAccumTexture[coordSS] = accumulatedFramesNum / maxSamplesNum;
     }

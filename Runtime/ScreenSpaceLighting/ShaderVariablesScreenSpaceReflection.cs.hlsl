@@ -7,9 +7,6 @@
 // Generated from UnityEngine.Rendering.Universal.ShaderVariablesScreenSpaceReflection
 // PackingRules = Exact
 CBUFFER_START(ShaderVariablesScreenSpaceReflection)
-    float4x4 _SSR_MATRIX_VP;
-    float4x4 _SSR_MATRIX_I_VP;
-    float4x4 _SSR_PREV_MATRIX_VP;
     float4x4 _SSR_MATRIX_CLIP_TO_PREV_CLIP;
     float4 _SsrTraceScreenSize;
     float _SsrThicknessScale;

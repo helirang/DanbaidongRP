@@ -263,27 +263,11 @@ namespace UnityEngine.Rendering.Universal
             
             // Constant Params
             {
-                // Wtf? It seems that Unity has not setted this jittered matrix (or changed by something)?
-                // We will transfer our own Temporal AA jittered matrices and use it in SSR compute.
-                Matrix4x4 viewMatrix = cameraData.GetViewMatrix();
-                // Jittered, non-gpu
-                //Matrix4x4 projectionMatrix = renderingData.cameraData.GetProjectionMatrix();
-                // Jittered, gpu
-                Matrix4x4 gpuProjectionMatrix = cameraData.GetGPUProjectionMatrix(true);
-                Matrix4x4 viewAndProjectionMatrix = gpuProjectionMatrix * viewMatrix;
-                Matrix4x4 inverseViewMatrix = Matrix4x4.Inverse(viewMatrix);
-                Matrix4x4 inverseProjectionMatrix = Matrix4x4.Inverse(gpuProjectionMatrix);
-                Matrix4x4 inverseViewProjection = inverseViewMatrix * inverseProjectionMatrix;
-
-                passData.constantBuffer._SSR_MATRIX_VP = viewAndProjectionMatrix;
-                passData.constantBuffer._SSR_MATRIX_I_VP = inverseViewProjection;
-
                 MotionVectorsPersistentData motionData = null;
                 if (cameraData.camera.TryGetComponent<UniversalAdditionalCameraData>(out var additionalCameraData))
                     motionData = additionalCameraData.motionVectorsPersistentData;
                 if (motionData != null)
                 {
-                    //constantBuffer._SSR_PREV_MATRIX_VP = motionData.previousViewProjectionJittered;
                     passData.constantBuffer._SSR_MATRIX_CLIP_TO_PREV_CLIP = motionData.previousViewProjection * Matrix4x4.Inverse(motionData.viewProjection);
                 }
 

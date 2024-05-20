@@ -464,11 +464,18 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
         reflectDirWS = lerp(specDominantDirWS, reflectDirWS, saturate(smoothstep(0, 1, shadingData.roughness2)));
     }
 
+    // Evaluate ScreenSpaceReflection (We have problem with this.)
+    float reflectionHierarchyWeight = 0.0; // Max: 1.0
+    // float4 ssrLighting = LOAD_TEXTURE2D(_SSRLightingTexture, posInput.positionSS);
+    // reflectionHierarchyWeight = ssrLighting.a;
+    // indirectSpecular += specularFGD * ssrLighting.rgb;
 
-    float4 ssrLighting = LOAD_TEXTURE2D(_SSRLightingTexture, posInput.positionSS);
-
-    float3 envReflection = SampleEnvironment(reflectDirWS, shadingData.perceptualRoughness, shadingData.occlusion).rgb;
-    indirectSpecular += specularFGD * envReflection;
+    // Evaluate SkyEnvironment
+    if (reflectionHierarchyWeight < 1.0)
+    {
+        float3 envReflection = SampleEnvironment(reflectDirWS, shadingData.perceptualRoughness, shadingData.occlusion).rgb;
+        indirectSpecular += specularFGD * envReflection;
+    }
 
     // Post evaluate indirect diffuse or energy.
 

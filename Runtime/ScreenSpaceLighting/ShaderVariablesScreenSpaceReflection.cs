@@ -3,10 +3,6 @@ namespace UnityEngine.Rendering.Universal
     [GenerateHLSL(needAccessors = false, generateCBuffer = true)]
     unsafe struct ShaderVariablesScreenSpaceReflection
     {
-        public Matrix4x4 _SSR_MATRIX_VP;
-        public Matrix4x4 _SSR_MATRIX_I_VP;
-
-        public Matrix4x4 _SSR_PREV_MATRIX_VP;
         public Matrix4x4 _SSR_MATRIX_CLIP_TO_PREV_CLIP;
 
         public Vector4 _SsrTraceScreenSize;
