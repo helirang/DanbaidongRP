@@ -1457,7 +1457,8 @@ namespace UnityEngine.Rendering.Universal
                 // DeferredLighting
                 m_DeferredLighting.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, resourceData.gBuffer);
 
-                // TODO: CharacterForwardLights
+                // Character Forward Lighting
+                m_CharacterForwardLighting.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture);
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingDeferredLights, RenderPassEvent.BeforeRenderingOpaques);
 

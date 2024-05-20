@@ -120,6 +120,7 @@ namespace UnityEngine.Rendering.Universal
         ScreenSpaceReflectionPass m_ScreenSpaceReflectionPass;
         DeferredPass m_DeferredPass;
         DeferredLighting m_DeferredLighting;
+        CharacterForwardLighting m_CharacterForwardLighting;
         DrawObjectsPass m_RenderOpaqueForwardOnlyPass;
         DrawObjectsPass m_RenderOpaqueForwardPass;
         DrawObjectsWithRenderingLayersPass m_RenderOpaqueForwardWithRenderingLayersPass;
@@ -334,6 +335,7 @@ namespace UnityEngine.Rendering.Universal
 
                 m_DeferredPass = new DeferredPass(RenderPassEvent.BeforeRenderingDeferredLights, m_DeferredLights);
                 m_DeferredLighting = new DeferredLighting(RenderPassEvent.BeforeRenderingDeferredLights, m_DeferredLights, runtimeShaders.deferredLightingCS);
+                m_CharacterForwardLighting = new CharacterForwardLighting(RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask, m_DefaultStencilState, stencilData.stencilReference);
                 m_RenderOpaqueForwardOnlyPass = new DrawObjectsPass("Render Opaques Forward Only", forwardOnlyShaderTagIds, true, RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask, forwardOnlyStencilState, forwardOnlyStencilRef);
             }
 
