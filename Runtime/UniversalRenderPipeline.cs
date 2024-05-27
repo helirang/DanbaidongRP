@@ -336,6 +336,8 @@ namespace UnityEngine.Rendering.Universal
             ShaderData.instance.Dispose();
             XRSystem.Dispose();
 
+            RayTracingSystem.ClearAll();
+
             BlueNoiseSystem.ClearAll();
 
             PreIntegratedFGD.instance.Cleanup(PreIntegratedFGD.FGDIndex.FGD_GGXAndDisneyDiffuse);
@@ -451,6 +453,7 @@ namespace UnityEngine.Rendering.Universal
             {
                 m_FrameCount = newCount;
 
+                RayTracingSystem.CleanUnused();
                 HistoryFrameRTSystem.CleanUnused();
             }
 
@@ -1531,6 +1534,13 @@ namespace UnityEngine.Rendering.Universal
                 cameraData.useScreenCoordOverride = false;
                 cameraData.screenSizeOverride = cameraData.pixelRect.size;
                 cameraData.screenCoordScaleBias = Vector2.one;
+            }
+
+            // Ray Tracing
+            cameraData.supportedRayTracing = settings.supportsRayTracing && (isSceneViewCamera || cameraData.isGameCamera);
+            if (cameraData.supportedRayTracing)
+            {
+                cameraData.rayTracingSystem = RayTracingSystem.GetOrCreate(camera);
             }
 
             cameraData.renderer = renderer;

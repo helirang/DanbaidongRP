@@ -245,6 +245,16 @@ namespace UnityEngine.Rendering.Universal
         public bool isAlphaOutputEnabled;
 
         /// <summary>
+        /// True if this camera can enable ray tracing pipeline.
+        /// </summary>
+        public bool supportedRayTracing;
+
+        /// <summary>
+        /// RayTracing system for current camera.
+        /// </summary>
+        internal RayTracingSystem rayTracingSystem;
+
+        /// <summary>
         /// True if this camera requires to write _CameraDepthTexture.
         /// </summary>
         public bool requiresDepthTexture;
@@ -629,6 +639,8 @@ namespace UnityEngine.Rendering.Universal
             isHdrEnabled = false;
             allowHDROutput = false;
             isAlphaOutputEnabled = false;
+            supportedRayTracing = false;
+            rayTracingSystem = null;
             requiresDepthTexture = false;
             requiresOpaqueTexture = false;
             postProcessingRequiresDepthTexture = false;

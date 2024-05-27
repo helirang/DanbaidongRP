@@ -20,8 +20,8 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// When selected, both ray marching and ray tracing are used to evaluate ray intersections.
         /// </summary>
-        [InspectorName("Mixed")]
-        Mixed = 1 << 2,
+        //[InspectorName("Mixed")]
+        //Mixed = 1 << 2,
     }
 
     /// <summary>

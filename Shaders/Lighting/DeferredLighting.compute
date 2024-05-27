@@ -157,6 +157,17 @@ void InitializeDispatchThreadIdFromTileList(uint groupId, uint2 gThreadId, out u
               + gThreadId;
 }
 
+// This function is use with reflection and refraction hierarchy of LightLoop
+// It will add weight to hierarchyWeight but ensure that hierarchyWeight is not more than one
+// by updating the weight value. Returned weight value must be apply on current lighting
+// Example: Total hierarchyWeight is 0.8 and weight is 0.4. Function return hierarchyWeight of 1.0 and weight of 0.2
+// hierarchyWeight and weight must be positive and between 0 and 1
+void UpdateLightingHierarchyWeights(inout float hierarchyWeight, inout float weight)
+{
+    float accumulatedWeight = hierarchyWeight + weight;
+    hierarchyWeight = saturate(accumulatedWeight);
+    weight -= saturate(accumulatedWeight - hierarchyWeight);
+}
 
 #endif
 
@@ -466,15 +477,17 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
 
     // Evaluate ScreenSpaceReflection (We have problem with this.)
     float reflectionHierarchyWeight = 0.0; // Max: 1.0
-    // float4 ssrLighting = LOAD_TEXTURE2D(_SSRLightingTexture, posInput.positionSS);
-    // reflectionHierarchyWeight = ssrLighting.a;
-    // indirectSpecular += specularFGD * ssrLighting.rgb;
+    float4 ssrLighting = LOAD_TEXTURE2D(_SSRLightingTexture, posInput.positionSS);
+    reflectionHierarchyWeight = ssrLighting.a;
+    indirectSpecular += specularFGD * ssrLighting.rgb;
 
     // Evaluate SkyEnvironment
     if (reflectionHierarchyWeight < 1.0)
     {
+        float weight = 1.0;
+        UpdateLightingHierarchyWeights(reflectionHierarchyWeight, weight);
         float3 envReflection = SampleEnvironment(reflectDirWS, shadingData.perceptualRoughness, shadingData.occlusion).rgb;
-        indirectSpecular += specularFGD * envReflection;
+        indirectSpecular += specularFGD * envReflection * weight;
     }
 
     // Post evaluate indirect diffuse or energy.

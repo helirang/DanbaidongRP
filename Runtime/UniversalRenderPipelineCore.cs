@@ -1901,6 +1901,9 @@ namespace UnityEngine.Rendering.Universal
         UpdataSkyEnvConvolution,
         FilterCubemapGGX,
 
+        // RayTracing
+        RaytracingBuildAccelerationStructure,
+
         // DrawObjectsPass
         DrawOpaqueObjects,
         DrawTransparentObjects,

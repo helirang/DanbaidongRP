@@ -5,7 +5,7 @@ namespace UnityEngine.Rendering.Universal
     /// <summary>
     /// This defines the order in which the fall backs are used if a ray tracing misses.
     /// </summary>
-    //[GenerateHLSL]
+    [GenerateHLSL]
     public enum RayTracingFallbackHierachy
     {
         /// <summary>

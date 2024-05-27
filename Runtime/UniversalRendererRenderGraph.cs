@@ -700,6 +700,21 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
+        internal void SetupRayTracingSystems(RenderGraph renderGraph, UniversalRenderingData renderingData, UniversalCameraData cameraData, UniversalLightData lightData)
+        {
+            if (cameraData.supportedRayTracing)
+            {
+                // TODO: Check HDRP for update. It might change to a single one system, not current per camera.
+                using (new ProfilingScope(ProfilingSampler.Get(URPProfileId.RaytracingBuildAccelerationStructure)))
+                {
+                    cameraData.rayTracingSystem.BuildRayTracingAccelerationStructure();
+                }
+
+                // TODO: builds the ray tracing light cluster
+                //RayTracingClusterCull();
+            }
+        }
+
         // "Raw render" color/depth history.
         // Should include opaque and transparent geometry before TAA or any post-processing effects. No UI overlays etc.
         private void RenderRawColorDepthHistory(RenderGraph renderGraph, UniversalCameraData cameraData, UniversalResourceData resourceData)
@@ -780,6 +795,8 @@ namespace UnityEngine.Rendering.Universal
             MotionVectorRenderPass.SetRenderGraphMotionVectorGlobalMatrices(renderGraph, cameraData);
 
             SetupRenderGraphLights(renderGraph, renderingData, cameraData, lightData);
+
+            SetupRayTracingSystems(renderGraph, renderingData, cameraData, lightData);
 
             SetupRenderingLayers(cameraData.cameraTargetDescriptor.msaaSamples);
 
@@ -1421,11 +1438,8 @@ namespace UnityEngine.Rendering.Universal
                 m_GPULights.Render(renderGraph, frameData);
 
                 // TODO: SSAO
-                // TODO: SSR
-                if (m_ScreenSpaceReflectionPass.Setup())
-                {
-                    resourceData.ssrLightingTexture = m_ScreenSpaceReflectionPass.RenderSSR(renderGraph, frameData, colorPyramidHistoryMipCount);
-                }
+
+
                 // TODO: SSGI
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingShadows);
@@ -1439,6 +1453,8 @@ namespace UnityEngine.Rendering.Universal
                 }
                 // TODO: ScreenSpaceShadowMap
 
+
+
                 // AdditionalShadowCaster
                 if (m_AdditionalLightsShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))
                 {
@@ -1449,6 +1465,11 @@ namespace UnityEngine.Rendering.Universal
                 if (renderShadows)
                     SetupRenderGraphCameraProperties(renderGraph, resourceData.isActiveTargetBackBuffer);
 
+                // SSR, RayTracing reflection needs mainlightshadowmap.
+                if (m_ScreenSpaceReflectionPass.Setup())
+                {
+                    resourceData.ssrLightingTexture = m_ScreenSpaceReflectionPass.RenderSSR(renderGraph, frameData, colorPyramidHistoryMipCount);
+                }
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingShadows, RenderPassEvent.BeforeRenderingDeferredLights);
 

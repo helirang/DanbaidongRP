@@ -277,6 +277,15 @@ namespace UnityEngine.Rendering.Universal
             set => this.SetValueAndNotify(ref m_GGXConvolvePS, value);
         }
 
+        [SerializeField, ResourcePath("Shaders/RayTracing/TestRayTracingShader.raytrace")]
+        private RayTracingShader m_RayTracingTest;
+
+        public RayTracingShader rayTracingTest
+        {
+            get => m_RayTracingTest;
+            set => this.SetValueAndNotify(ref m_RayTracingTest, value);
+        }
+
 #if UNITY_EDITOR
         public void EnsureShadersCompiled()
         {

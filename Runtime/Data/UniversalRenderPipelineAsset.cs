@@ -474,6 +474,9 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField] internal int m_DefaultRendererIndex = 0;
 
         // General settings
+        [SerializeField] bool m_RequireRayTracing = true;
+
+        // General settings
         [SerializeField] bool m_RequireDepthTexture = false;
         [SerializeField] bool m_RequireOpaqueTexture = false;
         [SerializeField] Downsampling m_OpaqueDownsampling = Downsampling._2xBilinear;
@@ -1038,6 +1041,15 @@ namespace UnityEngine.Rendering.Universal
                 }
                 return list;
             }
+        }
+
+        /// <summary>
+        /// When true, we will enable ray tracing pipeline.
+        /// </summary>
+        public bool supportsRayTracing
+        {
+            get => m_RequireRayTracing && SystemInfo.supportsRayTracing;
+            set => m_RequireRayTracing = value;
         }
 
         /// <summary>

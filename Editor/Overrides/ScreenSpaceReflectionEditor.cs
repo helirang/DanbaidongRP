@@ -183,6 +183,23 @@ namespace UnityEditor.Rendering.Universal
 
         void RayTracedReflectionGUI(RayCastingMode tracingMode)
         {
+            if (!SystemInfo.supportsRayTracing)
+            {
+                EditorGUILayout.HelpBox("Check RayTracing in pipeline asset rendering settings.", MessageType.Error, true);
+            }
+            else
+            {
+                PropertyField(m_MinSmoothness, k_MinimumSmoothnessText);
+                PropertyField(m_SmoothnessFadeStart, k_SmoothnessFadeStartText);
+                m_SmoothnessFadeStart.value.floatValue = Mathf.Max(m_MinSmoothness.value.floatValue, m_SmoothnessFadeStart.value.floatValue);
+
+                PropertyField(m_ScreenFadeDistance, k_ScreenFaceDistanceText);
+
+                PropertyField(m_AccumulationFactor, k_AccumulationFactorText);
+                PropertyField(m_BiasFactor, k_BiasFactorText);
+            }
+
+
             //HDRenderPipelineAsset currentAsset = HDRenderPipeline.currentAsset;
 
             //if (RenderPipelineManager.currentPipeline is not HDRenderPipeline { rayTracingSupported: true })

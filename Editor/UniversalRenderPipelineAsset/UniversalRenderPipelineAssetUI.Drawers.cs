@@ -177,6 +177,12 @@ namespace UnityEditor.Rendering.Universal
             EditorGUILayout.PropertyField(serialized.supportsDynamicBatching, Styles.dynamicBatching);
             EditorGUILayout.PropertyField(serialized.debugLevelProp, Styles.debugLevel);
             EditorGUILayout.PropertyField(serialized.storeActionsOptimizationProperty, Styles.storeActionsOptimizationText);
+
+            EditorGUILayout.PropertyField(serialized.requireRayTracingProp, Styles.rayTracingText);
+            if (serialized.requireRayTracingProp.boolValue && !SystemInfo.supportsRayTracing)
+            {
+                EditorGUILayout.HelpBox(Styles.noSupportRayTracingText, MessageType.Warning, true);
+            }
         }
 
         static void DrawQuality(SerializedUniversalRenderPipelineAsset serialized, Editor ownerEditor)

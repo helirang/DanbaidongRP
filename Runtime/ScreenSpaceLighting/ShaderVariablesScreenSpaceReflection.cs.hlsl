@@ -24,6 +24,7 @@ CBUFFER_START(ShaderVariablesScreenSpaceReflection)
     float _SsrAccumulationAmount;
     float4 _HistoryFrameRTSize;
     float _SsrPBRBias;
+    int _SsrMixWithRayTracing;
 CBUFFER_END
 
 

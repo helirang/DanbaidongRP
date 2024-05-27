@@ -16,6 +16,8 @@ namespace UnityEditor.Rendering.Universal
         public SerializedProperty lodCrossFadeDitheringTypeProp { get; }
         public SerializedProperty storeActionsOptimizationProperty { get; }
 
+        public SerializedProperty requireRayTracingProp {  get; }
+
         public SerializedProperty hdr { get; }
         public SerializedProperty hdrColorBufferPrecisionProp { get; }
         public SerializedProperty msaa { get; }
@@ -173,6 +175,8 @@ namespace UnityEditor.Rendering.Universal
             volumeProfileProp = serializedObject.FindProperty("m_VolumeProfile");
 
             storeActionsOptimizationProperty = serializedObject.FindProperty("m_StoreActionsOptimization");
+
+            requireRayTracingProp = serializedObject.FindProperty("m_RequireRayTracing");
 
             colorGradingMode = serializedObject.FindProperty("m_ColorGradingMode");
             colorGradingLutSize = serializedObject.FindProperty("m_ColorGradingLutSize");

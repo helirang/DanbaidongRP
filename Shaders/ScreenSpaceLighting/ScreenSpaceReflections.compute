@@ -37,88 +37,63 @@
 // Inputs & outputs
 //--------------------------------------------------------------------------------------------------
 
-// For opaque we do the following operation:
-// - Render opaque object in depth buffer
-// - Generate depth pyramid from opaque depth buffer
-// - Trigger ray from position recover from depth pyramid and raymarch with depth pyramid
-// For transparent reflection we chose to not regenerate a depth pyramid to save performance. So we have
-// - Generate depth pyramid from opaque depth buffer
-// - Trigger ray from position recover from depth buffer (use depth pyramid) and raymarch with depth pyramid
-// - Render transparent object with reflection in depth buffer in transparent prepass
-// - Trigger ray from position recover from new depth buffer and raymarch with opaque depth pyramid
-// So we need a seperate texture for the mip chain and for the depth source when doing the transprent reflection
-
+// Global Textures
 TEXTURE2D_X_FLOAT(_CameraDepthTexture);
 SAMPLER(sampler_CameraDepthTexture);
+
 TEXTURE2D_X(_ColorPyramidTexture);
-SAMPLER(ssr_trilinear_clamp_sampler);
-SAMPLER(ssr_bilinear_clamp_sampler);
-SAMPLER(ssr_point_clamp_sampler);
 
 TEXTURE2D(_CameraDepthPyramidTexture);
 StructuredBuffer<int2>  _DepthPyramidMipLevelOffsets;
 
 TEXTURE2D_X_FLOAT(_GBuffer2);
 
+SAMPLER(ssr_trilinear_clamp_sampler);
+SAMPLER(ssr_bilinear_clamp_sampler);
+SAMPLER(ssr_point_clamp_sampler);
 
-#define TILE_INDEX_MASK (0xffffu)
-#define TILE_INDEX_SHIFT_X (0)
-#define TILE_INDEX_SHIFT_Y (16)
 
+// Indirect dispatch args
 RWBuffer<uint> gDispatchIndirectBuffer;
 RWStructuredBuffer<uint> gTileList;
 
-
+// PerPass Input & outputs
 #ifdef SSR_CLASSIFYTILES
-
 #elif defined(SSR_TRACE)
-    RW_TEXTURE2D(float2, _SSRHitPointTexture);
-    RW_TEXTURE2D(float2, _SSRRayInfoTexture);
+    // Ray tracing indirect dispatch args
+    RWBuffer<uint> _RayIndirectBuffer;
+    RWStructuredBuffer<uint> _DispatchRayCoordBuffer;
+    // _CameraDepthPyramidTexture
+    // _CameraDepthTexture
+    // _CameraMotionVectorsTexture
+    // _ColorPyramidTexture
+    // _GBuffer2
+    // _STBNvec2Texture
+    RW_TEXTURE2D(float4, _RayHitColorTexture);
+    RW_TEXTURE2D(float3, _SSRRayInfoTexture);
+    RW_TEXTURE2D(float4, _DispatchRayDirTexture); //RayTracing dir
 #elif defined(SSR_RESOLVE)
-       TEXTURE2D(        _SSRHitPointTexture);
-    TEXTURE2D(_SSRRayInfoTexture);
-    RW_TEXTURE2D(float,  _SSRHitDepthTexture);
-    RW_TEXTURE2D(float,  _SSRResolveVarianceTexture);
+    // _CameraDepthTexture
+    // _GBuffer2
+    RW_TEXTURE2D(float3, _SSRRayInfoTexture);
+       TEXTURE2D(        _RayHitColorTexture);
     RW_TEXTURE2D(float4, _SSRAccumTexture);
     RW_TEXTURE2D(float3, _SSRAvgRadianceTexture);
 #elif defined(SSR_ACCUMULATE)
-       TEXTURE2D(        _SSRHitPointTexture);
-       TEXTURE2D(        _SSRHitDepthTexture);
-       TEXTURE2D(        _SSRResolveVarianceTexture);
+    // _CameraDepthTexture
+    // _GBuffer2
+       TEXTURE2D(        _SSRRayInfoTexture);
        TEXTURE2D(        _SsrAccumPrev);
        TEXTURE2D(        _SSRAvgRadianceTexture);
        TEXTURE2D(        _SSRPrevNumFramesAccumTexture);
-    // RW_TEXTURE2D(float4, _SsrAccumPrev);
     RW_TEXTURE2D(float4, _SsrLightingTexture);
     RW_TEXTURE2D(float4, _SSRAccumTexture);
     RW_TEXTURE2D(float,  _SSRNumFramesAccumTexture);
-#elif defined(SSR_BILATERAL)
-       TEXTURE2D(        _SSRResolveVarianceTexture);
-    RW_TEXTURE2D(float4, _SSRAccumTexture);
-    RW_TEXTURE2D(float4, _SsrLightingTexture);
-#elif defined(SSR_ATROUS)
-    RW_TEXTURE2D(float4, _SSRAccumTexture);
 #endif
+// We also have bilateral and a-trous path in git history, but they have poor performance.
 
 // Use constant buffer instead
-// float4x4 _SSR_MATRIX_CLIP_TO_PREV_CLIP;
 
-// float4 _SsrTraceScreenSize;
-// float _SsrThicknessScale;
-// float _SsrThicknessBias;
-// int _SsrIterLimit;
-// float _SsrRoughnessFadeEnd;
-// float _SsrRoughnessFadeRcpLength;
-// float _SsrRoughnessFadeEndTimesRcpLength;
-// float _SsrEdgeFadeRcpLength;
-// float4 _ColorPyramidUvScaleAndLimitPrevFrame;
-// int _SsrDepthPyramidMaxMip;
-// int _SsrColorPyramidMaxMip;
-// int _SsrReflectsSky;
-// float _SsrAccumulationAmount;
-// float _SsrPBRBias;
-// float _SsrFrameCount;
-// float4 _HistoryFrameRTSize; // width height 1/width 1/height
 
 //--------------------------------------------------------------------------------------------------
 // Helpers
@@ -126,6 +101,10 @@ RWStructuredBuffer<uint> gTileList;
 
 #define NEED_RAYTRACED_REFLECTIONS(perceptualRoughness) (perceptualRoughness < _SsrRoughnessFadeEnd)
 #define IS_MIRROR_REFLECTIONS(perceptualRoughness) (perceptualRoughness < 0.01)
+
+#define TILE_INDEX_MASK (0xffffu)
+#define TILE_INDEX_SHIFT_X (0)
+#define TILE_INDEX_SHIFT_Y (16)
 
 uint2 DecodeTileIndex(uint encoded)
 {
@@ -179,7 +158,7 @@ float PerceptualRoughnessFade(float perceptualRoughness, float fadeRcpLength, fl
     return Smoothstep01(t);
 }
 
-void GetNormalAndPerceptualRoughness(uint2 coordSS, out float3 normalWS, out float perceptualRoughness)
+void LoadNormalAndPerceptualRoughness(uint2 coordSS, out float3 normalWS, out float perceptualRoughness)
 {
     // Load normal and perceptualRoughness.
     float4 normalGBuffer = LOAD_TEXTURE2D_X(_GBuffer2, coordSS);
@@ -228,7 +207,7 @@ float3 LoadUVAndSampleRadianceFromPrevColorPyramid(float2 hitScreenUV)
     return radiance;
 }
 
-float3 LoadUVAndSampleRadianceFromPrevColorPyramidWithOpacity(float2 hitScreenUV)
+float4 LoadUVAndSampleRadianceFromPrevColorPyramidWithOpacity(float2 hitScreenUV)
 {
     float3 radiance = 0;
 
@@ -242,7 +221,8 @@ float3 LoadUVAndSampleRadianceFromPrevColorPyramidWithOpacity(float2 hitScreenUV
     radiance = SAMPLE_TEXTURE2D_X_LOD(_ColorPyramidTexture, ssr_bilinear_clamp_sampler, prevFrameUV, 0).rgb;
 
     float edgeOpacity = EdgeOfScreenFade(prevFrameNDC, _SsrEdgeFadeRcpLength);
-    return radiance * edgeOpacity;
+
+    return float4(radiance, edgeOpacity);
 }
 
 //https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Weighted_incremental_algorithm
@@ -273,7 +253,20 @@ float CalculateLocalBrdfWeight(float3 N, float3 V, float3 L, float roughness)
 }
 
 
+// Ray Tracing rays coord buffer
+#define RAY_COORD_MASK (0xffffu)
+#define RAY_COORD_SHIFT_X (0)
+#define RAY_COORD_SHIFT_Y (16)
 
+uint2 DecodeRayCoord(uint encoded)
+{
+    return uint2((encoded >> RAY_COORD_SHIFT_X) & RAY_COORD_MASK, (encoded >> RAY_COORD_SHIFT_Y) & RAY_COORD_MASK);
+}
+
+uint EncodeRayCoord(uint2 tileID)
+{
+    return (tileID.y << RAY_COORD_SHIFT_Y) | (tileID.x << RAY_COORD_SHIFT_X);
+}
 
 
 //--------------------------------------------------------------------------------------------------
@@ -283,8 +276,6 @@ float CalculateLocalBrdfWeight(float3 N, float3 V, float3 L, float roughness)
 #ifdef SSR_CLASSIFYTILES
 
 groupshared uint gTileCount = 0;
-
-
 
 [numthreads(8, 8, 1)]
 void ScreenSpaceReflectionsClassifyTiles(uint3 dispatchThreadId : SV_DispatchThreadID, uint2 groupThreadId : SV_GroupThreadID)
@@ -298,7 +289,7 @@ void ScreenSpaceReflectionsClassifyTiles(uint3 dispatchThreadId : SV_DispatchThr
     bool needsRay = !(coordSSFloat.x >= _ScreenSize.x || coordSSFloat.y >= _ScreenSize.y);
 
     // Don't shoot a ray on very rough surfaces depends on _SsrRoughnessFadeEnd.
-    GetNormalAndPerceptualRoughness(coordSS, N, perceptualRoughness);
+    LoadNormalAndPerceptualRoughness(coordSS, N, perceptualRoughness);
     needsRay = needsRay && NEED_RAYTRACED_REFLECTIONS(perceptualRoughness);
 
     // Don't shoot a ray on sky.
@@ -341,21 +332,19 @@ void ScreenSpaceReflectionsTracing(uint3 dispatchThreadId : SV_DispatchThreadID,
     if (deviceDepth == UNITY_RAW_FAR_CLIP_VALUE)
     {
         // Sky early return;
-        _SSRHitPointTexture[coordSS] = 0;
-        _SSRRayInfoTexture[coordSS] = 0;
+        // _SSRRayInfoTexture[coordSS] = 0;
         return;
     }
 
     float3 N;
     float perceptualRoughness;
-    GetNormalAndPerceptualRoughness(coordSS, N, perceptualRoughness);
+    LoadNormalAndPerceptualRoughness(coordSS, N, perceptualRoughness);
     float oneOverPDF = 0.0f;
 
-    if (perceptualRoughness > _SsrRoughnessFadeEnd)
+    if (!NEED_RAYTRACED_REFLECTIONS(perceptualRoughness))
     {
         // No need reflection.
-        _SSRHitPointTexture[coordSS] = 0;
-        _SSRRayInfoTexture[coordSS] = 0;
+        // _SSRRayInfoTexture[coordSS] = 0;
         return;
     }
 
@@ -392,12 +381,17 @@ void ScreenSpaceReflectionsTracing(uint3 dispatchThreadId : SV_DispatchThreadID,
 
         ConeAngle = 1.0f / max(rayPDF, 0.0001f);
 
-        if (NdotL < 0.001f)
-        {
-            _SSRHitPointTexture[coordSS] = 0;
-            _SSRRayInfoTexture[coordSS] = 0;
-            return;
-        }
+        // Do not kill, delegate it to ray tracing.
+        // if (NdotL < 0.001f)
+        // {
+        //     _SSRRayInfoTexture[coordSS] = 0;
+        //     return;
+        // }
+    }
+
+    if (_SsrMixWithRayTracing > 0)
+    {
+        _DispatchRayDirTexture[coordSS] = float4(R, ConeAngle);
     }
 #endif /* SSR_PBR */
 
@@ -440,8 +434,17 @@ void ScreenSpaceReflectionsTracing(uint3 dispatchThreadId : SV_DispatchThreadID,
 
     if (killRay)
     {
-        _SSRHitPointTexture[coordSS] = 0;
-        _SSRRayInfoTexture[coordSS] = 0;
+        // _SSRRayInfoTexture[coordSS] = 0;
+
+        // Ray Tracing buffer
+        if (_SsrMixWithRayTracing > 0)
+        {
+            uint rayIndexOffset = 0;
+            InterlockedAdd(_RayIndirectBuffer[0], 1, rayIndexOffset);
+            _DispatchRayCoordBuffer[rayIndexOffset] = EncodeRayCoord(coordSS);
+        }
+
+
         return;
     }
 
@@ -565,6 +568,7 @@ void ScreenSpaceReflectionsTracing(uint3 dispatchThreadId : SV_DispatchThreadID,
     miss = miss || ((_SsrReflectsSky == 0) && (rayPos.z == 0));
     hit  = hit && !miss;
 
+    float hitOpacity = 0.0;
     if (hit)
     {
         // Note that we are using 'rayPos' from the penultimate iteration, rather than
@@ -572,17 +576,24 @@ void ScreenSpaceReflectionsTracing(uint3 dispatchThreadId : SV_DispatchThreadID,
         // It also needs to be precisely at the center of the pixel to avoid artifacts.
         float2 hitCoordSS = floor(rayPos.xy);
         float2 hitScreenUV = hitCoordSS * _SsrTraceScreenSize.zw + (0.5 * _SsrTraceScreenSize.zw);
-        _SSRHitPointTexture[coordSS] = hitScreenUV.xy;
 
         float  hitDeviceZ = LOAD_TEXTURE2D_X(_CameraDepthTexture, hitCoordSS).r;
         float3 hitPosWS = ComputeWorldSpacePosition(hitScreenUV, hitDeviceZ, UNITY_MATRIX_I_VP);
         float hitDistance = length(hitPosWS - originPosWS);
-        _SSRRayInfoTexture[coordSS] = float2(max(ConeAngle, HALF_MIN), 1 / hitDistance);
+        _SSRRayInfoTexture[coordSS] = float3(max(ConeAngle, HALF_MIN), 1 / hitDistance, 0);
+
+        float4 hitColorOpacity = LoadUVAndSampleRadianceFromPrevColorPyramidWithOpacity(hitScreenUV);
+        _RayHitColorTexture[coordSS] = hitColorOpacity;
+
+        hitOpacity = hitColorOpacity.a;
     }
-    else
+
+    // Ray Tracing buffer
+    if (_SsrMixWithRayTracing > 0 && hitOpacity < 1.0)
     {
-        _SSRHitPointTexture[coordSS] = 0;
-        _SSRRayInfoTexture[coordSS] = 0;
+        uint rayIndexOffset = 0;
+        InterlockedAdd(_RayIndirectBuffer[0], 1, rayIndexOffset);
+        _DispatchRayCoordBuffer[rayIndexOffset] = EncodeRayCoord(coordSS);
     }
 }
 
@@ -645,36 +656,13 @@ void StoreInGroupSharedMemoryAvgRadiance(uint2 gThreadId, float4 radianceAndWeig
 }
 
 
-void ResolveLoadCoordDataWithOpacity(uint2 coordSS, float4 screenSize, out float perceptualRoughness, out CoordData outData)
-{
-    float3 currColor = 0.0f;
-    
-    float2 hitScreenUV = LOAD_TEXTURE2D_X(_SSRHitPointTexture, coordSS).xy;
-    if (max(hitScreenUV.x, hitScreenUV.y) != 0)
-    {
-        currColor = LoadUVAndSampleRadianceFromPrevColorPyramidWithOpacity(hitScreenUV);
-    }
-    outData.radiance = currColor;
-    outData.hitDistance = 1 / max(_SSRRayInfoTexture[coordSS].y, FLT_EPS);
-
-    GetNormalAndPerceptualRoughness(coordSS, outData.normal, perceptualRoughness);
-
-    outData.depth = LinearEyeDepth(LOAD_TEXTURE2D_X(_CameraDepthTexture, coordSS).r, _ZBufferParams);
-}
-
 void ResolveLoadCoordData(uint2 coordSS, float4 screenSize, out float perceptualRoughness, out CoordData outData)
 {
-    float3 currColor = 0.0f;
-
-    float2 hitScreenUV = LOAD_TEXTURE2D_X(_SSRHitPointTexture, coordSS).xy;
-    if (max(hitScreenUV.x, hitScreenUV.y) != 0)
-    {
-        currColor = LoadUVAndSampleRadianceFromPrevColorPyramid(hitScreenUV);
-    }
+    float3 currColor = _RayHitColorTexture[coordSS].rgb;
     outData.radiance = currColor;
     outData.hitDistance = 1 / max(_SSRRayInfoTexture[coordSS].y, FLT_EPS);
 
-    GetNormalAndPerceptualRoughness(coordSS, outData.normal, perceptualRoughness);
+    LoadNormalAndPerceptualRoughness(coordSS, outData.normal, perceptualRoughness);
 
     outData.depth = LinearEyeDepth(LOAD_TEXTURE2D_X(_CameraDepthTexture, coordSS).r, _ZBufferParams);
 }
@@ -689,7 +677,7 @@ void InitializeGroupSharedMemory(uint2 dThreadId, uint2 gThreadId)
     CoordData coordData[4];
     for (int i = 0; i < 4; i++)
     {
-        ResolveLoadCoordDataWithOpacity(dThreadId + offset[i], _ScreenSize, perceptualRoughness, coordData[i]);
+        ResolveLoadCoordData(dThreadId + offset[i], _ScreenSize, perceptualRoughness, coordData[i]);
     }
 
     for (int j = 0; j < 4; j++)
@@ -739,7 +727,6 @@ void ScreenSpaceReflectionsResolve(uint3 dispatchThreadId : SV_DispatchThreadID,
 {
     uint2 coordSS;
     InitializeDispatchThreadIdFromTileList(groupId, groupThreadId, coordSS);
-    // uint2 coordSS = dispatchThreadId.xy;
 
     uint2 coordGroup = groupThreadId.xy;
 
@@ -747,7 +734,7 @@ void ScreenSpaceReflectionsResolve(uint3 dispatchThreadId : SV_DispatchThreadID,
     CoordData center;
     float3 N;
 
-    GetNormalAndPerceptualRoughness(coordSS, N, perceptualRoughness);
+    LoadNormalAndPerceptualRoughness(coordSS, N, perceptualRoughness);
 
     InitializeGroupSharedMemory(coordSS, coordGroup);
     GroupMemoryBarrierWithGroupSync();
@@ -817,7 +804,8 @@ void ScreenSpaceReflectionsResolve(uint3 dispatchThreadId : SV_DispatchThreadID,
 
             float3 virtualPosWS = centerPosWS - V * closestHitDistance;
             float3 virtualPosNDC = ComputeNormalizedDeviceCoordinatesWithZ(virtualPosWS, UNITY_MATRIX_VP);
-            _SSRHitDepthTexture[coordSS] = virtualPosNDC.z;
+            float3 rayInfo = _SSRRayInfoTexture[coordSS];
+            _SSRRayInfoTexture[coordSS] = float3(rayInfo.x, rayInfo.y, max(virtualPosNDC.z, 0));
         }
     }
 
@@ -1087,7 +1075,7 @@ void ScreenSpaceReflectionsAccumulate(uint3 dispatchThreadId : SV_DispatchThread
 
     float3 N;
     float perceptualRoughness;
-    GetNormalAndPerceptualRoughness(coordSS, N, perceptualRoughness);
+    LoadNormalAndPerceptualRoughness(coordSS, N, perceptualRoughness);
 
     CoordData center;
     InitializeGroupSharedMemory(coordSS, coordGroup);
@@ -1107,7 +1095,7 @@ void ScreenSpaceReflectionsAccumulate(uint3 dispatchThreadId : SV_DispatchThread
         float3 avgRadiance = SAMPLE_TEXTURE2D_X_LOD(_SSRAvgRadianceTexture, ssr_bilinear_clamp_sampler, screenUV, 0).xyz;
 
         float3 currColor = VARIANCE_REDUCTION_LERP(center.radiance, avgRadiance, center.variance);
-        float reflectionHitDeviceZ = _SSRHitDepthTexture[coordSS].x;
+        float reflectionHitDeviceZ = _SSRRayInfoTexture[coordSS].z;
         float deviceDepth = LOAD_TEXTURE2D_X(_CameraDepthTexture, coordSS).r;
         float2 motionVector = LoadMotionVectorOffset(coordSS);
 
@@ -1173,7 +1161,7 @@ void ScreenSpaceReflectionsAccumulate(uint3 dispatchThreadId : SV_DispatchThread
         float roughnessFade = PerceptualRoughnessFade(perceptualRoughness, _SsrRoughnessFadeRcpLength, _SsrRoughnessFadeEndTimesRcpLength);
 
         // Write texture
-        _SsrLightingTexture[coordSS] = float4(result * roughnessFade, 0);
+        _SsrLightingTexture[coordSS] = float4(result * roughnessFade, _SsrMixWithRayTracing > 0 ? 1 : 0);
         _SSRAccumTexture[coordSS] = float4(result, bResultValid);
         _SSRNumFramesAccumTexture[coordSS] = accumulatedFramesNum / maxSamplesNum;
     }

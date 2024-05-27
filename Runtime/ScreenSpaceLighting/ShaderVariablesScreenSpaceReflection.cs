@@ -27,5 +27,6 @@ namespace UnityEngine.Rendering.Universal
         public Vector4 _HistoryFrameRTSize;// width height 1/width 1/height
 
         public float _SsrPBRBias;
+        public int _SsrMixWithRayTracing;
     }
 }
