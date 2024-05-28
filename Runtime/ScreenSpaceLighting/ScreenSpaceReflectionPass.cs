@@ -152,11 +152,12 @@ namespace UnityEngine.Rendering.Universal
             // RayTracing
             internal BufferHandle dispatchRayIndirectBuffer;
             internal bool requireRayTracing;
-            internal RayTracingShader rtrShader;
+            internal RayTracingShader rtrtShader;
             internal RayTracingAccelerationStructure rtas;
             // Sky Ambient & Reflect
             internal BufferHandle ambientProbe;
             internal TextureHandle reflectProbe;
+            internal ShaderVariablesRaytracing rayTracingCB;
         }
 
         void InitResource(RenderGraph renderGraph, SSRPassData passData, UniversalResourceData resourceData, UniversalCameraData cameraData, HistoryFrameRTSystem historyRTSystem)
@@ -310,6 +311,26 @@ namespace UnityEngine.Rendering.Universal
                 passData.constantBuffer._SsrPBRBias = m_volumeSettings.biasFactor.value;
                 passData.constantBuffer._SsrMixWithRayTracing = passData.requireRayTracing ? 1 : 0;
             }
+
+
+            // RayTracing constant buffer
+            if (passData.requireRayTracing)
+            {
+                var stack = VolumeManager.instance.stack;
+                var rayTracingSettings = stack.GetComponent<RayTracingSettings>();
+
+                passData.rayTracingCB = cameraData.rayTracingSystem.GetShaderVariablesRaytracingCB(passData.TraceTextureSize, rayTracingSettings);
+                passData.rayTracingCB._RaytracingRayMaxLength = m_volumeSettings.rayLength;
+                passData.rayTracingCB._RayTracingClampingFlag = 1;
+                passData.rayTracingCB._RaytracingIntensityClamp = m_volumeSettings.clampValue;
+                passData.rayTracingCB._RaytracingPreExposition = 0;
+                passData.rayTracingCB._RayTracingDiffuseLightingOnly = 0;
+                passData.rayTracingCB._RayTracingAPVRayMiss = 0;
+                passData.rayTracingCB._RayTracingRayMissFallbackHierarchy = 0;
+                passData.rayTracingCB._RayTracingRayMissUseAmbientProbeAsSky = 0;
+                passData.rayTracingCB._RayTracingLastBounceFallbackHierarchy = 0;
+                passData.rayTracingCB._RayTracingAmbientProbeDimmer = m_volumeSettings.ambientProbeDimmer.value;
+            }
         }
 
         static void ExecutePass(SSRPassData data, ComputeCommandBuffer cmd)
@@ -369,26 +390,25 @@ namespace UnityEngine.Rendering.Universal
                 using (new ProfilingScope(cmd, new ProfilingSampler("RayTracingReflection")))
                 {
                     // Define the shader pass to use for the reflection pass
-                    cmd.SetRayTracingShaderPass(data.rtrShader, "IndirectDXR");
+                    cmd.SetRayTracingShaderPass(data.rtrtShader, "IndirectDXR");
                     // Sky Environment
                     cmd.SetGlobalBuffer("_AmbientProbeData", data.ambientProbe);
                     cmd.SetGlobalTexture("_SkyTexture", data.reflectProbe);
 
-
                     // Set the acceleration structure for the pass
-                    cmd.SetRayTracingAccelerationStructure(data.rtrShader, "_RaytracingAccelerationStructure", data.rtas);
+                    cmd.SetRayTracingAccelerationStructure(data.rtrtShader, "_RaytracingAccelerationStructure", data.rtas);
 
-                    // TODO: SetConstantBuffer
-                    cmd.SetRayTracingFloatParam(data.rtrShader, "_RaytracingRayMaxLength", 50.0f);
+                    // SetConstantBuffer
+                    ConstantBuffer.PushGlobal(cmd, data.rayTracingCB, RayTracingSystem._ShaderVariablesRaytracing);
 
                     // Set Textures & Buffers
-                    cmd.SetRayTracingTextureParam(data.rtrShader, "_DispatchRayDirTexture", data.rayDirTexture);
-                    cmd.SetRayTracingTextureParam(data.rtrShader, "_RayTracingLightingTextureRW", data.rayHitColorTexture);
-                    cmd.SetRayTracingTextureParam(data.rtrShader, ShaderConstants._SSRRayInfoTexture, data.rayInfoTexture);
+                    cmd.SetRayTracingTextureParam(data.rtrtShader, "_DispatchRayDirTexture", data.rayDirTexture);
+                    cmd.SetRayTracingTextureParam(data.rtrtShader, "_RayTracingLightingTextureRW", data.rayHitColorTexture);
+                    cmd.SetRayTracingTextureParam(data.rtrtShader, ShaderConstants._SSRRayInfoTexture, data.rayInfoTexture);
 
 
-                    cmd.SetRayTracingBufferParam(data.rtrShader, "_DispatchRayCoordBuffer", data.raysCoordBuffer);
-                    cmd.DispatchRays(data.rtrShader, "SingleRayGen", data.dispatchRayIndirectBuffer, 0);
+                    cmd.SetRayTracingBufferParam(data.rtrtShader, "_DispatchRayCoordBuffer", data.raysCoordBuffer);
+                    cmd.DispatchRays(data.rtrtShader, "SingleRayGen", data.dispatchRayIndirectBuffer, 0);
                 }
             }
 
@@ -490,7 +510,7 @@ namespace UnityEngine.Rendering.Universal
                 if (passData.requireRayTracing)
                 {
                     var runtimeShaders = GraphicsSettings.GetRenderPipelineSettings<UniversalRenderPipelineRuntimeShaders>();
-                    passData.rtrShader = runtimeShaders.rayTracingTest;
+                    passData.rtrtShader = runtimeShaders.rayTracingTest;
                     passData.rtas = cameraData.rayTracingSystem.RequestAccelerationStructure();
 
                     // Sky Environment

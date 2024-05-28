@@ -46,6 +46,8 @@ namespace UnityEngine.Rendering.Universal
         private RayTracingAccelerationStructure m_UserFedAccelerationStructure;
         private RayTracingAccelerationStructureSystem m_AccelerationStructureSystem;
 
+        private ShaderVariablesRaytracing m_ShaderVariablesRayTracingCB = new ShaderVariablesRaytracing();
+
         bool m_ValidRayTracingState = false;
         bool m_ValidRayTracingCluster = false;
         bool m_ValidRayTracingClusterCulling = false;
@@ -558,5 +560,19 @@ namespace UnityEngine.Rendering.Universal
             return Mathf.Atan(GetPixelSpreadTangent(fov, width, height));
         }
 
+        internal ShaderVariablesRaytracing GetShaderVariablesRaytracingCB(Vector2Int pixelSize, RayTracingSettings rayTracingSettings)
+        {
+            m_ShaderVariablesRayTracingCB._RayTracingRayBias = rayTracingSettings.rayBias.value;
+            m_ShaderVariablesRayTracingCB._RayTracingDistantRayBias = rayTracingSettings.distantRayBias.value;
+            m_ShaderVariablesRayTracingCB._RayCountEnabled = 0;
+            m_ShaderVariablesRayTracingCB._RaytracingCameraNearPlane = camera.nearClipPlane;
+            m_ShaderVariablesRayTracingCB._RaytracingPixelSpreadAngle = GetPixelSpreadAngle(camera.fieldOfView, pixelSize.x, pixelSize.y);
+            m_ShaderVariablesRayTracingCB._DirectionalShadowFallbackIntensity = rayTracingSettings.directionalShadowFallbackIntensity.value;
+            m_ShaderVariablesRayTracingCB._RayTracingLodBias = 0;
+
+            return m_ShaderVariablesRayTracingCB;
+        }
+
+        public static readonly int _ShaderVariablesRaytracing = Shader.PropertyToID("ShaderVariablesRaytracing");
     }
 }

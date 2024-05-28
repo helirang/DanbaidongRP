@@ -189,6 +189,8 @@ namespace UnityEditor.Rendering.Universal
             }
             else
             {
+                PropertyField(m_RayLength, k_RayLengthText);
+                PropertyField(m_ClampValue, k_ClampValueText);
                 PropertyField(m_MinSmoothness, k_MinimumSmoothnessText);
                 PropertyField(m_SmoothnessFadeStart, k_SmoothnessFadeStartText);
                 m_SmoothnessFadeStart.value.floatValue = Mathf.Max(m_MinSmoothness.value.floatValue, m_SmoothnessFadeStart.value.floatValue);
