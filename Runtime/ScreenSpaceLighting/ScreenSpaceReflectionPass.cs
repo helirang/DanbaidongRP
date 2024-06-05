@@ -336,18 +336,17 @@ namespace UnityEngine.Rendering.Universal
         static void ExecutePass(SSRPassData data, ComputeCommandBuffer cmd)
         {
             // Default Approximation we use lighingTexture as SSRResolve handle.
-            var SSRResolveHandle = data.ssrLightingTexture;
+            var hitColorHandle = data.rayHitColorTexture;
             var currAccumHandle = data.currAccumulateTexture;
             var prevAccumHandle = data.prevAccumulateTexture;
 
             if (data.usedAlgo == ScreenSpaceReflectionAlgorithm.Approximation)
             {
                 data.cs.EnableKeyword("SSR_APPROX");
+                hitColorHandle = data.ssrLightingTexture;
             }
             else
             {
-                SSRResolveHandle = currAccumHandle;
-
                 data.cs.DisableKeyword("SSR_APPROX");
             }
 
@@ -363,7 +362,7 @@ namespace UnityEngine.Rendering.Universal
                 cmd.DispatchCompute(data.cs, data.classifyTilesKernel, RenderingUtils.DivRoundUp(data.TraceTextureSize.x, 8), RenderingUtils.DivRoundUp(data.TraceTextureSize.y, 8), 1);
             }
 
-            // Tracing
+            // ScreenSpace Tracing
             using (new ProfilingScope(cmd, m_SSRTracingProfilingSampler))
             {
                 BlueNoiseSystem.BindSTBNParams(BlueNoiseTexFormat._128RG, cmd, data.cs, data.tracingKernel, data.blueNoiseArray, data.camHistoryFrameCount);
@@ -372,11 +371,12 @@ namespace UnityEngine.Rendering.Universal
 
                 cmd.SetComputeTextureParam(data.cs, data.tracingKernel, ShaderConstants._ColorPyramidTexture, data.prevColorPyramidTexture);
                 cmd.SetComputeTextureParam(data.cs, data.tracingKernel, ShaderConstants._CameraMotionVectorsTexture, data.motionVectorTexture);
-                cmd.SetComputeTextureParam(data.cs, data.tracingKernel, "_RayHitColorTexture", data.rayHitColorTexture);
+                cmd.SetComputeTextureParam(data.cs, data.tracingKernel, ShaderConstants._RayHitColorTexture, hitColorHandle);
+                cmd.SetComputeTextureParam(data.cs, data.tracingKernel, ShaderConstants._SkyTexture, data.reflectProbe);
 
-                cmd.SetComputeTextureParam(data.cs, data.tracingKernel, "_DispatchRayDirTexture", data.rayDirTexture);
-                cmd.SetComputeBufferParam(data.cs, data.tracingKernel, "_DispatchRayCoordBuffer", data.raysCoordBuffer);
-                cmd.SetComputeBufferParam(data.cs, data.tracingKernel, "_RayIndirectBuffer", data.dispatchRayIndirectBuffer);
+                cmd.SetComputeTextureParam(data.cs, data.tracingKernel, ShaderConstants._DispatchRayDirTexture, data.rayDirTexture);
+                cmd.SetComputeBufferParam(data.cs, data.tracingKernel, ShaderConstants._DispatchRayCoordBuffer, data.raysCoordBuffer);
+                cmd.SetComputeBufferParam(data.cs, data.tracingKernel, ShaderConstants._RayIndirectBuffer, data.dispatchRayIndirectBuffer);
 
                 cmd.SetComputeBufferParam(data.cs, data.tracingKernel, ShaderConstants._DepthPyramidMipLevelOffsets, data.depthPyramidMipLevelOffsets);
                 cmd.SetComputeBufferParam(data.cs, data.tracingKernel, ShaderConstants.gTileList, data.tileListBuffer);
@@ -384,54 +384,54 @@ namespace UnityEngine.Rendering.Universal
                 cmd.DispatchCompute(data.cs, data.tracingKernel, data.dispatchIndirectBuffer, 0);
             }
 
-            // Ray Tracing
-            if (data.requireRayTracing)
+
+            if (data.usedAlgo != ScreenSpaceReflectionAlgorithm.Approximation)
             {
-                using (new ProfilingScope(cmd, new ProfilingSampler("RayTracingReflection")))
+                // Ray Tracing
+                if (data.requireRayTracing)
                 {
-                    // Define the shader pass to use for the reflection pass
-                    cmd.SetRayTracingShaderPass(data.rtrtShader, "IndirectDXR");
-                    // Sky Environment
-                    cmd.SetGlobalBuffer("_AmbientProbeData", data.ambientProbe);
-                    cmd.SetGlobalTexture("_SkyTexture", data.reflectProbe);
+                    using (new ProfilingScope(cmd, new ProfilingSampler("RayTracingReflection")))
+                    {
+                        // Define the shader pass to use for the reflection pass
+                        cmd.SetRayTracingShaderPass(data.rtrtShader, "IndirectDXR");
+                        // Sky Environment
+                        cmd.SetGlobalBuffer(ShaderConstants._AmbientProbeData, data.ambientProbe);
+                        cmd.SetGlobalTexture(ShaderConstants._SkyTexture, data.reflectProbe);
 
-                    // Set the acceleration structure for the pass
-                    cmd.SetRayTracingAccelerationStructure(data.rtrtShader, "_RaytracingAccelerationStructure", data.rtas);
+                        // Set the acceleration structure for the pass
+                        cmd.SetRayTracingAccelerationStructure(data.rtrtShader, "_RaytracingAccelerationStructure", data.rtas);
 
-                    // SetConstantBuffer
-                    ConstantBuffer.PushGlobal(cmd, data.rayTracingCB, RayTracingSystem._ShaderVariablesRaytracing);
+                        // SetConstantBuffer
+                        ConstantBuffer.PushGlobal(cmd, data.rayTracingCB, RayTracingSystem._ShaderVariablesRaytracing);
 
-                    // Set Textures & Buffers
-                    cmd.SetRayTracingTextureParam(data.rtrtShader, "_DispatchRayDirTexture", data.rayDirTexture);
-                    cmd.SetRayTracingTextureParam(data.rtrtShader, "_RayTracingLightingTextureRW", data.rayHitColorTexture);
-                    cmd.SetRayTracingTextureParam(data.rtrtShader, ShaderConstants._SSRRayInfoTexture, data.rayInfoTexture);
+                        // Set Textures & Buffers
+                        cmd.SetRayTracingTextureParam(data.rtrtShader, ShaderConstants._DispatchRayDirTexture, data.rayDirTexture);
+                        cmd.SetRayTracingTextureParam(data.rtrtShader, ShaderConstants._RayTracingLightingTextureRW, data.rayHitColorTexture);
+                        cmd.SetRayTracingTextureParam(data.rtrtShader, ShaderConstants._SSRRayInfoTexture, data.rayInfoTexture);
 
 
-                    cmd.SetRayTracingBufferParam(data.rtrtShader, "_DispatchRayCoordBuffer", data.raysCoordBuffer);
-                    cmd.DispatchRays(data.rtrtShader, "SingleRayGen", data.dispatchRayIndirectBuffer, 0);
+                        cmd.SetRayTracingBufferParam(data.rtrtShader, ShaderConstants._DispatchRayCoordBuffer, data.raysCoordBuffer);
+                        cmd.DispatchRays(data.rtrtShader, "SingleRayGen", data.dispatchRayIndirectBuffer, 0);
+                    }
                 }
-            }
 
+                // Resolve
+                using (new ProfilingScope(cmd, m_SSRResolveProfilingSampler))
+                {
+                    cmd.SetComputeTextureParam(data.cs, data.resolveKernel, ShaderConstants._RayHitColorTexture, data.rayHitColorTexture);
 
-            // Resolve
-            using (new ProfilingScope(cmd, m_SSRResolveProfilingSampler))
-            {
-                cmd.SetComputeTextureParam(data.cs, data.resolveKernel, "_RayHitColorTexture", data.rayHitColorTexture);
+                    cmd.SetComputeTextureParam(data.cs, data.resolveKernel, ShaderConstants._ColorPyramidTexture, data.prevColorPyramidTexture);
+                    cmd.SetComputeTextureParam(data.cs, data.resolveKernel, ShaderConstants._SSRAccumTexture, currAccumHandle);
+                    cmd.SetComputeTextureParam(data.cs, data.resolveKernel, ShaderConstants._CameraMotionVectorsTexture, data.motionVectorTexture);
+                    cmd.SetComputeTextureParam(data.cs, data.resolveKernel, ShaderConstants._SSRRayInfoTexture, data.rayInfoTexture);
 
-                cmd.SetComputeTextureParam(data.cs, data.resolveKernel, ShaderConstants._ColorPyramidTexture, data.prevColorPyramidTexture);
-                cmd.SetComputeTextureParam(data.cs, data.resolveKernel, ShaderConstants._SSRAccumTexture, SSRResolveHandle);
-                cmd.SetComputeTextureParam(data.cs, data.resolveKernel, ShaderConstants._CameraMotionVectorsTexture, data.motionVectorTexture);
-                cmd.SetComputeTextureParam(data.cs, data.resolveKernel, ShaderConstants._SSRRayInfoTexture, data.rayInfoTexture);
+                    cmd.SetComputeTextureParam(data.cs, data.resolveKernel, ShaderConstants._SSRAvgRadianceTexture, data.avgRadianceTexture);
 
-                cmd.SetComputeTextureParam(data.cs, data.resolveKernel, ShaderConstants._SSRAvgRadianceTexture, data.avgRadianceTexture);
+                    cmd.SetComputeBufferParam(data.cs, data.resolveKernel, ShaderConstants.gTileList, data.tileListBuffer);
+                    cmd.DispatchCompute(data.cs, data.resolveKernel, data.dispatchIndirectBuffer, 0);
+                }
 
-                cmd.SetComputeBufferParam(data.cs, data.resolveKernel, ShaderConstants.gTileList, data.tileListBuffer);
-                cmd.DispatchCompute(data.cs, data.resolveKernel, data.dispatchIndirectBuffer, 0);
-            }
-
-
-            if (data.usedAlgo == ScreenSpaceReflectionAlgorithm.PBRAccumulation)
-            {
+                // Accumulate
                 using (new ProfilingScope(cmd, m_SSRAccumulateProfilingSampler))
                 {
                     cmd.SetComputeTextureParam(data.cs, data.accumulateKernel, ShaderConstants._SSRAccumTexture, currAccumHandle);
@@ -447,7 +447,6 @@ namespace UnityEngine.Rendering.Universal
                     cmd.SetComputeBufferParam(data.cs, data.accumulateKernel, ShaderConstants.gTileList, data.tileListBuffer);
                     cmd.DispatchCompute(data.cs, data.accumulateKernel, data.dispatchIndirectBuffer, 0);
                 }
-
 
             }
 
@@ -516,14 +515,17 @@ namespace UnityEngine.Rendering.Universal
                     var runtimeShaders = GraphicsSettings.GetRenderPipelineSettings<UniversalRenderPipelineRuntimeShaders>();
                     passData.rtrtShader = runtimeShaders.rayTracingTest;
                     passData.rtas = cameraData.rayTracingSystem.RequestAccelerationStructure();
+                }
 
-                    // Sky Environment
+                // Sky Environment
+                {
                     passData.ambientProbe = resourceData.skyAmbientProbe;
                     passData.reflectProbe = resourceData.skyReflectionProbe;
 
                     builder.UseBuffer(passData.ambientProbe);
                     builder.UseTexture(passData.reflectProbe);
                 }
+
 
                 // Setup builder state
                 builder.AllowPassCulling(false);
@@ -576,6 +578,13 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _SsrLightingTexture = Shader.PropertyToID("_SsrLightingTexture");
             public static readonly int _SSRPrevNumFramesAccumTexture = Shader.PropertyToID("_SSRPrevNumFramesAccumTexture");
             public static readonly int _SSRNumFramesAccumTexture = Shader.PropertyToID("_SSRNumFramesAccumTexture");
+            public static readonly int _RayHitColorTexture = Shader.PropertyToID("_RayHitColorTexture");
+            public static readonly int _AmbientProbeData = Shader.PropertyToID("_AmbientProbeData");
+            public static readonly int _SkyTexture = Shader.PropertyToID("_SkyTexture");
+            public static readonly int _DispatchRayDirTexture = Shader.PropertyToID("_DispatchRayDirTexture");
+            public static readonly int _DispatchRayCoordBuffer = Shader.PropertyToID("_DispatchRayCoordBuffer");
+            public static readonly int _RayIndirectBuffer = Shader.PropertyToID("_RayIndirectBuffer");
+            public static readonly int _RayTracingLightingTextureRW = Shader.PropertyToID("_RayTracingLightingTextureRW");
         }
     }
 }

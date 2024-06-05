@@ -469,9 +469,9 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
     #if defined(_SCREEN_SPACE_REFLECTION)
     // Evaluate ScreenSpaceReflection.
     {
-        reflectionHierarchyWeight = 1.0; // SSR will computes all scene reflections.
         float4 ssrLighting = LOAD_TEXTURE2D(_SSRLightingTexture, posInput.positionSS);
-        indirectSpecular += specularFGD * ssrLighting.rgb;
+        UpdateLightingHierarchyWeights(reflectionHierarchyWeight, ssrLighting.a);
+        indirectSpecular += specularFGD * ssrLighting.rgb * ssrLighting.a;
     }
     #endif
 
