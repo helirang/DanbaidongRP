@@ -1015,6 +1015,8 @@ namespace UnityEngine.Rendering.Universal
         public static GlobalKeyword _OUTPUT_DEPTH;
         public static GlobalKeyword LinearToSRGBConversion;
         public static GlobalKeyword _ENABLE_ALPHA_OUTPUT;
+        public static GlobalKeyword GPULightsCluster;
+        public static GlobalKeyword ScreenSpaceReflection;
 
         // TODO: Move following keywords to Local keywords?
         // https://docs.unity3d.com/ScriptReference/Rendering.LocalKeyword.html
@@ -1124,6 +1126,8 @@ namespace UnityEngine.Rendering.Universal
             ShaderGlobalKeywords._OUTPUT_DEPTH = GlobalKeyword.Create(ShaderKeywordStrings._OUTPUT_DEPTH);
             ShaderGlobalKeywords.LinearToSRGBConversion = GlobalKeyword.Create(ShaderKeywordStrings.LinearToSRGBConversion);
             ShaderGlobalKeywords._ENABLE_ALPHA_OUTPUT = GlobalKeyword.Create(ShaderKeywordStrings._ENABLE_ALPHA_OUTPUT);
+            ShaderGlobalKeywords.GPULightsCluster = GlobalKeyword.Create(ShaderKeywordStrings.GPULightsCluster);
+            ShaderGlobalKeywords.ScreenSpaceReflection = GlobalKeyword.Create(ShaderKeywordStrings.ScreenSpaceReflection);
         }
     }
 
@@ -1452,6 +1456,9 @@ namespace UnityEngine.Rendering.Universal
 
         /// <summary> Keyword used for GPULights.</summary>
         public const string GPULightsCluster = "_GPU_LIGHTS_CLUSTER";
+
+        /// <summary> Keyword used for ScreenSpaceReflection.</summary>
+        public const string ScreenSpaceReflection = "_SCREEN_SPACE_REFLECTION";
     }
 
     public sealed partial class UniversalRenderPipeline

@@ -328,5 +328,15 @@ namespace UnityEngine.Rendering.Universal
         //MaterialFeatureVariants
     }
 
+    /// <summary>
+    /// Cluster debug category
+    /// </summary>
+    [GenerateHLSL]
+    public enum DebugClusterCategory
+    {
+        PunctualLights,
+        ReflectionProbes,
+    }
+
     #endregion
 }

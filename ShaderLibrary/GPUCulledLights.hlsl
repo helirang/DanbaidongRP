@@ -12,7 +12,7 @@
 //--------------------------------------------------------------------------------------------------
 float GetScaleFromBase(float base)
 {
-    const float C = (float)(1 << g_iLog2NumClusters);
+    const float C = (float)(1u << g_iLog2NumClusters);
     const float geomSeries = (1.0 - PositivePow(base, C)) / (1 - base);     // geometric series: sum_k=0^{C-1} base^k
     return geomSeries / (g_fFarPlane - g_fNearPlane);
 }
@@ -38,7 +38,7 @@ int SnapToClusterIdxFlex(float z_in, float suggestedBase, bool logBasePerTile)
     //const float dist = max(0, z - g_fNearPlane);
     //return (int)clamp(log2(dist * userscale * (suggestedBase - 1.0f) + 1) / log2(suggestedBase), 0.0, (float)((1 << g_iLog2NumClusters) - 1));
 
-    const int C = 1 << g_iLog2NumClusters;
+    const int C = 1u << g_iLog2NumClusters;
     const float rangeFittedDistance = max(0, z - g_fNearPlane) / (g_fFarPlane - g_fNearPlane);
     return (int)clamp( LogBase( lerp(1.0, PositivePow(suggestedBase, (float) C), rangeFittedDistance), suggestedBase), 0.0, (float)(C - 1));
 }
@@ -65,7 +65,7 @@ float ClusterIdxToZFlex(int k, float suggestedBase, bool logBasePerTile)
     //float dist = (PositivePow(suggestedBase, (float)k) - 1.0) / (userscale * (suggestedBase - 1.0f));
     //res = dist + g_fNearPlane;
 
-    const float C = (float)(1 << g_iLog2NumClusters);
+    const float C = (float)(1u << g_iLog2NumClusters);
     float rangeFittedDistance = (PositivePow(suggestedBase, (float)k) - 1.0) / (PositivePow(suggestedBase, C) - 1.0);
     res = lerp(g_fNearPlane, g_fFarPlane, rangeFittedDistance);
 
@@ -91,7 +91,7 @@ float ClusterIdxToZ(int k, float suggestedBase)
 // generate a log-base value such that half of the clusters are consumed from near plane to max. opaque depth of tile.
 float SuggestLogBase50(float tileFarPlane)
 {
-    const float C = (float)(1 << g_iLog2NumClusters);
+    const float C = (float)(1u << g_iLog2NumClusters);
     float rangeFittedDistance = clamp((tileFarPlane - g_fNearPlane) / (g_fFarPlane - g_fNearPlane), FLT_EPS, 1.0);
     float suggested_base = pow((1.0 + sqrt(max(0.0, 1.0 - 4.0 * rangeFittedDistance * (1.0 - rangeFittedDistance)))) / (2.0 * rangeFittedDistance), 2.0 / C);      //
     return max(g_fClustBase, suggested_base);
@@ -100,7 +100,7 @@ float SuggestLogBase50(float tileFarPlane)
 // generate a log-base value such that (approximately) a quarter of the clusters are consumed from near plane to max. opaque depth of tile.
 float SuggestLogBase25(float tileFarPlane)
 {
-    const float C = (float)(1 << g_iLog2NumClusters);
+    const float C = (float)(1u << g_iLog2NumClusters);
     float rangeFittedDistance = clamp((tileFarPlane - g_fNearPlane) / (g_fFarPlane - g_fNearPlane), FLT_EPS, 1.0);
     float suggested_base = pow((1 / 2.3) * max(0.0, (0.8 / rangeFittedDistance) - 1), 4.0 / (C * 2));     // approximate inverse of d*x^4 + (-x) + (1-d) = 0       - d is normalized distance
     return max(g_fClustBase, suggested_base);

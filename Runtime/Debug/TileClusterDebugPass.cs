@@ -76,7 +76,7 @@ namespace UnityEngine.Rendering.Universal
             Blitter.BlitTexture(unsafeCmd, data.viewportScale, data.material, 0);
         }
 
-        internal void RenderTileClusterDebug(RenderGraph renderGraph, ContextContainer frameData, UniversalCameraData cameraData, DebugTileClusterMode debugMode, int clusterDebugID)
+        internal void RenderTileClusterDebug(RenderGraph renderGraph, ContextContainer frameData, UniversalCameraData cameraData, DebugTileClusterMode debugMode, int clusterDebugID, DebugClusterCategory debugCategory)
         {
             using (var builder = renderGraph.AddUnsafePass<PassData>("Tile Cluster Debug", out var passData, base.profilingSampler))
             {
@@ -86,9 +86,21 @@ namespace UnityEngine.Rendering.Universal
 
                 var gpuLightsOutData = frameData.Get<GPULights.GPULightsOutPassData>();
 
+                LightCategory _DebugCategory = LightCategory.Punctual;
+                switch (debugCategory)
+                {
+                    case DebugClusterCategory.PunctualLights:
+                        _DebugCategory = LightCategory.Punctual;
+                        break;
+                    case DebugClusterCategory.ReflectionProbes:
+                        _DebugCategory = LightCategory.Env;
+                        break;
+                }
+
                 m_Material.SetFloat("_DebugTileClusterMode", (float)debugMode);
                 m_Material.SetInteger("_ClusterDebugID", clusterDebugID);
                 m_Material.SetFloat("_YFilp", cameraData.cameraType == CameraType.Game ? 1.0f : 0.0f);
+                m_Material.SetInteger("_DebugCategory", (int)_DebugCategory);
                 Vector2 viewportScale = Vector2.one;
                 passData.material = m_Material;
                 passData.lightCBuffer = gpuLightsOutData.lightListCB;

@@ -29,6 +29,8 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         public DebugTileClusterMode tileClusterDebugMode { get; set; }
 
+        public DebugClusterCategory clusterCategoryDebugMode { get; set; }
+
         public int clusterDebugID = 0;
 
         static internal class Strings
@@ -38,6 +40,7 @@ namespace UnityEngine.Rendering.Universal
             public static readonly NameAndTooltip HDRDebugMode = new() { name = "HDR Debug Mode", tooltip = "Select which HDR brightness debug information to overlay on the screen." };
             public static readonly NameAndTooltip TileClusterDebug = new() { name = "Tile/Cluster Debug", tooltip = "Use the drop-down to select the Light type that you want to show the Tile/Cluster debug information for." };
             public static readonly NameAndTooltip ClusterDebugID = new() { name = "Cluster Debug ID", tooltip = "Select cluster ID to display." };
+            public static readonly NameAndTooltip ClusterCategoryDebug = new() { name = "Cluster Category", tooltip = "Change cluster debug category." };
         }
 
         internal static class WidgetFactory
@@ -79,6 +82,23 @@ namespace UnityEngine.Rendering.Universal
                 setIndex = (value) => panel.data.tileClusterDebugMode = (DebugTileClusterMode)value,
             };
 
+            internal static DebugUI.Widget CreateClusterCategoryDebugMode(SettingsPanel panel) => new DebugUI.Container
+            {
+                isHiddenCallback = () => panel.data.tileClusterDebugMode != DebugTileClusterMode.ClusterForOpaque && panel.data.tileClusterDebugMode != DebugTileClusterMode.ClusterForTile,
+                children =
+                {
+                    new DebugUI.EnumField
+                    {
+                        nameAndTooltip = Strings.ClusterCategoryDebug,
+                        autoEnum = typeof(DebugClusterCategory),
+                        getter = () => (int)panel.data.clusterCategoryDebugMode,
+                        setter = (value) => panel.data.clusterCategoryDebugMode = (DebugClusterCategory)value,
+                        getIndex = () => (int)panel.data.clusterCategoryDebugMode,
+                        setIndex = (value) => panel.data.clusterCategoryDebugMode = (DebugClusterCategory)value,
+                    }
+                }
+            };
+
             internal static DebugUI.Widget CreateClusterIDSelect(SettingsPanel panel) => new DebugUI.Container()
             {
                 isHiddenCallback = () => panel.data.tileClusterDebugMode != DebugTileClusterMode.ClusterForTile,
@@ -118,6 +138,7 @@ namespace UnityEngine.Rendering.Universal
                         WidgetFactory.CreateLightingFeatures(this),
                         WidgetFactory.CreateTileClusterDebugMode(this),
                         WidgetFactory.CreateClusterIDSelect(this),
+                        WidgetFactory.CreateClusterCategoryDebugMode(this),
                     }
                 });
             }

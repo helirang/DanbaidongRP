@@ -451,6 +451,10 @@ namespace UnityEngine.Rendering.Universal
 
             }
 
+
+            // Set this keyword in deferred lighting, with this we can't use async.
+            // Set Global State
+            //cmd.SetKeyword(ShaderGlobalKeywords.ScreenSpaceReflection, true);
         }
 
         public TextureHandle RenderSSR(RenderGraph renderGraph, ContextContainer frameData, int colorPyramidHistoryMipCount)
@@ -544,7 +548,7 @@ namespace UnityEngine.Rendering.Universal
                 throw new ArgumentNullException("cmd");
 
             // Clean Keyword if need
-            //CoreUtils.SetKeyword(cmd, ShaderKeywordStrings, false);
+            cmd.SetKeyword(ShaderGlobalKeywords.ScreenSpaceReflection, false);
         }
 
         /// <summary>

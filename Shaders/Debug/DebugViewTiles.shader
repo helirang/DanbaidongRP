@@ -52,6 +52,7 @@ Shader "Hidden/Universal/DebugViewTiles"
             float _DebugTileClusterMode;
             int _ClusterDebugID;
             float _YFilp;
+            int _DebugCategory;
 
             StructuredBuffer<uint> g_TileList;
             Buffer<uint> g_DispatchIndirectBuffer;
@@ -201,24 +202,24 @@ Shader "Hidden/Universal/DebugViewTiles"
                         clusterIndex = _ClusterDebugID;
                     }
 
-                    uint lightCategory = 0;
+                    uint lightCategory = _DebugCategory;
                     uint lightStart;
                     uint lightCount;
                     GetCountAndStartCluster(tileIndex, clusterIndex, lightCategory, lightStart, lightCount);
 
                     // Display max light index
-                    // uint v_lightListOffset = 0;
-                    // uint v_lightIdx = lightStart;
-                    // int maxIndex = 0;
-                    // while (v_lightListOffset < lightCount)
-                    // {
-                    //     v_lightIdx = FetchIndex(lightStart, v_lightListOffset);
-                    //     if (v_lightIdx == -1)
-                    //         break;
+                    uint v_lightListOffset = 0;
+                    uint v_lightIdx = lightStart;
+                    int maxIndex = 0;
+                    while (v_lightListOffset < lightCount)
+                    {
+                        v_lightIdx = FetchIndex(lightStart, v_lightListOffset);
+                        if (v_lightIdx == -1)
+                            break;
 
-                    //     maxIndex = max(maxIndex, v_lightIdx);
-                    //     v_lightListOffset++;
-                    // }
+                        maxIndex = max(maxIndex, v_lightIdx);
+                        v_lightListOffset++;
+                    }
 
 
                     if (lightCount > 0)

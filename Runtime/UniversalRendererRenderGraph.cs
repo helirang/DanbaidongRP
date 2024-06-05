@@ -927,6 +927,7 @@ namespace UnityEngine.Rendering.Universal
                 var reflectionProbeCount = Mathf.Min(reflectionProbes.Length, UniversalRenderPipeline.maxVisibleReflectionProbes);
                 m_GPULightsDataBuildSystem.NewFrame(punctualLightCount + reflectionProbeCount, m_AdditionalLightsShadowCasterPass, m_LightCookieManager);
                 m_GPULightsDataBuildSystem.BuildGPULightList(lightData, cameraData);
+                m_GPULightsDataBuildSystem.BuildEnvLightList(ref reflectionProbes, reflectionProbeCount, cameraData);
 
                 m_GPULights.PreSetup(lightData, cameraData, m_GPULightsDataBuildSystem);
             }
@@ -1434,7 +1435,7 @@ namespace UnityEngine.Rendering.Universal
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingGbuffer);
 
-                // TODO: GPULightList
+                // GPULightList
                 m_GPULights.Render(renderGraph, frameData);
 
                 // TODO: SSAO

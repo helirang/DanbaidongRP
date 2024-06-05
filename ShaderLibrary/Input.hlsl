@@ -176,7 +176,9 @@ CBUFFER_END
 #endif
 #endif
 
-#if USE_FORWARD_PLUS
+// We need this in danbaidongRP, should we move it to ReflectionProbeManager define?
+// #if USE_FORWARD_PLUS
+#if 1
 
 CBUFFER_START(urp_ZBinBuffer)
         float4 urp_ZBins[MAX_ZBIN_VEC4S];

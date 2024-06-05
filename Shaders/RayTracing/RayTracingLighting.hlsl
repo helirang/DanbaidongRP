@@ -190,7 +190,7 @@ half realtimeShadow = MainLightRealtimeShadow(shadowCoord);
     // Evaluate SkyEnvironment
     if (reflectionHierarchyWeight < 1.0)
     {
-        float3 envReflection = SampleEnvironment(reflectDirWS, shadingData.perceptualRoughness, shadingData.occlusion).rgb;
+        float3 envReflection = SampleSkyEnvironment(reflectDirWS, shadingData.perceptualRoughness, shadingData.occlusion).rgb;
         indirectSpecular += specularFGD * envReflection;
     }
 

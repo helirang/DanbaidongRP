@@ -294,6 +294,12 @@ namespace UnityEngine.Rendering.Universal.Internal
         public float specularDimmer;    //TODO: make it used
     };
 
+    [GenerateHLSL(PackingRules.Exact, false)]
+    struct EnvLightData
+    {
+        // EnvLightData is in ReflectionProbeManager, we just need this struct for index.
+    }
+
     //-----------------------------------------------------------------------------
     // render pass
     //-----------------------------------------------------------------------------
@@ -411,7 +417,9 @@ namespace UnityEngine.Rendering.Universal.Internal
                 scaledCameraHeight *= ScalableBufferManager.heightScaleFactor;
             }
 
-            lightCBuffer.g_iNrVisibLights = lightData.additionalLightsCount;
+            int envLightsCount = gpuLightsDataBuildSystem.envLightsCount;
+            int additionalLightsCount = lightData.additionalLightsCount;
+            lightCBuffer.g_iNrVisibLights = additionalLightsCount + envLightsCount;
             lightCBuffer._DirectionalLightCount = (uint)lightData.directionalLightsCount;
 
             /// <see cref="ScriptableRenderer"/> cmd.SetGlobalVector(ShaderPropertyId.screenSize...
@@ -420,8 +428,8 @@ namespace UnityEngine.Rendering.Universal.Internal
             lightCBuffer.g_isOrthographic = cameraData.camera.orthographic ? 1u : 0u;
             //lightCBuffer.g_BaseFeatureFlags = 0; // Filled for each individual pass.
             //lightCBuffer.g_iNumSamplesMSAA = msaaSamples;
-            lightCBuffer._EnvLightIndexShift = (uint)lightData.additionalLightsCount;
-            lightCBuffer._DecalIndexShift = 0;// (uint)(additionalLightsCount + envLights);
+            lightCBuffer._EnvLightIndexShift = (uint)additionalLightsCount;
+            lightCBuffer._DecalIndexShift = (uint)(additionalLightsCount + envLightsCount);
 
             const float C = (float)(1 << k_Log2NumClusters);
             var geomSeries = (1.0 - Mathf.Pow(k_ClustLogBase, C)) / (1 - k_ClustLogBase); // geometric series: sum_k=0^{C-1} base^k
@@ -612,7 +620,7 @@ namespace UnityEngine.Rendering.Universal.Internal
         static void ExecutePass(GPULightsPassData data, ComputeGraphContext context)
         {
             // TODO: We should add envLights(probe) and decals as HDRP.
-            int totalLightCount = data.lightData.additionalLightsCount;
+            int totalLightCount = data.lightListCB.g_iNrVisibLights;
             if (totalLightCount == 0)
             {
                 ClearAllLightLists(context.cmd, data);
@@ -748,7 +756,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             cmd.SetGlobalBuffer(ShaderConstants.g_vLayeredOffsetsBuffer, outData.perVoxelOffset);
             cmd.SetGlobalBuffer(ShaderConstants.g_logBaseBuffer, outData.perTileLogBaseTweak);
 
-            CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.GPULightsCluster, true);
+            cmd.SetKeyword(ShaderGlobalKeywords.GPULightsCluster, true);
         }
 
         internal void RenderSetGlobalSync(RenderGraph renderGraph, ContextContainer frameData)
@@ -790,7 +798,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                 throw new ArgumentNullException("cmd");
 
             // Clean Keyword if need
-            CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.GPULightsCluster, false);
+            cmd.SetKeyword(ShaderGlobalKeywords.GPULightsCluster, false);
         }
 
         /// <summary>

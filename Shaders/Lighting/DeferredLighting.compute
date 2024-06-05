@@ -18,6 +18,7 @@
 #pragma multi_compile _ _PEROBJECT_SCREEN_SPACE_SHADOW
 #pragma multi_compile _ _GBUFFER_NORMALS_OCT
 #pragma multi_compile _ _GPU_LIGHTS_CLUSTER
+#pragma multi_compile _ _SCREEN_SPACE_REFLECTION
 //--------------------------------------------------------------------------------------------------
 // Included headers
 //--------------------------------------------------------------------------------------------------
@@ -155,18 +156,6 @@ void InitializeDispatchThreadIdFromTileList(uint groupId, uint2 gThreadId, out u
     dThreadId = tileCoord * DEFERRED_LIGHTING_TILE_SIZE
               + uint2(groupId & 1, (groupId >> 1) & 1) * DEFERRED_LIGHTING_GROUP_SIZE
               + gThreadId;
-}
-
-// This function is use with reflection and refraction hierarchy of LightLoop
-// It will add weight to hierarchyWeight but ensure that hierarchyWeight is not more than one
-// by updating the weight value. Returned weight value must be apply on current lighting
-// Example: Total hierarchyWeight is 0.8 and weight is 0.4. Function return hierarchyWeight of 1.0 and weight of 0.2
-// hierarchyWeight and weight must be positive and between 0 and 1
-void UpdateLightingHierarchyWeights(inout float hierarchyWeight, inout float weight)
-{
-    float accumulatedWeight = hierarchyWeight + weight;
-    hierarchyWeight = saturate(accumulatedWeight);
-    weight -= saturate(accumulatedWeight - hierarchyWeight);
 }
 
 #endif
@@ -391,7 +380,7 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
 
 
         // Punctual Lights
-        uint lightCategory = 0;
+        uint lightCategory = LIGHTCATEGORY_PUNCTUAL;
         uint lightStart;
         uint lightCount;
         GetCountAndStart(posInput, lightCategory, lightStart, lightCount);
@@ -475,28 +464,40 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
         reflectDirWS = lerp(specDominantDirWS, reflectDirWS, saturate(smoothstep(0, 1, shadingData.roughness2)));
     }
 
-    // Evaluate ScreenSpaceReflection (We have problem with this.)
     float reflectionHierarchyWeight = 0.0; // Max: 1.0
-    float4 ssrLighting = LOAD_TEXTURE2D(_SSRLightingTexture, posInput.positionSS);
-    reflectionHierarchyWeight = ssrLighting.a;
-    indirectSpecular += specularFGD * ssrLighting.rgb;
+    
+    #if defined(_SCREEN_SPACE_REFLECTION)
+    // Evaluate ScreenSpaceReflection.
+    {
+        reflectionHierarchyWeight = 1.0; // SSR will computes all scene reflections.
+        float4 ssrLighting = LOAD_TEXTURE2D(_SSRLightingTexture, posInput.positionSS);
+        indirectSpecular += specularFGD * ssrLighting.rgb;
+    }
+    #endif
+
+
+    // Evaluate Environment probes
+    if (reflectionHierarchyWeight < 1.0)
+    {
+        float3 envReflection = EvaluateEnvProbes(posInput, reflectDirWS, shadingData.perceptualRoughness, reflectionHierarchyWeight);
+        indirectSpecular += specularFGD * envReflection;
+    }
+    
 
     // Evaluate SkyEnvironment
     if (reflectionHierarchyWeight < 1.0)
     {
         float weight = 1.0;
         UpdateLightingHierarchyWeights(reflectionHierarchyWeight, weight);
-        float3 envReflection = SampleEnvironment(reflectDirWS, shadingData.perceptualRoughness, shadingData.occlusion).rgb;
-        indirectSpecular += specularFGD * envReflection * weight;
+        float3 skyReflection = SampleSkyEnvironment(reflectDirWS, shadingData.perceptualRoughness, shadingData.occlusion);
+        indirectSpecular += specularFGD * skyReflection * weight;
     }
 
     // Post evaluate indirect diffuse or energy.
-
-
-
     lightOutput.diffuseLighting = directDiffuse + indirectDiffuse;
     lightOutput.specularLighting = directSpecular + indirectSpecular;
     lightOutput.specularLighting *= 1.0 + shadingData.fresnel0 * energyCompensation;
+
 
     return lightOutput;
 }

@@ -73,6 +73,10 @@ namespace UnityEngine.Rendering.Universal.Internal
         {
             var cmd = context.cmd;
 
+            // Due to async compute, we set global keywords here.
+            cmd.SetKeyword(ShaderGlobalKeywords.ScreenSpaceReflection, data.ssrLightingTexture.IsValid());
+
+
             // BuildIndirect
             {
                 cmd.SetComputeTextureParam(data.deferredLightingCS, data.deferredClassifyTilesKernel, "_StencilTexture", data.stencilHandle, 0, RenderTextureSubElement.Stencil);

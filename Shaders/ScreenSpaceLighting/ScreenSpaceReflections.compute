@@ -102,10 +102,6 @@ RWStructuredBuffer<uint> gTileList;
 #define NEED_RAYTRACED_REFLECTIONS(perceptualRoughness) (perceptualRoughness < _SsrRoughnessFadeEnd)
 #define IS_MIRROR_REFLECTIONS(perceptualRoughness) (perceptualRoughness < 0.01)
 
-#define TILE_INDEX_MASK (0xffffu)
-#define TILE_INDEX_SHIFT_X (0)
-#define TILE_INDEX_SHIFT_Y (16)
-
 uint2 DecodeTileIndex(uint encoded)
 {
     return uint2((encoded >> TILE_INDEX_SHIFT_X) & TILE_INDEX_MASK, (encoded >> TILE_INDEX_SHIFT_Y) & TILE_INDEX_MASK);

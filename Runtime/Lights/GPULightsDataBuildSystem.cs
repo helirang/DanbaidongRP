@@ -2,6 +2,7 @@ using System;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
+using Unity.Mathematics;
 
 namespace UnityEngine.Rendering.Universal.Internal
 {
@@ -28,6 +29,10 @@ namespace UnityEngine.Rendering.Universal.Internal
         private int m_DirectionalLightCapacity = 0;
         private int m_DirectionalLightCount = 0;
 
+        private NativeArray<EnvLightData> m_EnvLightsData;
+        private int m_EnvLightCapacity = 0;
+        private int m_EnvLightsCount = 0;
+
         private AdditionalLightsShadowCasterPass m_AdditionalLightsShadowCasterPass;
         private LightCookieManager m_LightCookieManager;
 
@@ -36,10 +41,15 @@ namespace UnityEngine.Rendering.Universal.Internal
         public NativeArray<LightVolumeData> lightVolumes => m_LightVolumes;
         public NativeArray<GPULightData> gpuLightsData => m_GPULightsData;
         public NativeArray<DirectionalLightData> directionalLightsData => m_DirectionalLightsData;
+        public NativeArray<EnvLightData> envLightsData => m_EnvLightsData;
 
         public int lightsCount => m_LightCount;
         public int directionalLightCount => m_DirectionalLightCount;
         public int boundsCount => m_boundsCount;
+        public int envLightsCount => m_EnvLightsCount;
+
+        // Constants
+        internal static readonly Vector3 k_BoxCullingExtentThreshold = Vector3.one * 0.01f;
 
         //Preallocates number of lights for bounds arrays and resets all internal counters. Must be called once per frame per view always.
         public void NewFrame(int maxBoundsCount, AdditionalLightsShadowCasterPass addShadowCaster, LightCookieManager cookieManager)
@@ -238,7 +248,133 @@ namespace UnityEngine.Rendering.Universal.Internal
             //Debug.Log(debugstr);
         }
 
+        public void BuildEnvLightList(ref NativeArray<VisibleReflectionProbe> reflectionProbes, int reflectionProbeCount, UniversalCameraData cameraData)
+        {
+            // Same as ForwardLights, sort it.
+            // Should probe come after otherProbe?
+            static bool IsProbeGreater(VisibleReflectionProbe probe, VisibleReflectionProbe otherProbe)
+            {
+                return probe.importance < otherProbe.importance ||
+                    (probe.importance == otherProbe.importance && probe.bounds.extents.sqrMagnitude > otherProbe.bounds.extents.sqrMagnitude);
+            }
 
+            for (var i = 1; i < reflectionProbeCount; i++)
+            {
+                var probe = reflectionProbes[i];
+                var j = i - 1;
+                while (j >= 0 && IsProbeGreater(reflectionProbes[j], probe))
+                {
+                    reflectionProbes[j + 1] = reflectionProbes[j];
+                    j--;
+                }
+
+                reflectionProbes[j + 1] = probe;
+            }
+
+            // Camera Matrix
+            var worldToCamMatrix = cameraData.GetViewMatrix(); // Right-handed coordinate system
+            // camera.worldToCameraMatrix is RHS and Unity's transforms are LHS, we need to flip it to work with transforms.
+            // Note that this is equivalent to s_FlipMatrixLHSRHS * viewMatrix, but faster given that it doesn't need full matrix multiply
+            // However if for some reason s_FlipMatrixLHSRHS changes from Matrix4x4.Scale(new Vector3(1, 1, -1)), this need to change as well.
+            worldToCamMatrix.m20 *= -1;
+            worldToCamMatrix.m21 *= -1;
+            worldToCamMatrix.m22 *= -1;
+            worldToCamMatrix.m23 *= -1;
+
+            BuildEnvLightsDataBuffer(ref reflectionProbes, reflectionProbeCount);
+
+            for (int i = 0; i < reflectionProbeCount; i++)
+            {
+                var probe = reflectionProbes[i];
+                GetEnvLightVolumeDataAndBound(ref probe, ref worldToCamMatrix);
+            }
+        }
+
+        public void BuildEnvLightsDataBuffer(ref NativeArray<VisibleReflectionProbe> reflectionProbes, int reflectionProbeCount)
+        {
+            // Allocate envLightData
+            int requestedDurectinalCount = Math.Max(1, reflectionProbeCount);
+            if (requestedDurectinalCount > m_EnvLightCapacity)
+            {
+                m_EnvLightCapacity = Math.Max(Math.Max(m_EnvLightCapacity * 2, requestedDurectinalCount), ArrayCapacity);
+                m_EnvLightsData.ResizeArray(m_EnvLightCapacity);
+            }
+            m_EnvLightsCount = reflectionProbeCount;
+
+            for (int envLightIndex = 0; envLightIndex < reflectionProbeCount; envLightIndex++)
+            {
+                var probe = reflectionProbes[envLightIndex];
+                var envLightData = new EnvLightData();
+                // EnvLightData is handled by ReflectionProbeManager, we just add it here for indexing.
+
+
+                m_EnvLightsData[envLightIndex] = envLightData;
+            }
+        }
+
+        private void GetEnvLightVolumeDataAndBound(ref VisibleReflectionProbe probe, ref Matrix4x4 worldToCamMatrix)
+        {
+            var bound = new SFiniteLightBound();
+            var lightVolumeData = new LightVolumeData();
+
+            var centerWS = (float3)probe.bounds.center;
+            var extentsWS = (float3)probe.bounds.extents;
+
+            Vector3 influenceExtents = extentsWS;
+            Matrix4x4 influenceToWorld = probe.localToWorldMatrix;
+
+            var influenceRightVS = worldToCamMatrix.MultiplyVector(influenceToWorld.GetColumn(0).normalized);
+            var influenceUpVS = worldToCamMatrix.MultiplyVector(influenceToWorld.GetColumn(1).normalized);
+            var influenceForwardVS = worldToCamMatrix.MultiplyVector(influenceToWorld.GetColumn(2).normalized);
+            var influencePositionVS = worldToCamMatrix.MultiplyPoint(centerWS); // We need use bounds cneter.
+
+            var lightVolumeType = LightVolumeType.Box; // TODO: Sphere?
+            lightVolumeData.lightCategory = (uint)LightCategory.Env;
+            lightVolumeData.lightVolume = (uint)lightVolumeType;
+            lightVolumeData.featureFlags = (uint)LightFeatureFlags.Env;
+
+            switch (lightVolumeType)
+            {
+                case LightVolumeType.Sphere:
+                    {
+                        lightVolumeData.lightPos = influencePositionVS;
+                        lightVolumeData.radiusSq = influenceExtents.x * influenceExtents.x;
+                        lightVolumeData.lightAxisX = influenceRightVS;
+                        lightVolumeData.lightAxisY = influenceUpVS;
+                        lightVolumeData.lightAxisZ = influenceForwardVS;
+
+                        bound.center = influencePositionVS;
+                        bound.boxAxisX = influenceRightVS * influenceExtents.x;
+                        bound.boxAxisY = influenceUpVS * influenceExtents.x;
+                        bound.boxAxisZ = influenceForwardVS * influenceExtents.x;
+                        bound.scaleXY = 1.0f;
+                        bound.radius = influenceExtents.x;
+                        break;
+                    }
+                case LightVolumeType.Box:
+                    {
+                        bound.center = influencePositionVS;
+                        bound.boxAxisX = influenceExtents.x * influenceRightVS;
+                        bound.boxAxisY = influenceExtents.y * influenceUpVS;
+                        bound.boxAxisZ = influenceExtents.z * influenceForwardVS;
+                        bound.scaleXY = 1.0f;
+                        bound.radius = influenceExtents.magnitude;
+
+                        // The culling system culls pixels that are further
+                        //   than a threshold to the box influence extents.
+                        // So we use an arbitrary threshold here (k_BoxCullingExtentOffset)
+                        lightVolumeData.lightPos = influencePositionVS;
+                        lightVolumeData.lightAxisX = influenceRightVS;
+                        lightVolumeData.lightAxisY = influenceUpVS;
+                        lightVolumeData.lightAxisZ = influenceForwardVS;
+                        lightVolumeData.boxInnerDist = influenceExtents - k_BoxCullingExtentThreshold;
+                        lightVolumeData.boxInvRange.Set(1.0f / k_BoxCullingExtentThreshold.x, 1.0f / k_BoxCullingExtentThreshold.y, 1.0f / k_BoxCullingExtentThreshold.z);
+                        break;
+                    }
+            }
+
+            AddLightBounds(bound, lightVolumeData);
+        }
 
         public void Cleanup()
         {

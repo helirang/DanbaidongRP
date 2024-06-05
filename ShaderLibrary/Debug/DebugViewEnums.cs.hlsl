@@ -5,6 +5,12 @@
 #ifndef DEBUGVIEWENUMS_CS_HLSL
 #define DEBUGVIEWENUMS_CS_HLSL
 //
+// UnityEngine.Rendering.Universal.DebugClusterCategory:  static fields
+//
+#define DEBUGCLUSTERCATEGORY_PUNCTUAL_LIGHTS (0)
+#define DEBUGCLUSTERCATEGORY_REFLECTION_PROBES (1)
+
+//
 // UnityEngine.Rendering.Universal.DebugFullScreenMode:  static fields
 //
 #define DEBUGFULLSCREENMODE_NONE (0)
