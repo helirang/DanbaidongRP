@@ -1,5 +1,5 @@
-#ifndef UNITY_MATERIAL_INCLUDED
-#define UNITY_MATERIAL_INCLUDED
+#ifndef DANBAIDONG_MATERIAL_INCLUDED
+#define DANBAIDONG_MATERIAL_INCLUDED
 
 //-----------------------------------------------------------------------------
 // Reflection / Refraction hierarchy handling
@@ -18,4 +18,4 @@ void UpdateLightingHierarchyWeights(inout float hierarchyWeight, inout float wei
 }
 
 
-#endif /* UNITY_MATERIAL_INCLUDED */
+#endif /* DANBAIDONG_MATERIAL_INCLUDED */

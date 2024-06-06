@@ -513,7 +513,7 @@ namespace UnityEngine.Rendering.Universal
                 if (passData.requireRayTracing)
                 {
                     var runtimeShaders = GraphicsSettings.GetRenderPipelineSettings<UniversalRenderPipelineRuntimeShaders>();
-                    passData.rtrtShader = runtimeShaders.rayTracingTest;
+                    passData.rtrtShader = runtimeShaders.rayTracingReflections;
                     passData.rtas = cameraData.rayTracingSystem.RequestAccelerationStructure();
                 }
 
