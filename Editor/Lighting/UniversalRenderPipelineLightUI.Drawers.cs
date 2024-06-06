@@ -81,7 +81,7 @@ namespace UnityEditor.Rendering.Universal
                     LightUI.DrawColor,
                     DrawEmissionContent)),
             CED.Conditional(
-                (serializedLight, editor) => !serializedLight.settings.lightType.hasMultipleDifferentValues && serializedLight.settings.light.type != LightType.Directional,
+                (serializedLight, editor) => serializedLight.settings.light.type != LightType.Directional,
                 CED.FoldoutGroup(LightUI.Styles.contributionsHeader, Expandable.Contribution, k_ExpandedState, DrawContributionsContent)),
             CED.FoldoutGroup(LightUI.Styles.renderingHeader,
                 Expandable.Rendering,
