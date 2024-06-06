@@ -181,6 +181,9 @@ namespace UnityEngine.Rendering.Universal.Internal
                     float maxSmoothness = Mathf.Clamp01(1.1725f / (1.01f + Mathf.Pow(1.0f * (additionalLightData.shapeRadius + 0.1f), 2f)) - 0.15f);
                     // Value of max smoothness is from artists point of view, need to convert from perceptual smoothness to roughness
                     gpuLightsData.minRoughness = (1.0f - maxSmoothness) * (1.0f - maxSmoothness);
+                    gpuLightsData.baseContribution = additionalLightData.baseContribution;
+                    gpuLightsData.rimContribution = additionalLightData.rimContribution;
+                    gpuLightsData.outlineContribution = additionalLightData.outlineContribution;
 
                     m_GPULightsData[visLightIndex - dirlightCount] = gpuLightsData;
                 }

@@ -141,6 +141,7 @@ uint IndexToShadingModel(int index)
 #elif defined(DEFERRED_LIGHTING)
 
 int  _ShadingModelIndex;
+int  _ShadingModelStencil;
 int2 _TilesNum;
 
 struct DeferredLightingOutput
@@ -408,7 +409,7 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
 
                     float distanceAtten = DistanceAttenuation(distanceSqr, gpuLight.lightAttenuation.xy) * AngleAttenuation(gpuLight.lightDirection.xyz, lightDirection, gpuLight.lightAttenuation.zw);
                     float shadowAtten = gpuLight.shadowType == 0 ? 1 : AdditionalLightShadow(gpuLight.shadowLightIndex, positionWS, lightDirection, shadowMask, gpuLight.lightOcclusionProbInfo);
-                    float attenuation = distanceAtten * shadowAtten;
+                    float attenuation = distanceAtten * shadowAtten * gpuLight.baseContribution;
 
                     float3 lightDirWS = lightDirection;
                     float NdotL = dot(normalWS, lightDirWS);
@@ -598,7 +599,7 @@ void DEFERRED_COMPUTE_ENTRY(uint3 dispatchThreadId : SV_DispatchThreadID, uint2 
     }
     // Reject dismatch stencil
     uint stencilVal = GetStencilValue(LOAD_TEXTURE2D_X(_StencilTexture, coordSS.xy));
-    uint targetShadingModel = IndexToShadingModel(_ShadingModelIndex);
+    uint targetShadingModel = _ShadingModelStencil;
     if (stencilVal != targetShadingModel)
     {
         return;

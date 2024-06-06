@@ -107,6 +107,10 @@ struct GPULightData
     int cookieLightIndex;
     int shadowType;
     float minRoughness;
+    float __unused1__;
+    float baseContribution;
+    float rimContribution;
+    float outlineContribution;
     float __unused2__;
 };
 

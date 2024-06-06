@@ -33,6 +33,22 @@ namespace UnityEngine.Rendering.Universal.Internal
             m_DeferredLightingKernel = m_DeferredLightingCS.FindKernel("DeferredLighting0");
         }
 
+        public static ShadingModels GetShadingModels(int modelIndex)
+        {
+            switch(modelIndex)
+            {
+                case 0:
+                    return ShadingModels.Lit;
+                case 1:
+                    return ShadingModels.SimpleLit;
+                case 2:
+                    return ShadingModels.Character;
+                default:
+                    return ShadingModels.Lit;
+            }
+        }
+
+
         private class PassData
         {
             internal UniversalResourceData resourceData;
@@ -96,6 +112,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                 {
                     var kernelIndex = data.deferredLightingKernel + modelIndex;
                     cmd.SetComputeIntParam(data.deferredLightingCS, "_ShadingModelIndex", modelIndex);
+                    cmd.SetComputeIntParam(data.deferredLightingCS, "_ShadingModelStencil", (int)GetShadingModels(modelIndex));
                     cmd.SetComputeVectorParam(data.deferredLightingCS, "_TilesNum", new Vector2(data.numTilesX, data.numTilesY));
 
                     cmd.SetComputeBufferParam(data.deferredLightingCS, kernelIndex, "g_TileList", data.tileListBuffer);

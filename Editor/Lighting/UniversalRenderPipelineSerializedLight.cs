@@ -35,6 +35,11 @@ namespace UnityEditor.Rendering.Universal
         // Shape Puntual
         public SerializedProperty shapeRadius { get; }
 
+        // Light Contributions
+        public SerializedProperty baseContributionProp { get; }
+        public SerializedProperty rimContributionProp { get; }
+        public SerializedProperty outlineContributionProp { get; }
+
         /// <summary>Method that updates the <see cref="SerializedObject"/> of the Light and the Additional Light Data</summary>
         public void Update()
         {
@@ -80,6 +85,10 @@ namespace UnityEditor.Rendering.Universal
             angularDiameter = serializedAdditionalDataObject.FindProperty("m_AngularDiameter");
 
             shapeRadius = serializedAdditionalDataObject.FindProperty("m_ShapeRadius");
+
+            baseContributionProp = serializedAdditionalDataObject.FindProperty("m_BaseContribution");
+            rimContributionProp = serializedAdditionalDataObject.FindProperty("m_RimContribution");
+            outlineContributionProp = serializedAdditionalDataObject.FindProperty("m_OutlineContribution");
 
             settings.ApplyModifiedProperties();
         }

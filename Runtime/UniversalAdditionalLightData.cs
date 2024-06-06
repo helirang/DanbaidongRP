@@ -213,6 +213,38 @@ namespace UnityEngine.Rendering.Universal
             set { m_ShapeRadius = value; }
         }
 
+        // Light contributions
+        /// <summary>
+        /// Base Light contribution.
+        /// </summary>
+        [SerializeField] float m_BaseContribution = 1.0f;
+        public float baseContribution
+        {
+            get => m_BaseContribution;
+            set { m_BaseContribution = value; }
+        }
+
+        /// <summary>
+        /// Rim Light contribution.
+        /// </summary>
+        [SerializeField] float m_RimContribution = 1.0f;
+        public float rimContribution
+        {
+            get => m_RimContribution;
+            set { m_RimContribution = value; }
+        }
+
+        /// <summary>
+        /// Outline Light contribution.
+        /// </summary>
+        [SerializeField] float m_OutlineContribution = 1.0f;
+        public float outlineContribution
+        {
+            get => m_OutlineContribution;
+            set { m_OutlineContribution = value; }
+        }
+
+
         [SerializeField] bool m_CustomShadowLayers = false;
 
         /// <summary>

@@ -268,6 +268,11 @@ namespace UnityEngine.Rendering.Universal.Internal
         public int cookieLightIndex;
         public int shadowType;
         public float minRoughness;
+        public float __unused1__; 
+        
+        public float baseContribution;
+        public float rimContribution;
+        public float outlineContribution;
         public float __unused2__;
 
     };

@@ -16,7 +16,7 @@ namespace UnityEngine.Rendering.Universal.Internal
         private List<ShaderTagId> m_ShaderTagIdList = new List<ShaderTagId>
         {
             new ShaderTagId("CharacterForward"),
-            new ShaderTagId("Outline")
+            new ShaderTagId("CharacterOutline")
         };
         // Constants
 
@@ -40,6 +40,11 @@ namespace UnityEngine.Rendering.Universal.Internal
         {
             internal TextureHandle albedoHdl;
             internal TextureHandle depthHdl;
+
+            // Sky Ambient
+            internal BufferHandle ambientProbe;
+            // Sky Reflect
+            internal TextureHandle reflectProbe;
 
             internal UniversalCameraData cameraData;
 
@@ -97,6 +102,10 @@ namespace UnityEngine.Rendering.Universal.Internal
             cmd.SetGlobalVector(ShaderPropertyId.scaleBiasRt, scaleBias);
             cmd.SetGlobalFloat(ShaderPropertyId.alphaToMaskAvailable, 0);
 
+            cmd.SetGlobalBuffer("_AmbientProbeData", data.ambientProbe);
+            cmd.SetGlobalTexture("_SkyTexture", data.reflectProbe);
+
+
             cmd.DrawRendererList(data.rendererList);
         }
 
@@ -113,10 +122,18 @@ namespace UnityEngine.Rendering.Universal.Internal
                 passData.cameraData = cameraData;
                 passData.batchLayerMask = batchLayerMask;
 
+                // Sky Environment
+                passData.ambientProbe = resourceData.skyAmbientProbe;
+                passData.reflectProbe = resourceData.skyReflectionProbe;
+
                 InitRendererLists(renderGraph, renderingData, cameraData, lightData, ref passData);
 
                 TextureHandle mainShadowsTexture = resourceData.mainShadowsTexture;
                 TextureHandle additionalShadowsTexture = resourceData.additionalShadowsTexture;
+
+
+                builder.UseBuffer(passData.ambientProbe);
+                builder.UseTexture(passData.reflectProbe);
 
                 if (colorTarget.IsValid())
                 {

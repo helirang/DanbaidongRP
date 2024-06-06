@@ -74,6 +74,9 @@ namespace UnityEditor.Rendering.Universal
 
             public static readonly GUIContent lightIntensity = EditorGUIUtility.TrTextContent("Intensity", "Sets the strength of the Light. Use the drop-down to select the light units to use.");
 
+            public static readonly GUIContent BaseContribution = EditorGUIUtility.TrTextContent("Base Light", "Sets the contribution of the Base Light.");
+            public static readonly GUIContent RimContribution = EditorGUIUtility.TrTextContent("Rim Light", "Sets the contribution of the Rim Light.");
+            public static readonly GUIContent OutlineContribution = EditorGUIUtility.TrTextContent("Outline Light", "Sets the contribution of the Outline Light.");
         }
     }
 }

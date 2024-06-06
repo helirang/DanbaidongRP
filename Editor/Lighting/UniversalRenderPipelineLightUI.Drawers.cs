@@ -21,9 +21,10 @@ namespace UnityEditor.Rendering.Universal
             General = 1 << 0,
             Shape = 1 << 1,
             Emission = 1 << 2,
-            Rendering = 1 << 3,
-            Shadows = 1 << 4,
-            LightCookie = 1 << 5
+            Contribution = 1 << 3,
+            Rendering = 1 << 4,
+            Shadows = 1 << 5,
+            LightCookie = 1 << 6
         }
 
         static PiecewiseLightUnitSlider k_DirectionalLightUnitSlider;
@@ -79,6 +80,9 @@ namespace UnityEditor.Rendering.Universal
                 CED.Group(
                     LightUI.DrawColor,
                     DrawEmissionContent)),
+            CED.Conditional(
+                (serializedLight, editor) => !serializedLight.settings.lightType.hasMultipleDifferentValues && serializedLight.settings.light.type != LightType.Directional,
+                CED.FoldoutGroup(LightUI.Styles.contributionsHeader, Expandable.Contribution, k_ExpandedState, DrawContributionsContent)),
             CED.FoldoutGroup(LightUI.Styles.renderingHeader,
                 Expandable.Rendering,
                 k_ExpandedState,
@@ -374,6 +378,13 @@ namespace UnityEditor.Rendering.Universal
             }
 
             DrawLightCookieContent(serializedLight, owner);
+        }
+
+        static void DrawContributionsContent(UniversalRenderPipelineSerializedLight serializedLight, Editor owner)
+        {
+            EditorGUILayout.Slider(serializedLight.baseContributionProp, 0f, 1f, Styles.BaseContribution);
+            EditorGUILayout.Slider(serializedLight.rimContributionProp, 0f, 1f, Styles.RimContribution);
+            EditorGUILayout.Slider(serializedLight.outlineContributionProp, 0f, 1f, Styles.OutlineContribution);
         }
 
         static void DrawRenderingContent(UniversalRenderPipelineSerializedLight serializedLight, Editor owner)
