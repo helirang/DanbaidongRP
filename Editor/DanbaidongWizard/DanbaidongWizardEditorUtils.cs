@@ -11,7 +11,7 @@ namespace UnityEditor.Rendering.Universal
         DXROptional = DXR | 1 << 4,
     }
 
-    enum QualityScope { Global, CurrentQuality }
+    enum QualityScope { Global, Raytracing }
 
     static class InclusiveScopeExtention
     {

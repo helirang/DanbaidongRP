@@ -71,12 +71,17 @@ namespace UnityEditor.Rendering.Universal
 
 
             ScopeBox globalScope = new ScopeBox(Style.global);
+            ScopeBox raytracingScope = new ScopeBox(Style.raytracing);
 
             m_BaseUpdatable.Add(globalScope);
+            m_BaseUpdatable.Add(raytracingScope);
 
             AddDanbaidongRPConfigInfo(globalScope, QualityScope.Global);
+            AddDanbaidongRPConfigInfo(raytracingScope, QualityScope.Raytracing);
 
+            container.Add(CreateWizardBehaviour());
 
+            CheckPersistantNeedReboot();
         }
 
         void AddDanbaidongRPConfigInfo(VisualElement container, QualityScope quality)
@@ -109,11 +114,6 @@ namespace UnityEditor.Rendering.Universal
         }
 
 
-        static void LoadReflectionMethods()
-        {
-
-        }
-
         static class Style
         {
             public static readonly GUIContent title = EditorGUIUtility.TrTextContent("DanbaidongRP Wizard");
@@ -125,8 +125,10 @@ namespace UnityEditor.Rendering.Universal
             public static readonly string danbaidongRPTooltip = L10n.Tr("This tab contains configuration check for Danbaidong Render Pipeline.");
 
             public static readonly string global = L10n.Tr("Global");
+            public static readonly string raytracing = L10n.Tr("Raytracing");
             public static readonly string resolve = L10n.Tr("Fix");
             public static readonly string resolveAll = L10n.Tr("Fix All");
+            public static readonly string showOnStartUp = L10n.Tr("Show wizard after start");
 
             public struct ConfigStyle
             {
@@ -168,6 +170,19 @@ namespace UnityEditor.Rendering.Universal
             public static readonly ConfigStyle meshRendererPresets = new ConfigStyle(
                 label: L10n.Tr("Presets - MeshRenderer"),
                 error: L10n.Tr("There is no preset of MeshRenderer!"));
+
+            public const string mainlightshadows = "MainLightShadows";
+            public static readonly ConfigStyle renderinglayerMainLightShadow = new ConfigStyle(
+                label: L10n.Tr("RenderingLayers - MainLightShadows"),
+                error: L10n.Tr("Rendering Layer1 is used by mainLightShadow and perObjectShadow, should set to \"MainLightShadows\"!"));
+
+            public static readonly ConfigStyle dxrD3D12 = new ConfigStyle(
+                label: L10n.Tr("Direct3D 12"),
+                error: L10n.Tr("Direct3D 12 needs to be the active device! (Editor restart is required). If an API different than D3D12 is forced via command line argument, clicking Fix won't change it, so please consider removing it if wanting to run DXR."));
+            public static readonly ConfigStyle dxrRaytracing = new ConfigStyle(
+                label: L10n.Tr("Enable Raytracing"),
+                error: L10n.Tr("Raytracing needs to be true, check Render Pipeline Asset > Rendering!"),
+                messageType: MessageType.Warning);
         }
 
 
@@ -188,7 +203,8 @@ namespace UnityEditor.Rendering.Universal
             EditorApplication.update -= WizardBehaviourDelayed;
 
             // If the wizard does not need to be shown at start up, do nothing.
-
+            if (!DanbaidongUserSettings.wizardIsStartPopup)
+                return;
 
             //Application.isPlaying cannot be called in constructor. Do it here
             if (Application.isPlaying)
@@ -233,7 +249,6 @@ namespace UnityEditor.Rendering.Universal
         }
 
         #endregion /* SCRIPT_RELOADING */
-
 
 
 
@@ -597,6 +612,18 @@ namespace UnityEditor.Rendering.Universal
 
 
         #region Create VisualElement
+        VisualElement CreateWizardBehaviour()
+        {
+            var toggle = new Toggle(Style.showOnStartUp)
+            {
+                value = DanbaidongUserSettings.wizardIsStartPopup,
+                name = "WizardCheckbox"
+            };
+            toggle.AddToClassList("LeftToogle");
+            toggle.RegisterValueChangedCallback(evt
+                => DanbaidongUserSettings.wizardIsStartPopup = evt.newValue);
+            return toggle;
+        }
 
         Label CreateTitle(string title)
         {
@@ -877,6 +904,13 @@ namespace UnityEditor.Rendering.Universal
                 new Entry(QualityScope.Global, InclusiveMode.DanbaidongRP, Style.pointLightPresets, IsPresetsPointLightCorrect, FixPresetsPointLight),
                 new Entry(QualityScope.Global, InclusiveMode.DanbaidongRP, Style.spotLightPresets, IsPresetsSpotLightCorrect, FixPresetsSpotLight),
                 new Entry(QualityScope.Global, InclusiveMode.DanbaidongRP, Style.meshRendererPresets, IsPresetsMeshRendererCorrect, FixPresetsMeshRendererLight),
+                new Entry(QualityScope.Global, InclusiveMode.DanbaidongRP, Style.renderinglayerMainLightShadow, IsRenderingLayersMainLightShadowCorrect, FixRenderingLayersMainLightShadow),
+            });
+
+            entryList.AddRange(new Entry[]
+            {
+                new Entry(QualityScope.Raytracing, InclusiveMode.DanbaidongRP, Style.dxrD3D12, IsDXRDirect3D12Correct, FixDXRDirect3D12),
+                new Entry(QualityScope.Raytracing, InclusiveMode.DanbaidongRP, Style.dxrRaytracing, IsPipelineAssetRaytracingCorrect, null, forceDisplayCheck: true, skipErrorIcon: true, displayAssetName: true),
             });
 
             // Add the Optional checks
@@ -941,6 +975,49 @@ namespace UnityEditor.Rendering.Universal
         }
 
         #endregion Entry
+
+        #region Reflection methods
+        static Func<BuildTarget> CalculateSelectedBuildTarget;
+        static Func<BuildTarget, GraphicsDeviceType[]> GetSupportedGraphicsAPIs;
+        static Func<BuildTarget, bool> WillEditorUseFirstGraphicsAPI;
+        static Action RequestCloseAndRelaunchWithCurrentArguments;
+        static Func<int, string, bool> SetRenderingLayerName;
+
+        static void LoadReflectionMethods()
+        {
+            Type playerSettingsType = typeof(PlayerSettings);
+            Type playerSettingsEditorType = playerSettingsType.Assembly.GetType("UnityEditor.PlayerSettingsEditor");
+            Type editorUserBuildSettingsUtilsType = playerSettingsType.Assembly.GetType("UnityEditor.EditorUserBuildSettingsUtils");
+
+            Type tagManagerType = playerSettingsType.Assembly.GetType("UnityEditor.TagManager");
+
+            var buildTargetParameter = Expression.Parameter(typeof(BuildTarget), "platform");
+            var int32Parameter = Expression.Parameter(typeof(int), "index");
+            var stringNameParameter = Expression.Parameter(typeof(string), "name");
+
+            var calculateSelectedBuildTargetInfo = editorUserBuildSettingsUtilsType.GetMethod("CalculateSelectedBuildTarget", BindingFlags.Static | BindingFlags.Public);
+            var getSupportedGraphicsAPIsInfo = playerSettingsType.GetMethod("GetSupportedGraphicsAPIs", BindingFlags.Static | BindingFlags.NonPublic);
+            var willEditorUseFirstGraphicsAPIInfo = playerSettingsEditorType.GetMethod("WillEditorUseFirstGraphicsAPI", BindingFlags.Static | BindingFlags.NonPublic);
+            var requestCloseAndRelaunchWithCurrentArgumentsInfo = typeof(EditorApplication).GetMethod("RequestCloseAndRelaunchWithCurrentArguments", BindingFlags.Static | BindingFlags.NonPublic);
+            var setRenderingLayerNameInfo = tagManagerType.GetMethod("Internal_TrySetRenderingLayerName", BindingFlags.Static | BindingFlags.NonPublic);
+
+            var calculateSelectedBuildTargetLambda = Expression.Lambda<Func<BuildTarget>>(Expression.Call(null, calculateSelectedBuildTargetInfo));
+            var getSupportedGraphicsAPIsLambda = Expression.Lambda<Func<BuildTarget, GraphicsDeviceType[]>>(Expression.Call(null, getSupportedGraphicsAPIsInfo, buildTargetParameter), buildTargetParameter);
+            var willEditorUseFirstGraphicsAPILambda = Expression.Lambda<Func<BuildTarget, bool>>(Expression.Call(null, willEditorUseFirstGraphicsAPIInfo, buildTargetParameter), buildTargetParameter);
+            var requestCloseAndRelaunchWithCurrentArgumentsLambda = Expression.Lambda<Action>(Expression.Call(null, requestCloseAndRelaunchWithCurrentArgumentsInfo));
+            var setRenderingLayerNameLambda = Expression.Lambda<Func<int, string, bool>>(
+                Expression.Call(null, setRenderingLayerNameInfo, int32Parameter, stringNameParameter),
+                int32Parameter,
+                stringNameParameter
+            );
+
+            CalculateSelectedBuildTarget = calculateSelectedBuildTargetLambda.Compile();
+            GetSupportedGraphicsAPIs = getSupportedGraphicsAPIsLambda.Compile();
+            WillEditorUseFirstGraphicsAPI = willEditorUseFirstGraphicsAPILambda.Compile();
+            RequestCloseAndRelaunchWithCurrentArguments = requestCloseAndRelaunchWithCurrentArgumentsLambda.Compile();
+            SetRenderingLayerName = setRenderingLayerNameLambda.Compile();
+        }
+        #endregion Reflection methods
 
         #region Correct and Fix Functions
 
@@ -1014,6 +1091,95 @@ namespace UnityEditor.Rendering.Universal
 
         void FixPresetsMeshRendererLight(bool fromAsyncUnused)
             => DanbaidongRPPresetUtils.InsertAsFirstDefault(ref m_pipelinePresets.meshRendererPreset);
+
+        /// <summary>
+        /// DXR DX12
+        /// </summary>
+        /// <returns></returns>
+        bool IsDXRDirect3D12Correct()
+        {
+            return SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D12 && !DanbaidongUserSettings.wizardNeedRestartAfterChangingToDX12;
+        }
+
+        void FixDXRDirect3D12(bool fromAsyncUnused)
+        {
+            if (GetSupportedGraphicsAPIs(CalculateSelectedBuildTarget()).Contains(GraphicsDeviceType.Direct3D12))
+            {
+                var buidTarget = CalculateSelectedBuildTarget();
+                if (PlayerSettings.GetGraphicsAPIs(buidTarget).Contains(GraphicsDeviceType.Direct3D12))
+                {
+                    PlayerSettings.SetGraphicsAPIs(
+                        buidTarget,
+                        new[] { GraphicsDeviceType.Direct3D12 }
+                            .Concat(
+                            PlayerSettings.GetGraphicsAPIs(buidTarget)
+                                .Where(x => x != GraphicsDeviceType.Direct3D12))
+                            .ToArray());
+                }
+                else
+                {
+                    PlayerSettings.SetGraphicsAPIs(
+                        buidTarget,
+                        new[] { GraphicsDeviceType.Direct3D12 }
+                            .Concat(PlayerSettings.GetGraphicsAPIs(buidTarget))
+                            .ToArray());
+                }
+                DanbaidongUserSettings.wizardNeedRestartAfterChangingToDX12 = true;
+                m_Fixer.Add(() => ChangedFirstGraphicAPI(buidTarget)); //register reboot at end of operations
+            }
+        }
+
+        void ChangedFirstGraphicAPI(BuildTarget target)
+        {
+            //It seams that the 64 version is not check for restart for a strange reason
+            if (target == BuildTarget.StandaloneWindows64)
+                target = BuildTarget.StandaloneWindows;
+
+            // If we're changing the first API for relevant editor, this will cause editor to switch: ask for scene save & confirmation
+            if (WillEditorUseFirstGraphicsAPI(target))
+            {
+                if (EditorUtility.DisplayDialog("Changing editor graphics device",
+                    "You've changed the active graphics API. This requires a restart of the Editor. After restarting, finish fixing DXR configuration by launching the wizard again.",
+                    "Restart Editor", "Not now"))
+                {
+                    DanbaidongUserSettings.wizardNeedRestartAfterChangingToDX12 = false;
+                    RequestCloseAndRelaunchWithCurrentArguments();
+                }
+                else
+                    EditorApplication.quitting += () => DanbaidongUserSettings.wizardNeedRestartAfterChangingToDX12 = false;
+            }
+        }
+
+        void CheckPersistantNeedReboot()
+        {
+            if (DanbaidongUserSettings.wizardNeedRestartAfterChangingToDX12)
+                EditorApplication.quitting += () => DanbaidongUserSettings.wizardNeedRestartAfterChangingToDX12 = false;
+        }
+
+        /// <summary>
+        /// Raytracing setting.
+        /// </summary>
+        /// <returns></returns>
+        bool IsPipelineAssetRaytracingCorrect()
+        {
+            var pipelineAsset = GraphicsSettings.defaultRenderPipeline as UniversalRenderPipelineAsset;
+            return pipelineAsset.supportsRayTracing;
+        }
+
+        /// <summary>
+        /// Renderinglayers
+        /// </summary>
+        /// <returns></returns>
+        bool IsRenderingLayersMainLightShadowCorrect()
+        {
+            var names = RenderingLayerMask.RenderingLayerToName(1);
+            return string.Equals(names, Style.mainlightshadows);
+        }
+
+        void FixRenderingLayersMainLightShadow(bool fromAsyncUnused)
+        {
+            SetRenderingLayerName(1, Style.mainlightshadows);
+        }
 
         #endregion Correct and Fix Functions
     }

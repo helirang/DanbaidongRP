@@ -13,6 +13,8 @@ namespace UnityEditor.Rendering.Universal
         bool m_WizardNeedRestartAfterChangingToDX12 = false;
         [SerializeField]
         bool m_WizardNeedToRunFixAllAgainAfterDomainReload = false;
+        [SerializeField]
+        bool m_WizardIsStartPopup = true;
 
         public static int wizardActiveTab
         {
@@ -50,6 +52,16 @@ namespace UnityEditor.Rendering.Universal
             set
             {
                 instance.m_WizardNeedRestartAfterChangingToDX12 = value;
+                instance.Save();
+            }
+        }
+
+        public static bool wizardIsStartPopup
+        {
+            get => instance.m_WizardIsStartPopup;
+            set
+            {
+                instance.m_WizardIsStartPopup = value;
                 instance.Save();
             }
         }

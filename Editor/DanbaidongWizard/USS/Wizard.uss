@@ -144,6 +144,11 @@ ToolbarRadio
     margin-right: 20px;
 }
 
+.LeftToogle
+{
+    margin-left: 10px;
+}
+
 #HDRPVersionContainer
 {
     flex-direction: row;
