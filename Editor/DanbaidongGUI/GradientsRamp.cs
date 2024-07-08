@@ -120,7 +120,7 @@ namespace UnityEditor.DanbaidongGUI
                 Debug.LogError("Gradient list num:" + gradients.Count + ", rampWidth:" + rampWidth + ", rampHeight:" + rampHeight);
                 return null;
             }
-            Texture2D rampTexture = new Texture2D(rampWidth, rampHeight * gradients.Count, TextureFormat.RGBA32, false);
+            Texture2D rampTexture = new Texture2D(rampWidth, rampHeight * gradients.Count, TextureFormat.RGBAFloat, false);
 
             for (int x = 0; x < rampWidth; x++)
             {

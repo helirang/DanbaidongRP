@@ -387,6 +387,9 @@ namespace UnityEngine.Rendering.Universal.Internal
             if (m_DirectionalLightsData.IsCreated)
                 m_DirectionalLightsData.Dispose();
 
+            if (m_EnvLightsData.IsCreated)
+                m_EnvLightsData.Dispose();
+
             if (m_LightBounds.IsCreated)
                 m_LightBounds.Dispose();
 
