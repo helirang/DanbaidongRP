@@ -15,11 +15,12 @@ namespace UnityEngine.Rendering.Universal
         [Range(0, 32)]
         [SerializeField] internal int maxObjectsCount = 32;
         [SerializeField] internal float maxDrawDistance = 1000f;
-        [SerializeField] internal ShadowResolution shadowMapResolution = ShadowResolution._512;
+        [SerializeField] internal ShadowResolution shadowMapResolution = ShadowResolution._2048;
+        [SerializeField] internal RenderingLayerMask excludeLayer = 1u << 1;
         [Header("ScreenSpaceShadows")]
-        [SerializeField] internal bool objectsScreenSpaceShadows = false;
+        [SerializeField] internal bool objectsScreenSpaceShadows = true;
         [SerializeField] internal FullScreenScale fullScreenScale = FullScreenScale.None;
-        [SerializeField] internal SoftShadowQuality softShadowQuality = SoftShadowQuality.Low;
+        [SerializeField] internal SoftShadowQuality softShadowQuality = SoftShadowQuality.High;
         public int GetEquivalentShadowMapResolution()
         {
             switch (shadowMapResolution)
@@ -205,7 +206,7 @@ namespace UnityEngine.Rendering.Universal
             if (m_PerObjectShadowCasterPass.Setup(m_Settings, ref renderingData, m_ObjectShadowEntityManager))
             {
                 renderer.EnqueuePass(m_PerObjectShadowCasterPass);
-
+                PerObjectShadowProjector.excludeLayer = m_Settings.excludeLayer;
 
                 if (m_Settings.objectsScreenSpaceShadows)
                 {

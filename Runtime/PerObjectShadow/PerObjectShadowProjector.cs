@@ -22,6 +22,8 @@ namespace UnityEngine.Rendering.Universal
         internal static Material defaultMaterial { get; set; }
         internal static bool isSupported => onPerObjectShadowAdd != null;
 
+        internal static RenderingLayerMask excludeLayer = 0;
+
         internal ObjectShadowEntity objectShadowEntity { get; set; }
 
         public static bool showDebugGzimos = true;
@@ -113,6 +115,19 @@ namespace UnityEngine.Rendering.Universal
         public void CollectRenderers()
         {
             m_Renderers = this.gameObject.GetComponentsInChildren<Renderer>();
+            ExcludeMeshRenderersRenderingLayers();
+        }
+
+        private void ExcludeMeshRenderersRenderingLayers()
+        {
+            if (excludeLayer != 0 && m_Renderers.Length > 0)
+            {
+                for (int i = 0; i < m_Renderers.Length; i++)
+                {
+                    var renderer = m_Renderers[i];
+                    renderer.renderingLayerMask = renderer.renderingLayerMask & ~excludeLayer.value;
+                }
+            }
         }
 
         void OnEnable()
