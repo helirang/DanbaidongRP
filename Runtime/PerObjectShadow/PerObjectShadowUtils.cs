@@ -446,7 +446,7 @@ namespace UnityEngine.Rendering.Universal
                 switch (r)
                 {
                     case MeshRenderer meshRenderer:
-                        submeshCount = meshRenderer.GetComponent<MeshFilter>().sharedMesh.subMeshCount;
+                        submeshCount = meshRenderer == null ? 0 : meshRenderer.GetComponent<MeshFilter>().sharedMesh.subMeshCount;
                         break;
                     case SkinnedMeshRenderer skinnedMeshRenderer:
                         submeshCount = skinnedMeshRenderer == null? 0 : skinnedMeshRenderer.sharedMesh.subMeshCount;

@@ -35,7 +35,7 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField]
         private float m_DrawDistance = 1000.0f;
         [SerializeField][Range(1.0f, 20.0f)]
-        private float m_FarPlaneScale = 2.0f;
+        private float m_FarPlaneScale = 5.0f;
 
         private Material m_OldMaterial = null;
 
