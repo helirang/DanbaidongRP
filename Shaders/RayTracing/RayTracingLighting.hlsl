@@ -190,13 +190,13 @@ half realtimeShadow = MainLightRealtimeShadow(shadowCoord);
     // Evaluate SkyEnvironment
     if (reflectionHierarchyWeight < 1.0)
     {
-        float3 envReflection = SampleSkyEnvironment(reflectDirWS, shadingData.perceptualRoughness, shadingData.occlusion).rgb;
+        float3 envReflection = SampleSkyEnvironment(reflectDirWS, shadingData.perceptualRoughness).rgb;
         indirectSpecular += specularFGD * envReflection;
     }
 
     // Post evaluate indirect diffuse or energy.
-
-
+    indirectDiffuse *= shadingData.occlusion;
+    indirectSpecular *= shadingData.occlusion;
     lightOutput.diffuseLighting = directDiffuse + indirectDiffuse;
     lightOutput.specularLighting = directSpecular + indirectSpecular;
     lightOutput.specularLighting *= 1.0 + shadingData.fresnel0 * energyCompensation;

@@ -59,7 +59,8 @@ namespace UnityEngine.Rendering.Universal.Internal
                 s_RenderStateBlocks[0] = DeferredLights.OverwriteStencil(m_RenderStateBlock, (int)ShadingModels.ModelsMask, (int)ShadingModels.Lit);
                 s_RenderStateBlocks[1] = DeferredLights.OverwriteStencil(m_RenderStateBlock, (int)ShadingModels.ModelsMask, (int)ShadingModels.SimpleLit);
                 s_RenderStateBlocks[2] = DeferredLights.OverwriteStencil(m_RenderStateBlock, (int)ShadingModels.ModelsMask, (int)ShadingModels.Character);
-                s_RenderStateBlocks[3] = s_RenderStateBlocks[0];
+                //s_RenderStateBlocks[3] = s_RenderStateBlocks[0];
+                s_RenderStateBlocks[3] = new RenderStateBlock(RenderStateMask.Nothing); // We want material handles renderState itself.
             }
         }
 

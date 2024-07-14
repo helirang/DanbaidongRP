@@ -92,7 +92,7 @@ float3 EvaluateEnvProbes(PositionInputs posInput, float3 reflectDirWS, float per
     return irradiance;
 }
 
-float3 SampleSkyEnvironment(float3 reflectVector, float perceptualRoughness, float occlusion)
+float3 SampleSkyEnvironment(float3 reflectVector, float perceptualRoughness)
 {
     float mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness);
     return SampleSkyTexture(reflectVector, mip).rgb;

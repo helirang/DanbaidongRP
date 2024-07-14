@@ -16,6 +16,7 @@ namespace UnityEngine.Rendering.Universal.Internal
         private List<ShaderTagId> m_ShaderTagIdList = new List<ShaderTagId>
         {
             new ShaderTagId("CharacterForward"),
+            new ShaderTagId("CharacterTransparent"),
             new ShaderTagId("CharacterOutline")
         };
         // Constants
@@ -30,10 +31,6 @@ namespace UnityEngine.Rendering.Universal.Internal
             m_FilteringSettings = new FilteringSettings(renderQueueRange, layerMask);
 
             m_RenderStateBlock = new RenderStateBlock(RenderStateMask.Nothing);
-            m_RenderStateBlock.stencilState = DeferredLights.OverwriteStencil(stencilState, (int)StencilUsage.MaterialMask);
-            m_RenderStateBlock.stencilReference = stencilReference | (int)StencilUsage.MaterialUnlit;
-            m_RenderStateBlock.mask = RenderStateMask.Stencil;
-
         }
 
         internal class PassData
@@ -49,7 +46,9 @@ namespace UnityEngine.Rendering.Universal.Internal
             internal UniversalCameraData cameraData;
 
             internal uint batchLayerMask;
-            internal RendererListHandle rendererList;
+            internal RendererListHandle rendererListBase;
+            internal RendererListHandle rendererListTrans;
+            internal RendererListHandle rendererListOutline;
         }
         internal void InitRendererLists(
             RenderGraph renderGraph,
@@ -73,19 +72,13 @@ namespace UnityEngine.Rendering.Universal.Internal
                 filterSettings.layerMask = -1;
             }
 #endif
-            DrawingSettings drawSettings = RenderingUtils.CreateDrawingSettings(m_ShaderTagIdList, renderingData, cameraData, lightData, sortFlags);
-            if (cameraData.renderer.useDepthPriming && (cameraData.renderType == CameraRenderType.Base || cameraData.clearDepth))
-            {
-                m_RenderStateBlock.depthState = new DepthState(false, CompareFunction.Equal);
-                m_RenderStateBlock.mask |= RenderStateMask.Depth;
-            }
-            else if (m_RenderStateBlock.depthState.compareFunction == CompareFunction.Equal)
-            {
-                m_RenderStateBlock.depthState = new DepthState(true, CompareFunction.LessEqual);
-                m_RenderStateBlock.mask |= RenderStateMask.Depth;
-            }
+            DrawingSettings drawSettingsBase = RenderingUtils.CreateDrawingSettings(m_ShaderTagIdList[0], renderingData, cameraData, lightData, sortFlags);
+            DrawingSettings drawSettingsTrans = RenderingUtils.CreateDrawingSettings(m_ShaderTagIdList[1], renderingData, cameraData, lightData, sortFlags);
+            DrawingSettings drawSettingsOutline = RenderingUtils.CreateDrawingSettings(m_ShaderTagIdList[2], renderingData, cameraData, lightData, sortFlags);
 
-            RenderingUtils.CreateRendererListWithRenderStateBlock(renderGraph, ref renderingData.cullResults, drawSettings, filterSettings, m_RenderStateBlock, ref passData.rendererList);
+            RenderingUtils.CreateRendererListWithRenderStateBlock(renderGraph, ref renderingData.cullResults, drawSettingsBase, filterSettings, m_RenderStateBlock, ref passData.rendererListBase);
+            RenderingUtils.CreateRendererListWithRenderStateBlock(renderGraph, ref renderingData.cullResults, drawSettingsTrans, filterSettings, m_RenderStateBlock, ref passData.rendererListTrans);
+            RenderingUtils.CreateRendererListWithRenderStateBlock(renderGraph, ref renderingData.cullResults, drawSettingsOutline, filterSettings, m_RenderStateBlock, ref passData.rendererListOutline);
         }
 
 
@@ -106,7 +99,9 @@ namespace UnityEngine.Rendering.Universal.Internal
             cmd.SetGlobalTexture("_SkyTexture", data.reflectProbe);
 
 
-            cmd.DrawRendererList(data.rendererList);
+            cmd.DrawRendererList(data.rendererListBase);
+            cmd.DrawRendererList(data.rendererListTrans);
+            cmd.DrawRendererList(data.rendererListOutline);
         }
 
         internal void Render(RenderGraph renderGraph, ContextContainer frameData, TextureHandle colorTarget, TextureHandle depthTarget, uint batchLayerMask = uint.MaxValue)
@@ -150,7 +145,9 @@ namespace UnityEngine.Rendering.Universal.Internal
                 if (additionalShadowsTexture.IsValid())
                     builder.UseTexture(additionalShadowsTexture, AccessFlags.Read);
 
-                builder.UseRendererList(passData.rendererList);
+                builder.UseRendererList(passData.rendererListBase);
+                builder.UseRendererList(passData.rendererListTrans);
+                builder.UseRendererList(passData.rendererListOutline);
                 builder.AllowPassCulling(false);
                 builder.AllowGlobalStateModification(true);
 

@@ -300,14 +300,35 @@ namespace UnityEditor.DanbaidongGUI
                 }
             }
         }
+
+        public static void SetShaderPassEnable(UnityEngine.Object[] materials, string passName, bool isEnable)
+        {
+            if (string.IsNullOrEmpty(passName))
+                return;
+
+            foreach (Material m in materials)
+            {
+                if (m.GetShaderPassEnabled(passName))
+                {
+                    if (!isEnable) m.SetShaderPassEnabled(passName, false);
+                }
+                else
+                {
+                    if (isEnable) m.SetShaderPassEnabled(passName, true);
+                }
+            }
+        }
     }
 
     public class FoldoutBeginDrawer : MaterialPropertyDrawer
     {
         private string m_FoldEndName = "";
         private string m_Keyword = "";
+        private string m_PassName = "";
 
         private bool m_UseKeyword = false;
+        private bool m_UsePassName = false;
+
         public FoldoutBeginDrawer(string endName)
         {
             m_FoldEndName = endName;
@@ -318,6 +339,13 @@ namespace UnityEditor.DanbaidongGUI
             m_FoldEndName = endName;
             m_Keyword = keyword;
             m_UseKeyword = true;
+        }
+
+        public FoldoutBeginDrawer(string endName, string shownName, string passName)
+        {
+            m_FoldEndName = endName;
+            m_PassName = passName;
+            m_UsePassName = true;
         }
 
         public override void OnGUI(Rect rect, MaterialProperty prop, GUIContent label, MaterialEditor editor)
@@ -335,7 +363,11 @@ namespace UnityEditor.DanbaidongGUI
             //DrawFoldout
             if (m_UseKeyword)
             {
-                DrawerHelper.DrawFoldoutBegin(rect, ref isFolded, label, ref keyToogleVal, m_Keyword);
+                DrawerHelper.DrawFoldoutBegin(rect, ref isFolded, label, ref keyToogleVal, m_Keyword + " Key");
+            }
+            else if (m_UsePassName)
+            {
+                DrawerHelper.DrawFoldoutBegin(rect, ref isFolded, label, ref keyToogleVal, m_PassName + " Pass");
             }
             else
             {
@@ -353,6 +385,11 @@ namespace UnityEditor.DanbaidongGUI
                     DrawerHelper.SetShaderKeyWord(editor.targets, m_Keyword, keyToogleVal);
                     resultVal |= keyToogleVal ? keywordMask : 0;
                 }
+                else if (m_UsePassName)
+                {
+                    DrawerHelper.SetShaderPassEnable(editor.targets, m_PassName, keyToogleVal);
+                    resultVal |= keyToogleVal ? keywordMask : 0;
+                }
 
                 resultVal |= isFolded ? foldStateMask : 0;
 
@@ -362,7 +399,7 @@ namespace UnityEditor.DanbaidongGUI
 
             MaterialEditor.EndProperty();
 
-            customGUI?.SetFoldoutBegin(isFolded, m_FoldEndName, m_UseKeyword ? keyToogleVal : true);
+            customGUI?.SetFoldoutBegin(isFolded, m_FoldEndName, (m_UseKeyword || m_UsePassName) ? keyToogleVal : true);
         }
 
 
@@ -370,6 +407,20 @@ namespace UnityEditor.DanbaidongGUI
         public override float GetPropertyHeight(MaterialProperty prop, string label, MaterialEditor editor)
         {
             return 28f;
+        }
+
+        // We need init shader pass state (default is enable, but we should use shader val defines).
+        public override void Apply(MaterialProperty prop)
+        {
+            if (m_UsePassName)
+            {
+                int bitwiseVal = (int)prop.floatValue;
+                //int foldStateMask = 0b_0000_0001;
+                int keywordMask = 0b_0000_0010;
+                //bool isFolded = (bitwiseVal & foldStateMask) > 0;
+                bool keyToogleVal = (bitwiseVal & keywordMask) > 0;
+                DrawerHelper.SetShaderPassEnable(prop.targets, m_PassName, keyToogleVal);
+            }
         }
     }
 

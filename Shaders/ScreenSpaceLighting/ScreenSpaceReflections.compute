@@ -615,7 +615,7 @@ void ScreenSpaceReflectionsTracing(uint3 dispatchThreadId : SV_DispatchThreadID,
         {
             float weight = 1.0;
             UpdateLightingHierarchyWeights(reflectionHierarchyWeight, weight);
-            float3 skyReflection = SampleSkyEnvironment(reflectDirWS, perceptualRoughness, 1);
+            float3 skyReflection = SampleSkyEnvironment(reflectDirWS, perceptualRoughness);
             reflectColor += skyReflection * weight;
         }
 

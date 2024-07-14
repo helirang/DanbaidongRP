@@ -78,6 +78,7 @@ RWTexture2D<float4> _LightingTexture;
 #define DEFERRED_LIGHTING_GROUP_SIZE (DEFERRED_LIGHTING_TILE_SIZE / 2)
 #define DEFERRED_LIGHTING_THREADS   (64)
 #define HasShadingModel(stencilVal) ((stencilVal >> SHADINGMODELS_USER_MASK_BITS) > 0)
+#define StencilToShadingModel(stencilVal) (stencilVal & SHADINGMODELS_MODELS_MASK)
 
 uint2 DecodeTileIndex(uint encoded)
 {
@@ -94,22 +95,17 @@ uint EncodeTileIndex(uint2 tileID)
     return (unity_StereoEyeIndex << TILE_INDEX_SHIFT_EYE) | (tileID.y << TILE_INDEX_SHIFT_Y) | (tileID.x << TILE_INDEX_SHIFT_X);
 }
 
-int ShadingModelToIndex(uint stencilVal)
+int ShadingModelToIndex(uint shadingModel)
 {
-    // // This will map 0010_0000 to index 2.
-    // stencilVal = (stencilVal) >> SHADINGMODELS_USER_MASK_BITS;
-    // // Need remove defalut value 0.
-    // return stencilVal - 1;
-
-    if (stencilVal == SHADINGMODELS_LIT)
+    if (shadingModel == SHADINGMODELS_LIT)
     {
         return 0;
     }
-    else if (stencilVal == SHADINGMODELS_SIMPLE_LIT)
+    else if (shadingModel == SHADINGMODELS_SIMPLE_LIT)
     {
         return 1;
     }
-    else if (stencilVal == SHADINGMODELS_CHARACTER)
+    else if (shadingModel == SHADINGMODELS_CHARACTER)
     {
         return 2;
     }
@@ -201,8 +197,7 @@ void DeferredClassifyTiles(uint3 dispatchThreadId : SV_DispatchThreadID, uint gr
 
         uint stencilVal = GetStencilValue(LOAD_TEXTURE2D_X(_StencilTexture, uCrd));
 
-
-        int flagIndex = ShadingModelToIndex(stencilVal);
+        int flagIndex = ShadingModelToIndex(StencilToShadingModel(stencilVal));
         shadingModelFlags[flagIndex] |= (HasShadingModel(stencilVal) ? 1 : 0);
     }
 
@@ -490,11 +485,13 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
     {
         float weight = 1.0;
         UpdateLightingHierarchyWeights(reflectionHierarchyWeight, weight);
-        float3 skyReflection = SampleSkyEnvironment(reflectDirWS, shadingData.perceptualRoughness, shadingData.occlusion);
+        float3 skyReflection = SampleSkyEnvironment(reflectDirWS, shadingData.perceptualRoughness);
         indirectSpecular += specularFGD * skyReflection * weight;
     }
 
     // Post evaluate indirect diffuse or energy.
+    indirectDiffuse *= shadingData.occlusion;
+    indirectSpecular *= shadingData.occlusion;
     lightOutput.diffuseLighting = directDiffuse + indirectDiffuse;
     lightOutput.specularLighting = directSpecular + indirectSpecular;
     lightOutput.specularLighting *= 1.0 + shadingData.fresnel0 * energyCompensation;
@@ -600,7 +597,7 @@ void DEFERRED_COMPUTE_ENTRY(uint3 dispatchThreadId : SV_DispatchThreadID, uint2 
     // Reject dismatch stencil
     uint stencilVal = GetStencilValue(LOAD_TEXTURE2D_X(_StencilTexture, coordSS.xy));
     uint targetShadingModel = _ShadingModelStencil;
-    if (stencilVal != targetShadingModel)
+    if (StencilToShadingModel(stencilVal) != targetShadingModel)
     {
         return;
     }
