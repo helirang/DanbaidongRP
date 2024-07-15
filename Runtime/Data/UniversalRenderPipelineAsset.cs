@@ -477,14 +477,14 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField] bool m_RequireRayTracing = true;
 
         // General settings
-        [SerializeField] bool m_RequireDepthTexture = false;
-        [SerializeField] bool m_RequireOpaqueTexture = false;
-        [SerializeField] Downsampling m_OpaqueDownsampling = Downsampling._2xBilinear;
+        [SerializeField] bool m_RequireDepthTexture = true;
+        [SerializeField] bool m_RequireOpaqueTexture = true;
+        [SerializeField] Downsampling m_OpaqueDownsampling = Downsampling.None;
         [SerializeField] bool m_SupportsTerrainHoles = true;
 
         // Quality settings
         [SerializeField] bool m_SupportsHDR = true;
-        [SerializeField] HDRColorBufferPrecision m_HDRColorBufferPrecision = HDRColorBufferPrecision._32Bits;
+        [SerializeField] HDRColorBufferPrecision m_HDRColorBufferPrecision = HDRColorBufferPrecision._64Bits;
         [SerializeField] MsaaQuality m_MSAA = MsaaQuality.Disabled;
         [SerializeField] float m_RenderScale = 1.0f;
         [SerializeField] UpscalingFilterSelection m_UpscalingFilter = UpscalingFilterSelection.Auto;
@@ -526,12 +526,12 @@ namespace UnityEngine.Rendering.Universal
         // Main directional light Settings
         [SerializeField] LightRenderingMode m_MainLightRenderingMode = LightRenderingMode.PerPixel;
         [SerializeField] bool m_MainLightShadowsSupported = true;
-        [SerializeField] ShadowResolution m_MainLightShadowmapResolution = ShadowResolution._2048;
+        [SerializeField] ShadowResolution m_MainLightShadowmapResolution = ShadowResolution._4096;
 
         // Additional lights settings
         [SerializeField] LightRenderingMode m_AdditionalLightsRenderingMode = LightRenderingMode.PerPixel;
-        [SerializeField] int m_AdditionalLightsPerObjectLimit = 4;
-        [SerializeField] bool m_AdditionalLightShadowsSupported = false;
+        [SerializeField] int m_AdditionalLightsPerObjectLimit = 8;
+        [SerializeField] bool m_AdditionalLightShadowsSupported = true;
         [SerializeField] ShadowResolution m_AdditionalLightsShadowmapResolution = ShadowResolution._2048;
 
         [SerializeField] int m_AdditionalLightsShadowResolutionTierLow = AdditionalLightsDefaultShadowResolutionTierLow;
@@ -545,21 +545,21 @@ namespace UnityEngine.Rendering.Universal
 #if UNITY_EDITOR // multi_compile_fragment _ _REFLECTION_PROBE_BLENDING
         [ShaderKeywordFilter.SelectOrRemove(true, keywordNames: ShaderKeywordStrings.ReflectionProbeBlending)]
 #endif
-        [SerializeField] bool m_ReflectionProbeBlending = false;
+        [SerializeField] bool m_ReflectionProbeBlending = true;
 #if UNITY_EDITOR // multi_compile_fragment _ _REFLECTION_PROBE_BOX_PROJECTION
         [ShaderKeywordFilter.SelectOrRemove(true, keywordNames: ShaderKeywordStrings.ReflectionProbeBoxProjection)]
 #endif
-        [SerializeField] bool m_ReflectionProbeBoxProjection = false;
+        [SerializeField] bool m_ReflectionProbeBoxProjection = true;
 
         // Shadows Settings
-        [SerializeField] float m_ShadowDistance = 50.0f;
-        [SerializeField] int m_ShadowCascadeCount = 1;
+        [SerializeField] float m_ShadowDistance = 100.0f;
+        [SerializeField] int m_ShadowCascadeCount = 4;
         [SerializeField] float m_Cascade2Split = 0.25f;
         [SerializeField] Vector2 m_Cascade3Split = new Vector2(0.1f, 0.3f);
         [SerializeField] Vector3 m_Cascade4Split = new Vector3(0.067f, 0.2f, 0.467f);
         [SerializeField] float m_CascadeBorder = 0.2f;
-        [SerializeField] float m_ShadowDepthBias = 1.0f;
-        [SerializeField] float m_ShadowNormalBias = 1.0f;
+        [SerializeField] float m_ShadowDepthBias = 0.5f;
+        [SerializeField] float m_ShadowNormalBias = 0.5f;
 #if UNITY_EDITOR // multi_compile_fragment _ _SHADOWS_SOFT
         [ShaderKeywordFilter.RemoveIf(false, keywordNames: ShaderKeywordStrings.SoftShadows)]
         [SerializeField] bool m_AnyShadowsSupported = true;
@@ -567,10 +567,10 @@ namespace UnityEngine.Rendering.Universal
         // No option to force soft shadows -> we'll need to keep the off variant around
         [ShaderKeywordFilter.RemoveIf(false, keywordNames: ShaderKeywordStrings.SoftShadows)]
 #endif
-        [SerializeField] bool m_SoftShadowsSupported = false;
+        [SerializeField] bool m_SoftShadowsSupported = true;
         [SerializeField] bool m_ConservativeEnclosingSphere = false;
         [SerializeField] int m_NumIterationsEnclosingSphere = 64;
-        [SerializeField] SoftShadowQuality m_SoftShadowQuality = SoftShadowQuality.Medium;
+        [SerializeField] SoftShadowQuality m_SoftShadowQuality = SoftShadowQuality.High;
 
         // Light Cookie Settings
         [SerializeField] LightCookieResolution m_AdditionalLightsCookieResolution = LightCookieResolution._2048;
@@ -595,7 +595,7 @@ namespace UnityEngine.Rendering.Universal
         // multi_compile_fragment _ _LIGHT_LAYERS
         [ShaderKeywordFilter.SelectOrRemove(true, keywordNames: ShaderKeywordStrings.LightLayers)]
 #endif
-        [SerializeField] bool m_SupportsLightLayers = false;
+        [SerializeField] bool m_SupportsLightLayers = true;
         [SerializeField] [Obsolete("",true)] PipelineDebugLevel m_DebugLevel;
         [SerializeField] StoreActionsOptimization m_StoreActionsOptimization = StoreActionsOptimization.Auto;
 
