@@ -2019,6 +2019,9 @@ namespace UnityEngine.Rendering.Universal
             internal bool isHdrGrading;
             internal bool isBackbuffer;
             internal bool enableAlphaOutput;
+
+            internal Vector4 GTToneMapParams0;
+            internal Vector4 GTToneMapParams1;
         }
 
         public void RenderUberPost(RenderGraph renderGraph, UniversalCameraData cameraData, UniversalPostProcessingData postProcessingData, in TextureHandle sourceTexture, in TextureHandle destTexture, in TextureHandle lutTexture, in TextureHandle overlayUITexture, in TextureHandle bloomTexture, bool requireHDROutput, bool enableAlphaOutput, bool resolveToDebugScreen)
@@ -2081,6 +2084,9 @@ namespace UnityEngine.Rendering.Universal
                 passData.isHdrGrading = hdrGrading;
                 passData.enableAlphaOutput = enableAlphaOutput;
 
+                passData.GTToneMapParams0 = new Vector4(m_Tonemapping.maxBrightness.value, m_Tonemapping.contrast.value, m_Tonemapping.linearSectionStart.value, m_Tonemapping.linearSectionLength.value);
+                passData.GTToneMapParams1 = new Vector4(m_Tonemapping.blackPow.value, m_Tonemapping.blackMin.value, 0.0f, 0.0f);
+
                 builder.SetRenderFunc(static (UberPostPassData data, RasterGraphContext context) =>
                 {
                     var cmd = context.cmd;
@@ -2092,6 +2098,9 @@ namespace UnityEngine.Rendering.Universal
                     material.SetVector(ShaderConstants._Lut_Params, data.lutParams);
                     material.SetTexture(ShaderConstants._UserLut, data.userLutTexture);
                     material.SetVector(ShaderConstants._UserLut_Params, data.userLutParams);
+
+                    material.SetVector(ShaderConstants._GTToneMap_Params0, data.GTToneMapParams0);
+                    material.SetVector(ShaderConstants._GTToneMap_Params1, data.GTToneMapParams1);
 
                     if (data.isHdrGrading)
                     {

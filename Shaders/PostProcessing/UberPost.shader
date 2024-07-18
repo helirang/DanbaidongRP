@@ -52,6 +52,8 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
         TEXTURE2D(_BlueNoise_Texture);
         TEXTURE2D_X(_OverlayUITexture);
 
+        float4 _GTToneMap_Params0;
+        float4 _GTToneMap_Params1;
         float4 _BloomTexture_TexelSize;
         float4 _Lut_Params;
         float4 _UserLut_Params;
@@ -270,7 +272,12 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
 
             // Color grading is always enabled when post-processing/uber is active
             {
-                color = ApplyColorGrading(color, PostExposure, TEXTURE2D_ARGS(_InternalLut, sampler_LinearClamp), LutParams, TEXTURE2D_ARGS(_UserLut, sampler_LinearClamp), UserLutParams, UserLutContribution);
+                color = ApplyColorGrading(color, PostExposure, TEXTURE2D_ARGS(_InternalLut, sampler_LinearClamp), LutParams, TEXTURE2D_ARGS(_UserLut, sampler_LinearClamp), UserLutParams, UserLutContribution
+                #if _TONEMAP_GT
+                    , _GTToneMap_Params0
+                    , _GTToneMap_Params1
+                #endif
+                );
             }
 
             #if _FILM_GRAIN

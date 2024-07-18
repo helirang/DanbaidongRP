@@ -2073,6 +2073,8 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _InternalLut = Shader.PropertyToID("_InternalLut");
             public static readonly int _UserLut = Shader.PropertyToID("_UserLut");
             public static readonly int _DownSampleScaleFactor = Shader.PropertyToID("_DownSampleScaleFactor");
+            public static readonly int _GTToneMap_Params0 = Shader.PropertyToID("_GTToneMap_Params0");
+            public static readonly int _GTToneMap_Params1 = Shader.PropertyToID("_GTToneMap_Params1");
 
             public static readonly int _FlareOcclusionRemapTex = Shader.PropertyToID("_FlareOcclusionRemapTex");
             public static readonly int _FlareOcclusionTex = Shader.PropertyToID("_FlareOcclusionTex");
