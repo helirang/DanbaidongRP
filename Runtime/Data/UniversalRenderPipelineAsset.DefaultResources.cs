@@ -26,6 +26,7 @@ namespace UnityEngine.Rendering.Universal
                       DefaultMaterialType.Terrain => defaultMaterials.defaultTerrainLitMaterial,
                       DefaultMaterialType.Decal => defaultMaterials.defaultDecalMaterial,
                       DefaultMaterialType.PerObjectShadow => defaultMaterials.defaultPerObjectShadowMaterial,
+                      DefaultMaterialType.ProceduralToonSkyBox => defaultMaterials.defaulProceduralToonSkyBoxMaterial,
                       _ => null,// Unity Builtin Default
                     };
                 }
@@ -97,7 +98,15 @@ namespace UnityEngine.Rendering.Universal
         /// <returns>Returns the Material containing the Unity decal shader.</returns>
         public Material decalMaterial => GetMaterial(DefaultMaterialType.Decal);
 
+        /// <summary>
+        /// Returns the Material that DanbaidongRP uses to render PerObjectShadow.
+        /// </summary>
         public Material perObjectShadowMaterial => GetMaterial(DefaultMaterialType.PerObjectShadow);
+
+        /// <summary>
+        /// Returns the Material that DanbaidongRP uses to render ProceduralToonSky.
+        /// </summary>
+        public Material proceduralToonSkyBoxMat => GetMaterial(DefaultMaterialType.ProceduralToonSkyBox);
         #endregion
 
         #region Shaders

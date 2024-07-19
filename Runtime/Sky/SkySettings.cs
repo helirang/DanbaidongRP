@@ -43,6 +43,7 @@ namespace UnityEngine.Rendering.Universal
     public class SkyBasePassData
     {
         internal Matrix4x4 pixelCoordToViewDirMatrix;
+        internal UniversalLightData lightData;
     }
 
     /// <summary>

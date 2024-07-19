@@ -229,15 +229,6 @@ namespace UnityEngine.Rendering.Universal
             set => this.SetValueAndNotify(ref m_GradientSkyPS, value);
         }
 
-        [SerializeField, ResourcePath("Shaders/Sky/ProceduralToonSky.shader")]
-        private Shader m_ProceduralToonSkyPS;
-
-        public Shader proceduralToonSkyPS
-        {
-            get => m_ProceduralToonSkyPS;
-            set => this.SetValueAndNotify(ref m_ProceduralToonSkyPS, value);
-        }
-
         [SerializeField, ResourcePath("Shaders/Sky/AmbientProbeConvolution.compute")]
         private ComputeShader m_AmbientProbeConvolutionCS;
 

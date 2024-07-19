@@ -193,6 +193,7 @@ namespace UnityEngine.Rendering.Universal
             using (var builder = renderGraph.AddUnsafePass<ScrTrianglePassData>("Draw Skybox Pass", out var passData, base.profilingSampler))
             {
                 UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+                UniversalLightData lightData = frameData.Get<UniversalLightData>();
 
                 passData.colorTarget = colorTarget;
                 passData.depthTarget = depthTarget;
@@ -206,7 +207,7 @@ namespace UnityEngine.Rendering.Universal
                 {
                     var cmd = CommandBufferHelpers.GetNativeCommandBuffer(context.cmd);
                     cmd.SetRenderTarget(passData.colorTarget, passData.depthTarget);
-                    SkySystem.instance.RenderSky(cmd, cameraData);
+                    SkySystem.instance.RenderSky(cmd, cameraData, lightData);
                 });
             }
         }

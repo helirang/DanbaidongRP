@@ -301,6 +301,8 @@ namespace UnityEngine.Rendering.Universal
         {
             using (var builder = renderGraph.AddUnsafePass<RenderSkyToCubemapPassData>("RenderSkyToCubemap", out var passData, ProfilingSampler.Get(URPProfileId.RenderSkyToCubemap)))
             {
+                UniversalLightData lightData = frameData.Get<UniversalLightData>();
+
                 passData.facePixelCoordToViewDirMatrices = m_FacePixelCoordToViewDirMatrices;
                 passData.skyRenderer = m_SkyRenderer;
                 passData.skySettings = m_SkySettings;
@@ -311,6 +313,7 @@ namespace UnityEngine.Rendering.Universal
                 builder.SetRenderFunc((RenderSkyToCubemapPassData data, UnsafeGraphContext context) =>
                 {
                     var basePassData = new SkyBasePassData();
+                    basePassData.lightData = lightData;
                     var cmd = CommandBufferHelpers.GetNativeCommandBuffer(context.cmd);
 
                     for (int i = 0; i < 6; ++i)
@@ -610,7 +613,7 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         /// <param name="cmd"></param>
         /// <param name="renderingData"></param>
-        internal void RenderSky(CommandBuffer cmd, UniversalCameraData cameraData)
+        internal void RenderSky(CommandBuffer cmd, UniversalCameraData cameraData, UniversalLightData lightData)
         {
             var camera = cameraData.camera;
             if (camera.clearFlags != CameraClearFlags.Skybox)
@@ -621,6 +624,8 @@ namespace UnityEngine.Rendering.Universal
                 m_SkyRenderer.DoUpdate(Time.frameCount);
                 var basePassData = new SkyBasePassData();
                 basePassData.pixelCoordToViewDirMatrix = cameraData.GetPixelCoordToViewDirWSMatrix();
+                basePassData.lightData = lightData;
+
                 m_SkyRenderer.RenderSky(cmd, basePassData, skySettings, renderForCubemap: false);
             }
         }

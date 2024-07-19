@@ -276,6 +276,8 @@ namespace UnityEngine.Rendering.Universal
 
             PerObjectShadowProjector.defaultMaterial = asset.perObjectShadowMaterial;
 
+            ProceduralToonSky.defaultMaterial = asset.proceduralToonSkyBoxMat;
+
             s_RenderGraph = new RenderGraph("DanbaidongRPRenderGraph");
             useRenderGraph = !GraphicsSettings.GetRenderPipelineSettings<RenderGraphSettings>().enableRenderCompatibilityMode;
 

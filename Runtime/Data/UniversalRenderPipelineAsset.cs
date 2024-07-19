@@ -232,7 +232,8 @@ namespace UnityEngine.Rendering.Universal
         UnityBuiltinDefault,
         SpriteMask,
         Decal,
-        PerObjectShadow
+        PerObjectShadow,
+        ProceduralToonSkyBox,
     }
 
     /// <summary>

@@ -192,9 +192,6 @@ namespace UnityEngine.Rendering.Universal.Internal
                 if (passData.ssrLightingTexture.IsValid())
                     builder.UseTexture(passData.ssrLightingTexture, AccessFlags.Read);
 
-                // TODO: Delete
-                builder.UseTexture(resourceData.cameraDepthPyramidTexture, AccessFlags.Read);
-
                 for (int i = 0; i < gbuffer.Length; ++i)
                 {
                     if (i != m_DeferredLights.GBufferLightingIndex)
