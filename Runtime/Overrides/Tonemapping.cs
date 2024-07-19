@@ -138,13 +138,13 @@ namespace UnityEngine.Rendering.Universal
         /// The contrast GT Tonemapping.
         /// </summary>
         [Tooltip("The contrast.")]
-        public ClampedFloatParameter contrast = new ClampedFloatParameter(1.0f, 0.0f, 5.0f);
+        public ClampedFloatParameter contrast = new ClampedFloatParameter(1.11f, 0.0f, 5.0f);
 
         /// <summary>
         /// Linear section start. This controls linear start point in 0.0-1.0.
         /// </summary>
         [Tooltip("Linear section start. This controls linear start point in 0.0-1.0.")]
-        public ClampedFloatParameter linearSectionStart = new ClampedFloatParameter(0.22f, 0.0f, 1.0f);
+        public ClampedFloatParameter linearSectionStart = new ClampedFloatParameter(0.2f, 0.0f, 1.0f);
 
         /// <summary>
         /// Linear section Length. This controls linear length.
@@ -156,7 +156,7 @@ namespace UnityEngine.Rendering.Universal
         /// Black tightness pow. Pow of curve that before linearSectionStart (Dark part).
         /// </summary>
         [Tooltip("Black tightness pow. Pow of curve that before linearSectionStart (Dark part).")]
-        public ClampedFloatParameter blackPow = new ClampedFloatParameter(1.0f, 1.0f, 3.0f);
+        public ClampedFloatParameter blackPow = new ClampedFloatParameter(1.29f, 1.0f, 3.0f);
 
         /// <summary>
         /// Black tightness min. Add of curve that before linearSectionStart (Dark part).
