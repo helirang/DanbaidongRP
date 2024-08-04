@@ -82,7 +82,7 @@ Preset:
     objectReference: {fileID: 0}
   - target: {fileID: 0}
     propertyPath: m_Shadows.m_NearPlane
-    value: 0.2
+    value: 5.0
     objectReference: {fileID: 0}
   - target: {fileID: 0}
     propertyPath: m_Shadows.m_CullingMatrixOverride.e00

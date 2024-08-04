@@ -1925,9 +1925,11 @@ namespace UnityEngine.Rendering.Universal
         LightCookies,
 
         MainLightShadow,
+        DirectionalLightsShadow,
         ResolveShadows,
         SSAO,
         RenderSSR,
+        RenderSSShadow,
 
         // PostProcessPass
         StopNaNs,

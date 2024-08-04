@@ -1446,14 +1446,16 @@ namespace UnityEngine.Rendering.Universal
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingShadows);
 
                 bool renderShadows = false;
-                // MainlightShadowCaster
-                if (m_MainLightShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))
+                // DirectionalLightsShadowCaster
+                if (m_DirectionalLightsShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))
                 {
                     renderShadows = true;
-                    resourceData.mainShadowsTexture = m_MainLightShadowCasterPass.Render(renderGraph, frameData);
+                    resourceData.mainShadowsTexture = m_DirectionalLightsShadowCasterPass.Render(renderGraph, frameData);
                 }
-                // TODO: ScreenSpaceShadowMap
 
+                // ScreenSpaceDirectionalShadows
+                // TODO: async
+                resourceData.screenSpaceShadowsTexture = m_ScreenSpaceDirectionalShadowsPass.Render(renderGraph, frameData);
 
 
                 // AdditionalShadowCaster
@@ -1462,6 +1464,8 @@ namespace UnityEngine.Rendering.Universal
                     renderShadows = true;
                     resourceData.additionalShadowsTexture = m_AdditionalLightsShadowCasterPass.Render(renderGraph, frameData);
                 }
+
+
                 // The camera need to be setup again after the shadows since those passes override some settings
                 if (renderShadows)
                     SetupRenderGraphCameraProperties(renderGraph, resourceData.isActiveTargetBackBuffer);

@@ -146,7 +146,7 @@ struct DeferredLightingOutput
     float3 specularLighting;
 };
 
-void InitializeDispatchThreadIdFromTileList(uint groupId, uint2 gThreadId, out uint2 tileCoord,out uint2 dThreadId)
+void InitializeDispatchThreadIdFromTileList(uint groupId, uint2 gThreadId, out uint2 tileCoord, out uint2 dThreadId)
 {
     uint  encodedTileIndex = g_TileList[_ShadingModelIndex * _TilesNum.x * _TilesNum.y + (groupId / 4)];
     tileCoord = DecodeTileIndex(encodedTileIndex);

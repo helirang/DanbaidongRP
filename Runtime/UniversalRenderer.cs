@@ -111,12 +111,14 @@ namespace UnityEngine.Rendering.Universal
         CopyDepthPass m_PrimedDepthCopyPass;
         MotionVectorRenderPass m_MotionVectorPass;
         MainLightShadowCasterPass m_MainLightShadowCasterPass;
+        DirectionalLightsShadowCasterPass m_DirectionalLightsShadowCasterPass;
         AdditionalLightsShadowCasterPass m_AdditionalLightsShadowCasterPass;
         GBufferPass m_GBufferPass;
         CopyDepthPass m_GBufferCopyDepthPass;
         GPUCopyPass m_GPUCopyPass;
         DepthPyramidPass m_DepthPyramidPass;
         ColorPyramidPass m_ColorPyramidPass;
+        ScreenSpaceDirectionalShadowsPass m_ScreenSpaceDirectionalShadowsPass;
         ScreenSpaceReflectionPass m_ScreenSpaceReflectionPass;
         DeferredPass m_DeferredPass;
         DeferredLighting m_DeferredLighting;
@@ -286,7 +288,9 @@ namespace UnityEngine.Rendering.Universal
 
             // Note: Since all custom render passes inject first and we have stable sort,
             // we inject the builtin passes in the before events.
-            m_MainLightShadowCasterPass = new MainLightShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
+            // DanbaidongRP use directionalLightsShadowCasterPass
+            //m_MainLightShadowCasterPass = new MainLightShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
+            m_DirectionalLightsShadowCasterPass = new DirectionalLightsShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
             m_AdditionalLightsShadowCasterPass = new AdditionalLightsShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
 
 #if ENABLE_VR && ENABLE_XR_MODULE
@@ -331,6 +335,7 @@ namespace UnityEngine.Rendering.Universal
                 m_GPUCopyPass = new GPUCopyPass(RenderPassEvent.BeforeRenderingGbuffer + 1, runtimeShaders.copyChannelCS, true);
                 m_DepthPyramidPass = new DepthPyramidPass(RenderPassEvent.BeforeRenderingGbuffer + 2, runtimeShaders.depthPyramidCS);
 
+                m_ScreenSpaceDirectionalShadowsPass = new ScreenSpaceDirectionalShadowsPass(RenderPassEvent.AfterRenderingShadows, runtimeShaders.screenSpaceDirectionalShadowsCS);
                 m_ScreenSpaceReflectionPass = new ScreenSpaceReflectionPass(RenderPassEvent.BeforeRenderingDeferredLights, runtimeShaders.screenSpaceReflectionsCS);
 
                 m_DeferredPass = new DeferredPass(RenderPassEvent.BeforeRenderingDeferredLights, m_DeferredLights);
@@ -474,6 +479,7 @@ namespace UnityEngine.Rendering.Universal
 
             m_PostProcessPasses.ReleaseRenderTargets();
             m_MainLightShadowCasterPass?.Dispose();
+            m_DirectionalLightsShadowCasterPass?.Dispose();
             m_AdditionalLightsShadowCasterPass?.Dispose();
 
             m_CameraDepthAttachment?.Release();

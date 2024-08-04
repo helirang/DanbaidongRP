@@ -150,6 +150,16 @@ namespace UnityEngine.Rendering.Universal
         }
         private TextureHandle _additionalShadowsTexture;
 
+        /// <summary>
+        /// ScreenSpace shadow map.
+        /// </summary>
+        public TextureHandle screenSpaceShadowsTexture
+        {
+            get => CheckAndGetTextureHandle(ref _screenSpaceShadowsTexture);
+            set => CheckAndSetTextureHandle(ref _screenSpaceShadowsTexture, value);
+        }
+        private TextureHandle _screenSpaceShadowsTexture;
+
         // GBuffer targets
 
         /// <summary>
@@ -391,6 +401,7 @@ namespace UnityEngine.Rendering.Universal
             cameraDepthPyramidInfo = default;
             _mainShadowsTexture = TextureHandle.nullHandle;
             _additionalShadowsTexture = TextureHandle.nullHandle;
+            _screenSpaceShadowsTexture = TextureHandle.nullHandle;
             _cameraOpaqueTexture = TextureHandle.nullHandle;
             _cameraDepthTexture = TextureHandle.nullHandle;
             _cameraNormalsTexture = TextureHandle.nullHandle;

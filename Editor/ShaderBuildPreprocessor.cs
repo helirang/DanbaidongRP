@@ -688,16 +688,17 @@ namespace UnityEditor.Rendering.Universal
                     RenderingLayerUtils.CombineRendererEvents(isDeferredRenderer, rendererRequirements.msaaSampleCount, rendererEvent, ref renderingLayersEvent);
                 }
 
+                // DanbaidongRP always use ScreenSpaceShadows.
                 // Screen Space Shadows...
-                ScreenSpaceShadows sssFeature = rendererFeature as ScreenSpaceShadows;
-                if (sssFeature != null)
-                {
-                    // Add it if it's enabled or if unused variants should not be stripped...
-                    if (sssFeature.isActive || rendererRequirements.needsUnusedVariants)
-                        shaderFeatures |= ShaderFeatures.ScreenSpaceShadows;
+                //ScreenSpaceShadows sssFeature = rendererFeature as ScreenSpaceShadows;
+                //if (sssFeature != null)
+                //{
+                //    // Add it if it's enabled or if unused variants should not be stripped...
+                //    if (sssFeature.isActive || rendererRequirements.needsUnusedVariants)
+                //        shaderFeatures |= ShaderFeatures.ScreenSpaceShadows;
 
-                    continue;
-                }
+                //    continue;
+                //}
 
                 // Screen Space Ambient Occlusion (SSAO)...
                 // Removing the OFF variant requires every renderer to use SSAO. That is checked later.

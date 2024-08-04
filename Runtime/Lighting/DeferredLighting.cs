@@ -82,7 +82,8 @@ namespace UnityEngine.Rendering.Universal.Internal
             internal TextureHandle reflectProbe;
 
             // Lighting Buffers (SSAO, SSR, SSGI, SSShadow)
-            internal TextureHandle ssrLightingTexture;
+            internal TextureHandle SSRLightingTexture;
+            internal TextureHandle SSShadowsTexture;
         }
 
         static void ExecutePass(PassData data, ComputeGraphContext context)
@@ -90,7 +91,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             var cmd = context.cmd;
 
             // Due to async compute, we set global keywords here.
-            cmd.SetKeyword(ShaderGlobalKeywords.ScreenSpaceReflection, data.ssrLightingTexture.IsValid());
+            cmd.SetKeyword(ShaderGlobalKeywords.ScreenSpaceReflection, data.SSRLightingTexture.IsValid());
 
 
             // BuildIndirect
@@ -123,10 +124,11 @@ namespace UnityEngine.Rendering.Universal.Internal
                     cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "_SkyTexture", data.reflectProbe);
 
                     // ScreenSpaceLighting ShaderVariables
-                    if (data.ssrLightingTexture.IsValid())
+                    if (data.SSRLightingTexture.IsValid())
                     {
-                        cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "_SSRLightingTexture", data.ssrLightingTexture);
+                        cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "_SSRLightingTexture", data.SSRLightingTexture);
                     }
+                    cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "_ScreenSpaceShadowmapTexture", data.SSShadowsTexture);
 
                     cmd.DispatchCompute(data.deferredLightingCS, kernelIndex, data.dispatchIndirectBuffer, (uint)modelIndex * 3 * sizeof(uint));
                 }
@@ -177,7 +179,8 @@ namespace UnityEngine.Rendering.Universal.Internal
                 passData.reflectProbe = resourceData.skyReflectionProbe;
 
                 // Lighting Buffers (SSAO, SSR, SSGI, SSShadow)
-                passData.ssrLightingTexture = resourceData.ssrLightingTexture;
+                passData.SSRLightingTexture = resourceData.ssrLightingTexture;
+                passData.SSShadowsTexture = resourceData.screenSpaceShadowsTexture;
 
                 // Declare input/output
                 builder.UseTexture(passData.lightingHandle, AccessFlags.ReadWrite);
@@ -189,8 +192,9 @@ namespace UnityEngine.Rendering.Universal.Internal
                 builder.UseBuffer(passData.ambientProbe, AccessFlags.Read);
                 builder.UseTexture(passData.reflectProbe, AccessFlags.Read);
 
-                if (passData.ssrLightingTexture.IsValid())
-                    builder.UseTexture(passData.ssrLightingTexture, AccessFlags.Read);
+                builder.UseTexture(passData.SSShadowsTexture, AccessFlags.Read);
+                if (passData.SSRLightingTexture.IsValid())
+                    builder.UseTexture(passData.SSRLightingTexture, AccessFlags.Read);
 
                 for (int i = 0; i < gbuffer.Length; ++i)
                 {

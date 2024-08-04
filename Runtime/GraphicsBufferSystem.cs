@@ -33,6 +33,8 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>Deferred Lighting GraphicsBuffer.</summary>
         DeferredLightingIndirect,
         //DeferredLightingTileList,
+        /// <summary>ScreenSpace Shadow GraphicsBuffer.</summary>
+        ScreenSpaceShadowIndirect,
     }
 
     /// <summary>

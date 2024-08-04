@@ -194,6 +194,15 @@ namespace UnityEngine.Rendering.Universal
             set => this.SetValueAndNotify(ref m_ScreenSpaceReflectionsCS, value);
         }
 
+        [SerializeField, ResourcePath("Shaders/ScreenSpaceLighting/ScreenSpaceDirectionalShadows.compute")]
+        private ComputeShader m_ScreenSpaceDirectionalShadowsCS;
+
+        public ComputeShader screenSpaceDirectionalShadowsCS
+        {
+            get => m_ScreenSpaceDirectionalShadowsCS;
+            set => this.SetValueAndNotify(ref m_ScreenSpaceDirectionalShadowsCS, value);
+        }
+
         /// <summary>
         /// Deferred lighting compute shader.
         /// </summary>

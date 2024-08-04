@@ -38,6 +38,9 @@ namespace UnityEngine.Rendering.Universal.Internal
             internal TextureHandle albedoHdl;
             internal TextureHandle depthHdl;
 
+            // Lighting Texture
+            internal TextureHandle SSShadowsTexture;
+
             // Sky Ambient
             internal BufferHandle ambientProbe;
             // Sky Reflect
@@ -95,6 +98,8 @@ namespace UnityEngine.Rendering.Universal.Internal
             cmd.SetGlobalVector(ShaderPropertyId.scaleBiasRt, scaleBias);
             cmd.SetGlobalFloat(ShaderPropertyId.alphaToMaskAvailable, 0);
 
+            cmd.SetGlobalTexture(ShaderConstants._ScreenSpaceShadowmapTexture, data.SSShadowsTexture);
+
             cmd.SetGlobalBuffer("_AmbientProbeData", data.ambientProbe);
             cmd.SetGlobalTexture("_SkyTexture", data.reflectProbe);
 
@@ -116,6 +121,8 @@ namespace UnityEngine.Rendering.Universal.Internal
 
                 passData.cameraData = cameraData;
                 passData.batchLayerMask = batchLayerMask;
+
+                passData.SSShadowsTexture = resourceData.screenSpaceShadowsTexture;
 
                 // Sky Environment
                 passData.ambientProbe = resourceData.skyAmbientProbe;
@@ -144,6 +151,8 @@ namespace UnityEngine.Rendering.Universal.Internal
                     builder.UseTexture(mainShadowsTexture, AccessFlags.Read);
                 if (additionalShadowsTexture.IsValid())
                     builder.UseTexture(additionalShadowsTexture, AccessFlags.Read);
+                if (passData.SSShadowsTexture.IsValid())
+                    builder.UseTexture(passData.SSShadowsTexture, AccessFlags.Read);
 
                 builder.UseRendererList(passData.rendererListBase);
                 builder.UseRendererList(passData.rendererListTrans);
@@ -165,6 +174,11 @@ namespace UnityEngine.Rendering.Universal.Internal
         public override void OnCameraCleanup(CommandBuffer cmd)
         {
 
+        }
+
+        static class ShaderConstants
+        {
+            public static readonly int _ScreenSpaceShadowmapTexture = Shader.PropertyToID("_ScreenSpaceShadowmapTexture");
         }
     }
 
