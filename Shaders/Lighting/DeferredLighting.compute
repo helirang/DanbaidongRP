@@ -42,6 +42,8 @@
 // Inputs & outputs
 //--------------------------------------------------------------------------------------------------
 
+TEXTURE2D_X(_ShadowScatterTexture);
+
 #if defined(DEFERRED_CLASSIFY_TILES)
 Texture2D<uint2> _StencilTexture;
 
@@ -371,8 +373,37 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
         #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
         shadowAttenuation = min(shadowAttenuation, LoadPerObjectScreenSpaceShadowmap(posInput.positionSS));
         #endif
-        directDiffuse *= shadowAttenuation;
-        directSpecular *= shadowAttenuation;
+
+        // Shadow Scatter
+        float shadowScatterMode = GetShadowScatterMode();
+        if (shadowScatterMode != SHADOWSCATTERMODE_NONE)
+        {
+            float shadowScatterTex = SAMPLE_TEXTURE2D_LOD(_ShadowScatterTexture, sampler_PointClamp, posInput.positionNDC, 0).r;
+            shadowScatterTex = smoothstep(0.0, 0.5, shadowScatterTex);
+
+            float3 shadowSSS = 1.0;
+            if (shadowScatterMode == SHADOWSCATTERMODE_RAMPTEXTURE)
+            {
+                shadowSSS = SAMPLE_TEXTURE2D_LOD(_DirShadowRampTexture, sampler_PointClamp, float2(shadowAttenuation, 0.5), 0).rgb;
+            }
+            else
+            {
+                float sssRadius = max(1 - shadowAttenuation, HALF_MIN);
+                shadowSSS = EvaluateShadowScatterColor(sssRadius, _DirLightShadowScatterParams.rgb) / sssRadius;
+                shadowSSS = AcesFilm(sqrt(shadowSSS));
+            }
+
+            directDiffuse *= shadowSSS;
+            directSpecular *= shadowSSS;
+
+            directDiffuse *= shadowScatterTex;
+            directSpecular *= shadowScatterTex;
+        }
+        else
+        {
+            directDiffuse *= shadowAttenuation;
+            directSpecular *= shadowAttenuation;
+        }
 
 
         // Punctual Lights

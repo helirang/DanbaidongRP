@@ -84,6 +84,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             // Lighting Buffers (SSAO, SSR, SSGI, SSShadow)
             internal TextureHandle SSRLightingTexture;
             internal TextureHandle SSShadowsTexture;
+            internal TextureHandle shadowScatterTexture;
         }
 
         static void ExecutePass(PassData data, ComputeGraphContext context)
@@ -124,11 +125,11 @@ namespace UnityEngine.Rendering.Universal.Internal
                     cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "_SkyTexture", data.reflectProbe);
 
                     // ScreenSpaceLighting ShaderVariables
-                    if (data.SSRLightingTexture.IsValid())
-                    {
-                        cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "_SSRLightingTexture", data.SSRLightingTexture);
-                    }
                     cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "_ScreenSpaceShadowmapTexture", data.SSShadowsTexture);
+                    if (data.shadowScatterTexture.IsValid())
+                        cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "_ShadowScatterTexture", data.shadowScatterTexture);
+                    if (data.SSRLightingTexture.IsValid())
+                        cmd.SetComputeTextureParam(data.deferredLightingCS, kernelIndex, "_SSRLightingTexture", data.SSRLightingTexture);
 
                     cmd.DispatchCompute(data.deferredLightingCS, kernelIndex, data.dispatchIndirectBuffer, (uint)modelIndex * 3 * sizeof(uint));
                 }
@@ -181,6 +182,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                 // Lighting Buffers (SSAO, SSR, SSGI, SSShadow)
                 passData.SSRLightingTexture = resourceData.ssrLightingTexture;
                 passData.SSShadowsTexture = resourceData.screenSpaceShadowsTexture;
+                passData.shadowScatterTexture = resourceData.shadowScatterTexture;
 
                 // Declare input/output
                 builder.UseTexture(passData.lightingHandle, AccessFlags.ReadWrite);
@@ -193,6 +195,9 @@ namespace UnityEngine.Rendering.Universal.Internal
                 builder.UseTexture(passData.reflectProbe, AccessFlags.Read);
 
                 builder.UseTexture(passData.SSShadowsTexture, AccessFlags.Read);
+                if (passData.shadowScatterTexture.IsValid())
+                    builder.UseTexture(passData.shadowScatterTexture, AccessFlags.Read);
+
                 if (passData.SSRLightingTexture.IsValid())
                     builder.UseTexture(passData.SSRLightingTexture, AccessFlags.Read);
 

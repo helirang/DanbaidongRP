@@ -203,6 +203,15 @@ namespace UnityEngine.Rendering.Universal
             set => this.SetValueAndNotify(ref m_ScreenSpaceDirectionalShadowsCS, value);
         }
 
+        [SerializeField, ResourcePath("Shaders/ScreenSpaceLighting/ScreenSpaceShadowScatter.shader")]
+        private Shader m_ScreenSpaceShadowScaterPS;
+
+        public Shader screenSpaceShadowScaterPS
+        {
+            get => m_ScreenSpaceShadowScaterPS;
+            set => this.SetValueAndNotify(ref m_ScreenSpaceShadowScaterPS, value);
+        }
+
         /// <summary>
         /// Deferred lighting compute shader.
         /// </summary>
@@ -298,7 +307,7 @@ namespace UnityEngine.Rendering.Universal
                         // Will be catched by the try in HDRenderPipelineAsset.CreatePipeline()
                         throw new System.Exception(System.String.Format(
                             "Compute Shader compilation error on platform {0} in file {1}:{2}: {3}{4}\n" +
-                            "HDRP will not run until the error is fixed.\n",
+                            "RenderPipeline will not run until the error is fixed.\n",
                             message.platform, message.file, message.line, message.message, message.messageDetails
                         ));
                     }

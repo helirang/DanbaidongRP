@@ -87,7 +87,7 @@ namespace UnityEngine.Rendering.Universal
 
 
             passData.dirShadowmapTex = resourceData.mainShadowsTexture;
-            passData.screenSpaceShadowmapTex = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, "_ScreenSpaceShadowmapTexture", true);
+            passData.screenSpaceShadowmapTex = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, "_ScreenSpaceShadowmapTexture", true, Color.white);
             passData.screenSpaceShadowmapSize = new Vector2Int(desc.width, desc.height);
 
             passData.normalGBuffer = resourceData.gBuffer[2]; // Normal GBuffer
@@ -97,11 +97,12 @@ namespace UnityEngine.Rendering.Universal
         {
             var cmd = context.cmd;
 
+            cmd.SetComputeVectorParam(data.cs, "_TilesNum", new Vector2(data.numTilesX, data.numTilesY));
             // BuildIndirect
             {
                 cmd.SetComputeBufferParam(data.cs, data.classifyTilesKernel, ShaderConstants.g_DispatchIndirectBuffer, data.dispatchIndirectBuffer);
                 cmd.SetComputeBufferParam(data.cs, data.classifyTilesKernel, ShaderConstants.g_TileList, data.tileListBuffer);
-
+                
                 cmd.SetComputeTextureParam(data.cs, data.classifyTilesKernel, ShaderConstants._DirShadowmapTexture, data.dirShadowmapTex);
                 cmd.SetComputeTextureParam(data.cs, data.classifyTilesKernel, ShaderConstants._SSDirShadowmapTexture, data.screenSpaceShadowmapTex);
 
@@ -111,7 +112,7 @@ namespace UnityEngine.Rendering.Universal
             // PCSS ScreenSpaceShadowmap
             {
                 cmd.SetComputeTextureParam(data.cs, data.shadowmapKernel, ShaderConstants._DirShadowmapTexture, data.dirShadowmapTex);
-                cmd.SetComputeTextureParam(data.cs, data.shadowmapKernel, ShaderConstants._SSDirShadowmapTexture, data.screenSpaceShadowmapTex);
+                cmd.SetComputeTextureParam(data.cs, data.shadowmapKernel, ShaderConstants._PCSSTexture, data.screenSpaceShadowmapTex);
 
                 // Indirect buffer & dispatch
                 cmd.SetComputeBufferParam(data.cs, data.shadowmapKernel, ShaderConstants.g_TileList, data.tileListBuffer);
@@ -119,21 +120,21 @@ namespace UnityEngine.Rendering.Universal
             }
 
             // Bilateral Filter
-            {
-                cmd.SetComputeTextureParam(data.cs, data.bilateralHKernel, ShaderConstants._SSDirShadowmapTexture, data.screenSpaceShadowmapTex);
+            //{
+            //    cmd.SetComputeTextureParam(data.cs, data.bilateralHKernel, ShaderConstants._BilateralTexture, data.screenSpaceShadowmapTex);
 
-                // Indirect buffer & dispatch
-                cmd.SetComputeBufferParam(data.cs, data.bilateralHKernel, ShaderConstants.g_TileList, data.tileListBuffer);
-                cmd.DispatchCompute(data.cs, data.bilateralHKernel, data.dispatchIndirectBuffer, argsOffset: 0);
+            //    // Indirect buffer & dispatch
+            //    cmd.SetComputeBufferParam(data.cs, data.bilateralHKernel, ShaderConstants.g_TileList, data.tileListBuffer);
+            //    cmd.DispatchCompute(data.cs, data.bilateralHKernel, data.dispatchIndirectBuffer, argsOffset: 0);
 
 
 
-                cmd.SetComputeTextureParam(data.cs, data.bilateralVKernel, ShaderConstants._SSDirShadowmapTexture, data.screenSpaceShadowmapTex);
+            //    cmd.SetComputeTextureParam(data.cs, data.bilateralVKernel, ShaderConstants._BilateralTexture, data.screenSpaceShadowmapTex);
 
-                // Indirect buffer & dispatch
-                cmd.SetComputeBufferParam(data.cs, data.bilateralVKernel, ShaderConstants.g_TileList, data.tileListBuffer);
-                cmd.DispatchCompute(data.cs, data.bilateralVKernel, data.dispatchIndirectBuffer, argsOffset: 0);
-            }
+            //    // Indirect buffer & dispatch
+            //    cmd.SetComputeBufferParam(data.cs, data.bilateralVKernel, ShaderConstants.g_TileList, data.tileListBuffer);
+            //    cmd.DispatchCompute(data.cs, data.bilateralVKernel, data.dispatchIndirectBuffer, argsOffset: 0);
+            //}
         }
 
         internal TextureHandle Render(RenderGraph renderGraph, ContextContainer frameData)
@@ -180,6 +181,8 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _DirShadowmapTexture = Shader.PropertyToID("_DirShadowmapTexture");
             public static readonly int _SSDirShadowmapTexture = Shader.PropertyToID("_SSDirShadowmapTexture");
             public static readonly int _ScreenSpaceShadowmapTexture = Shader.PropertyToID("_ScreenSpaceShadowmapTexture");
+            public static readonly int _PCSSTexture = Shader.PropertyToID("_PCSSTexture");
+            public static readonly int _BilateralTexture = Shader.PropertyToID("_BilateralTexture");
         }
     }
 }

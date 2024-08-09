@@ -1017,6 +1017,7 @@ namespace UnityEngine.Rendering.Universal
         public static GlobalKeyword _ENABLE_ALPHA_OUTPUT;
         public static GlobalKeyword GPULightsCluster;
         public static GlobalKeyword ScreenSpaceReflection;
+        public static GlobalKeyword DirectionalShadowRamp;
 
         // TODO: Move following keywords to Local keywords?
         // https://docs.unity3d.com/ScriptReference/Rendering.LocalKeyword.html
@@ -1930,6 +1931,7 @@ namespace UnityEngine.Rendering.Universal
         SSAO,
         RenderSSR,
         RenderSSShadow,
+        RenderShadowScatter,
 
         // PostProcessPass
         StopNaNs,

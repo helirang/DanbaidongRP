@@ -1456,7 +1456,10 @@ namespace UnityEngine.Rendering.Universal
                 // ScreenSpaceDirectionalShadows
                 // TODO: async
                 resourceData.screenSpaceShadowsTexture = m_ScreenSpaceDirectionalShadowsPass.Render(renderGraph, frameData);
-
+                if (m_ScreenSpaceShadowScatterPass.Setup(resourceData))
+                {
+                    resourceData.shadowScatterTexture = m_ScreenSpaceShadowScatterPass.Render(renderGraph, frameData);
+                }
 
                 // AdditionalShadowCaster
                 if (m_AdditionalLightsShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))

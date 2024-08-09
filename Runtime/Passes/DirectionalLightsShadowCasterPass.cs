@@ -20,9 +20,11 @@ namespace UnityEngine.Rendering.Universal.Internal
             public static int _CascadeShadowSplitSphereRadii;
             public static int _ShadowOffset0;
             public static int _ShadowOffset1;
-            public static int _ShadowUVMinMax;
-            public static int _PerCascadePCSSData;
             public static int _ShadowmapSize;
+            public static int _DirLightShadowUVMinMax;
+            public static int _DirLightShadowPenumbraParams;
+            public static int _DirLightShadowScatterParams;
+            public static int _PerCascadePCSSData;
         }
 
         const int k_MaxCascades = 4;
@@ -44,13 +46,18 @@ namespace UnityEngine.Rendering.Universal.Internal
         Vector4[] m_PerCascadePCSSData;
 
         bool m_CreateEmptyShadowmap;
-        bool m_EmptyShadowmapNeedsClear = false;
+        //bool m_EmptyShadowmapNeedsClear = false;
 
         int renderTargetWidth;
         int renderTargetHeight;
 
         ProfilingSampler m_ProfilingSetupSampler = new ProfilingSampler("Setup Main Shadowmap");
         private PassData m_PassData;
+
+        private Shadows m_volumeSettings;
+        private int m_DirectionalShadowRampID;
+        private Texture2D m_DefaultDirShadowRampTex;
+
         /// <summary>
         /// Creates a new <c>MainLightShadowCasterPass</c> instance.
         /// </summary>
@@ -76,14 +83,21 @@ namespace UnityEngine.Rendering.Universal.Internal
             DirectionalLightsShadowConstantBuffer._CascadeShadowSplitSphereRadii = Shader.PropertyToID("_CascadeShadowSplitSphereRadii");
             DirectionalLightsShadowConstantBuffer._ShadowOffset0 = Shader.PropertyToID("_MainLightShadowOffset0");
             DirectionalLightsShadowConstantBuffer._ShadowOffset1 = Shader.PropertyToID("_MainLightShadowOffset1");
-            DirectionalLightsShadowConstantBuffer._ShadowUVMinMax = Shader.PropertyToID("_DirLightShadowUVMinMax");
-            DirectionalLightsShadowConstantBuffer._PerCascadePCSSData = Shader.PropertyToID("_PerCascadePCSSData");
             DirectionalLightsShadowConstantBuffer._ShadowmapSize = Shader.PropertyToID("_MainLightShadowmapSize");
+            DirectionalLightsShadowConstantBuffer._DirLightShadowUVMinMax = Shader.PropertyToID("_DirLightShadowUVMinMax");
+            DirectionalLightsShadowConstantBuffer._DirLightShadowPenumbraParams = Shader.PropertyToID("_DirLightShadowPenumbraParams");
+            DirectionalLightsShadowConstantBuffer._DirLightShadowScatterParams = Shader.PropertyToID("_DirLightShadowScatterParams");
+            DirectionalLightsShadowConstantBuffer._PerCascadePCSSData = Shader.PropertyToID("_PerCascadePCSSData");
 
-            m_MainLightShadowmapID = Shader.PropertyToID("_MainLightShadowmapTexture");
+            m_MainLightShadowmapID = Shader.PropertyToID("_DirectionalLightsShadowmapTexture");
+
+            m_DirectionalShadowRampID = Shader.PropertyToID("_DirShadowRampTexture");
 
             m_EmptyLightShadowmapTexture = ShadowUtils.AllocShadowRT(k_EmptyShadowMapDimensions, k_EmptyShadowMapDimensions, k_ShadowmapBufferBits, 1, 0, name: k_EmptyShadowMapName);
-            m_EmptyShadowmapNeedsClear = true;
+            //m_EmptyShadowmapNeedsClear = true;
+
+            var runtimeTextures = GraphicsSettings.GetRenderPipelineSettings<UniversalRenderPipelineRuntimeTextures>();
+            m_DefaultDirShadowRampTex = runtimeTextures.defaultDirShadowRampTex;
         }
 
         /// <summary>
@@ -111,6 +125,11 @@ namespace UnityEngine.Rendering.Universal.Internal
             using var profScope = new ProfilingScope(m_ProfilingSetupSampler);
 
             if (!shadowData.supportsMainLightShadows)
+                return SetupForEmptyRendering(cameraData.renderer.stripShadowsOffVariants);
+
+            var stack = VolumeManager.instance.stack;
+            m_volumeSettings = stack.GetComponent<Shadows>();
+            if (m_volumeSettings == null)
                 return SetupForEmptyRendering(cameraData.renderer.stripShadowsOffVariants);
 
             Clear();
@@ -165,8 +184,8 @@ namespace UnityEngine.Rendering.Universal.Internal
             useNativeRenderPass = false;
 
             // Required for scene view camera(URP renderer not initialized)
-            if (ShadowUtils.ShadowRTReAllocateIfNeeded(ref m_EmptyLightShadowmapTexture, k_EmptyShadowMapDimensions, k_EmptyShadowMapDimensions, k_ShadowmapBufferBits, name: k_EmptyShadowMapName))
-                m_EmptyShadowmapNeedsClear = true;
+            //if (ShadowUtils.ShadowRTReAllocateIfNeeded(ref m_EmptyLightShadowmapTexture, k_EmptyShadowMapDimensions, k_EmptyShadowMapDimensions, k_ShadowmapBufferBits, name: k_EmptyShadowMapName))
+            //    m_EmptyShadowmapNeedsClear = true;
 
             return true;
         }
@@ -237,54 +256,6 @@ namespace UnityEngine.Rendering.Universal.Internal
             }
         }
 
-        void DebugMatrix(Matrix4x4 view, Matrix4x4 proj)
-        {
-            // 投影矩阵的逆矩阵
-            Matrix4x4 inverseProjectionMatrix = proj.inverse;
-            // 视图矩阵的逆矩阵
-            Matrix4x4 inverseViewMatrix = view.inverse;
-
-            // NDC空间的四个角点 (左下角, 右下角, 左上角, 右上角)
-            Vector4[] ndcCorners = new Vector4[]
-            {
-            new Vector4(-1, -1, -1, 1),
-            new Vector4( 1, -1, -1, 1),
-            new Vector4(-1,  1, -1, 1),
-            new Vector4( 1,  1, -1, 1),
-            new Vector4( 1,  1, +1, 1),
-            };
-
-            Vector3[] worldCorners = new Vector3[5];
-
-            for (int i = 0; i < 5; i++)
-            {
-                // 从NDC空间到相机空间
-                Vector4 cameraSpaceCorner = inverseProjectionMatrix * ndcCorners[i];
-                // 进行透视除法
-                cameraSpaceCorner /= cameraSpaceCorner.w;
-                // 从相机空间到世界空间
-                Vector4 worldSpaceCorner = inverseViewMatrix * cameraSpaceCorner;
-                worldCorners[i] = worldSpaceCorner;
-            }
-
-
-            // 计算视口在世界空间中的宽度和高度
-            float width = Vector3.Distance(worldCorners[0], worldCorners[1]);
-            float height = Vector3.Distance(worldCorners[0], worldCorners[2]);
-
-            Debug.Log("Width: " + width);
-            Debug.Log("Height: " + height);
-
-
-
-            // 获取视口深度
-            //float nearClip = proj.m32 / (proj.m22 - 1);
-            //float farClip = proj.m32 / (proj.m22 + 1);
-            //float depth = farClip - nearClip;
-            float depth = Vector3.Distance(worldCorners[3], worldCorners[4]);
-
-            Debug.Log("Depth: "  + depth  + ", "+ worldCorners[4] + ", " + worldCorners[3]);
-        }
 
         void SetupDirLightsShadowReceiverConstants(RasterCommandBuffer cmd, ref VisibleLight shadowLight, UniversalShadowData shadowData)
         {
@@ -303,16 +274,6 @@ namespace UnityEngine.Rendering.Universal.Internal
             for (int i = cascadeCount; i <= k_MaxCascades; ++i)
                 m_MainLightShadowMatrices[i] = noOpShadowMatrix;
 
-            //string debugstr = "";
-            //for (int i = 0; i < 4; i++)
-            //{
-            //    debugstr += m_CascadeSlices[0].projectionMatrix.GetRow(i) + "\n";
-            //}
-            //Debug.Log(debugstr);
-            //Debug.Log("Size: " + 1.0f / m_CascadeSlices[0].projectionMatrix.m11 * 2.0f + ", Far-Near: " + (2.0f / m_CascadeSlices[0].projectionMatrix.m22));
-            //Debug.Log("Sphere: " + m_CascadeSplitDistances[0]);
-            //DebugMatrix(m_CascadeSlices[0].viewMatrix, m_CascadeSlices[0].projectionMatrix);
-            //Debug.Log("Proj Matrix Far-+Near: " + 1.0f / m_CascadeSlices[0].projectionMatrix.m23);
 
             float blockerAngularDiameter = 12.0f;
             if (light.TryGetComponent(out UniversalAdditionalLightData additionalLightData))
@@ -349,7 +310,7 @@ namespace UnityEngine.Rendering.Universal.Internal
 
             cmd.SetGlobalMatrixArray(DirectionalLightsShadowConstantBuffer._WorldToShadow, m_MainLightShadowMatrices);
             cmd.SetGlobalVector(DirectionalLightsShadowConstantBuffer._ShadowParams,
-                new Vector4(light.shadowStrength, softShadowsProp, shadowFadeScale, shadowFadeBias));
+                new Vector4(light.shadowStrength * m_volumeSettings.intensity.value, softShadowsProp, shadowFadeScale, shadowFadeBias));
 
             if (m_ShadowCasterCascadesCount > 1)
             {
@@ -384,13 +345,21 @@ namespace UnityEngine.Rendering.Universal.Internal
                     new Vector4(-invHalfShadowAtlasWidth, invHalfShadowAtlasHeight,
                         invHalfShadowAtlasWidth, invHalfShadowAtlasHeight));
 
-                cmd.SetGlobalVector(DirectionalLightsShadowConstantBuffer._ShadowUVMinMax,
-                    new Vector4(invHalfShadowAtlasWidth, invHalfShadowAtlasHeight,
-                        1.0f - invHalfShadowAtlasWidth, 1.0f - invHalfShadowAtlasHeight));
-
                 cmd.SetGlobalVector(DirectionalLightsShadowConstantBuffer._ShadowmapSize, new Vector4(invShadowAtlasWidth,
                     invShadowAtlasHeight,
                     renderTargetWidth, renderTargetHeight));
+
+                cmd.SetGlobalVector(DirectionalLightsShadowConstantBuffer._DirLightShadowUVMinMax,
+                    new Vector4(invHalfShadowAtlasWidth, invHalfShadowAtlasHeight,
+                        1.0f - invHalfShadowAtlasWidth, 1.0f - invHalfShadowAtlasHeight));
+
+                cmd.SetGlobalVector(DirectionalLightsShadowConstantBuffer._DirLightShadowPenumbraParams,
+                    new Vector4(m_volumeSettings.penumbra.value, m_volumeSettings.occlusionPenumbra.value,
+                        0, 0));
+
+                cmd.SetGlobalVector(DirectionalLightsShadowConstantBuffer._DirLightShadowScatterParams,
+                    new Vector4(m_volumeSettings.scatterR.value, m_volumeSettings.scatterG.value,
+                        m_volumeSettings.scatterB.value, (float)m_volumeSettings.shadowScatterMode.value));
             }
         }
 
@@ -470,6 +439,12 @@ namespace UnityEngine.Rendering.Universal.Internal
             UniversalShadowData shadowData = frameData.Get<UniversalShadowData>();
 
             TextureHandle shadowTexture;
+
+            // Directional shadow ramp texture.
+            {
+                var shadowRampTexture = m_volumeSettings.shadowRampTex.value == null ? m_DefaultDirShadowRampTex : m_volumeSettings.shadowRampTex.value;
+                Shader.SetGlobalTexture(m_DirectionalShadowRampID, shadowRampTexture);
+            }
 
             using (var builder = graph.AddUnsafePass<PassData>("Directional Lights Shadowmap", out var passData, base.profilingSampler))
             {

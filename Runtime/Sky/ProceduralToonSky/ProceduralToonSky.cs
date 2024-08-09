@@ -8,9 +8,19 @@ namespace UnityEngine.Rendering.Universal
     public sealed class ProceduralToonSky : SkySettings
     {
         internal static Material defaultMaterial { get; set; }
+        private static Material s_SkyMaterial;
 
+        protected override void OnEnable()
+        {
+            base.OnEnable();
 
-        public MaterialParameter material = new MaterialParameter(null);
+            if (s_SkyMaterial == null)
+            {
+                s_SkyMaterial = defaultMaterial;
+            }
+        }
+
+        public MaterialParameter material = new MaterialParameter(s_SkyMaterial);
 
         /// <summary>
         /// Returns the hash code of the Procedural Toon sky parameters.

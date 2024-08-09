@@ -7,9 +7,22 @@ namespace UnityEngine.Rendering.Universal
     [SkyUniqueID((int)SkyType.HDRI)]
     public sealed class HDRISky : SkySettings
     {
+        private static Cubemap m_DefaultHdriSky;
+
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+
+            if (m_DefaultHdriSky == null)
+            {
+                var runtimeTextures = GraphicsSettings.GetRenderPipelineSettings<UniversalRenderPipelineRuntimeTextures>();
+                m_DefaultHdriSky = runtimeTextures.defaultHDRISky;
+            }
+        }
+
         /// <summary>Cubemap used to render the HDRI sky.</summary>
         [Tooltip("Specify the cubemap uses to render the sky.")]
-        public CubemapParameter hdriSky = new CubemapParameter(null);
+        public CubemapParameter hdriSky = new CubemapParameter(m_DefaultHdriSky);
 
         /// <summary>
         /// Returns the hash code of the HDRI sky parameters.

@@ -119,6 +119,7 @@ namespace UnityEngine.Rendering.Universal
         DepthPyramidPass m_DepthPyramidPass;
         ColorPyramidPass m_ColorPyramidPass;
         ScreenSpaceDirectionalShadowsPass m_ScreenSpaceDirectionalShadowsPass;
+        ScreenSpaceShadowScatterPass m_ScreenSpaceShadowScatterPass;
         ScreenSpaceReflectionPass m_ScreenSpaceReflectionPass;
         DeferredPass m_DeferredPass;
         DeferredLighting m_DeferredLighting;
@@ -336,6 +337,7 @@ namespace UnityEngine.Rendering.Universal
                 m_DepthPyramidPass = new DepthPyramidPass(RenderPassEvent.BeforeRenderingGbuffer + 2, runtimeShaders.depthPyramidCS);
 
                 m_ScreenSpaceDirectionalShadowsPass = new ScreenSpaceDirectionalShadowsPass(RenderPassEvent.AfterRenderingShadows, runtimeShaders.screenSpaceDirectionalShadowsCS);
+                m_ScreenSpaceShadowScatterPass = new ScreenSpaceShadowScatterPass(RenderPassEvent.AfterRenderingShadows, runtimeShaders.screenSpaceShadowScaterPS);
                 m_ScreenSpaceReflectionPass = new ScreenSpaceReflectionPass(RenderPassEvent.BeforeRenderingDeferredLights, runtimeShaders.screenSpaceReflectionsCS);
 
                 m_DeferredPass = new DeferredPass(RenderPassEvent.BeforeRenderingDeferredLights, m_DeferredLights);
@@ -434,6 +436,8 @@ namespace UnityEngine.Rendering.Universal
             m_ForwardLights.Cleanup();
             m_GBufferPass?.Dispose();
             m_PostProcessPasses.Dispose();
+
+            m_ScreenSpaceShadowScatterPass?.Cleanup();
 
             m_FinalBlitPass?.Dispose();
             m_DrawOffscreenUIPass?.Dispose();

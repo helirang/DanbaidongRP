@@ -54,7 +54,9 @@
 #endif
 
 TEXTURE2D_X(_ScreenSpaceShadowmapTexture);
+TEXTURE2D(_DirShadowRampTexture);
 
+TEXTURE2D_ARRAY_SHADOW(_DirectionalLightsShadowmapTexture);
 TEXTURE2D_SHADOW(_MainLightShadowmapTexture);
 TEXTURE2D_SHADOW(_AdditionalLightsShadowmapTexture);
 SAMPLER_CMP(sampler_LinearClampCompare);
@@ -82,6 +84,8 @@ float4      _MainLightShadowParams;   // (x: shadowStrength, y: >= 1.0 if soft s
 float4      _MainLightShadowmapSize;  // (xy: 1/width and 1/height, zw: width and height)
 
 float4      _DirLightShadowUVMinMax; // xy: shadow uv min, max: shadow uv max
+float4      _DirLightShadowPenumbraParams; // x: soft shadow width, y: scatter occlusion width.
+float4      _DirLightShadowScatterParams; // xyz: shadow subsurface scatter channel, w:shadow scatter mode.
 
 float4      _AdditionalShadowOffset0; // xy: offset0, zw: offset1
 float4      _AdditionalShadowOffset1; // xy: offset2, zw: offset3
@@ -119,6 +123,24 @@ float4 _ShadowBias; // x: depth bias, y: normal bias
 #define SOFT_SHADOW_QUALITY_LOW    half(1.0)
 #define SOFT_SHADOW_QUALITY_MEDIUM half(2.0)
 #define SOFT_SHADOW_QUALITY_HIGH   half(3.0)
+
+// Must match Shadows.cs
+#define SHADOWSCATTERMODE_NONE (0)
+#define SHADOWSCATTERMODE_RAMPTEXTURE (1)
+#define SHADOWSCATTERMODE_SUBSURFACE (2)
+
+float GetShadowScatterMode()
+{
+    return _DirLightShadowScatterParams.w;
+}
+
+float3 EvaluateShadowScatterColor(float r, float3 S)
+{
+    float3 exp_13 = exp2(((LOG2_E * (-1.0/3.0)) * r) * S); // Exp[-S * r / 3]
+    float3 expSum = exp_13 * (1 + exp_13 * exp_13);        // Exp[-S * r / 3] + Exp[-S * r]
+
+    return (S * rcp(8 * PI)) * expSum; // S / (8 * Pi) * (Exp[-S * r / 3] + Exp[-S * r])
+}
 
 struct ShadowSamplingData
 {

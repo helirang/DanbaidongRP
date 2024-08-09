@@ -1,6 +1,4 @@
 
-using static UnityEngine.Rendering.Universal.ShaderInput;
-
 namespace UnityEngine.Rendering.Universal
 {
     public class ProceduralToonSkyRenderer : SkyRenderer

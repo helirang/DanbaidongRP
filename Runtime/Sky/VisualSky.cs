@@ -8,12 +8,12 @@ namespace UnityEngine.Rendering.Universal
     /// </summary>
     public enum SkyType
     {
-        /// <summary>HDRI Sky Unique ID.</summary>
-        HDRI = 1,
-        /// <summary>Procedural ToonSky Unique ID.</summary>
-        ProceduralToon = 2,
         /// <summary>Gradient Sky Unique ID.</summary>
-        Gradient = 3,
+        Gradient = 1,
+        /// <summary>HDRI Sky Unique ID.</summary>
+        HDRI = 2,
+        /// <summary>Procedural ToonSky Unique ID.</summary>
+        ProceduralToon = 3,
     }
 
     /// <summary>
@@ -45,7 +45,7 @@ namespace UnityEngine.Rendering.Universal
     {
         /// <summary>Type of sky that should be used for rendering.</summary>
         [Header("Sky")]
-        public SkyTypeParameter skyType = new SkyTypeParameter(SkyType.Gradient);
+        public SkyTypeParameter skyType = new SkyTypeParameter(SkyType.Gradient, true);
         ///// <summary>Type of clouds that should be used for rendering.</summary>
         //public NoInterpIntParameter cloudType = new NoInterpIntParameter(0);
         ///// <summary>Defines the way the ambient probe should be computed.</summary>

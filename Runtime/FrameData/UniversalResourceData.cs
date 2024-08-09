@@ -160,6 +160,16 @@ namespace UnityEngine.Rendering.Universal
         }
         private TextureHandle _screenSpaceShadowsTexture;
 
+        /// <summary>
+        /// Shadow scatter map.
+        /// </summary>
+        public TextureHandle shadowScatterTexture
+        {
+            get => CheckAndGetTextureHandle(ref _shadowScatterTexture);
+            set => CheckAndSetTextureHandle(ref _shadowScatterTexture, value);
+        }
+        private TextureHandle _shadowScatterTexture;
+
         // GBuffer targets
 
         /// <summary>
@@ -402,6 +412,7 @@ namespace UnityEngine.Rendering.Universal
             _mainShadowsTexture = TextureHandle.nullHandle;
             _additionalShadowsTexture = TextureHandle.nullHandle;
             _screenSpaceShadowsTexture = TextureHandle.nullHandle;
+            _shadowScatterTexture = TextureHandle.nullHandle;
             _cameraOpaqueTexture = TextureHandle.nullHandle;
             _cameraDepthTexture = TextureHandle.nullHandle;
             _cameraNormalsTexture = TextureHandle.nullHandle;

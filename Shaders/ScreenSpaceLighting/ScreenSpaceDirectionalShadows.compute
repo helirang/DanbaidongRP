@@ -3,9 +3,9 @@
 
 // #pragma enable_d3d11_debug_symbols
 #pragma kernel ShadowClassifyTiles      SHADOW_CLASSIFY_TILES
-#pragma kernel ScreenSpaceShadowmap     SHADOW_PCSS
+#pragma kernel ScreenSpaceShadowmap     SHADOW_PCSS                 PCSS_FILTER=ScreenSpaceShadowmap
 #pragma kernel BilateralFilterH         SHADOW_BILATERAL_FILTER     BILATERAL_FILTER=BilateralFilterH
-#pragma kernel BilateralFilterV         SHADOW_BILATERAL_FILTER     BILATERAL_FILTER=BilateralFilterV   FINAL_PASS
+#pragma kernel BilateralFilterV         SHADOW_BILATERAL_FILTER     BILATERAL_FILTER=BilateralFilterV       FINAL_PASS
 
 #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
 
@@ -27,24 +27,25 @@
 // Inputs & outputs
 //--------------------------------------------------------------------------------------------------
 
+RWStructuredBuffer<uint> g_TileList;
+
 #if defined(SHADOW_CLASSIFY_TILES)
 TEXTURE2D_ARRAY(_DirShadowmapTexture);
 
 RW_TEXTURE2D(float, _SSDirShadowmapTexture);
 RWBuffer<uint> g_DispatchIndirectBuffer;
-RWStructuredBuffer<uint> g_TileList;
+
 
 #elif defined(SHADOW_PCSS)
-StructuredBuffer<uint> g_TileList;
 TEXTURE2D_ARRAY(_DirShadowmapTexture);
 
-RW_TEXTURE2D(float, _SSDirShadowmapTexture);
+RW_TEXTURE2D(float, _PCSSTexture);
+
 
 #elif defined(SHADOW_BILATERAL_FILTER)
-StructuredBuffer<uint> g_TileList;
 TEXTURE2D_X_FLOAT(_GBuffer2);
 
-RW_TEXTURE2D(float, _SSDirShadowmapTexture);
+RW_TEXTURE2D(float, _BilateralTexture);
 
 #endif
 
@@ -52,18 +53,23 @@ RW_TEXTURE2D(float, _SSDirShadowmapTexture);
 // Helpers
 //--------------------------------------------------------------------------------------------------
 
-#define SCREENSPACE_SHADOWS_TILE_SIZE (16)
-#define SCREENSPACE_SHADOWS_GROUP_SIZE (SCREENSPACE_SHADOWS_TILE_SIZE / 2)
-#define SCREENSPACE_SHADOWS_THREADS   (64)
+#define SCREENSPACE_SHADOWS_TILE_SIZE   (16)
+#define SCREENSPACE_SHADOWS_GROUP_SIZE  (SCREENSPACE_SHADOWS_TILE_SIZE / 2)
+#define SCREENSPACE_SHADOWS_THREADS     (64)
 
-#define PREFILTER_SAMPLE_COUNT      (16)
-#define BLOCKER_SAMPLE_COUNT        (16)
-#define PCSS_SAMPLE_COUNT           (32)
-#define BLOCKER_SAMPLE_CLUMP_EXP    (2.0)
+
+#define PREFILTER_SAMPLE_COUNT          (16)
+#define BLOCKER_SAMPLE_COUNT            (16)
+#define PCSS_SAMPLE_COUNT               (32)
 
 // World space filter size.
-#define FILTER_SIZE_PREFILTER       (0.4)
-#define FILTER_SIZE_BLOCKER         (0.2)
+#define FILTER_SIZE_PREFILTER           (0.4)
+#define FILTER_SIZE_BLOCKER             (0.2)
+
+#define DIR_LIGHT_PENUMBRA_WIDTH        _DirLightShadowPenumbraParams.x
+
+
+
 
 
 uint2 DecodeTileIndex(uint encoded)
@@ -78,7 +84,8 @@ uint EncodeTileIndex(uint2 tileID)
 
 void InitializeDispatchThreadIdFromTileList(uint groupId, uint2 gThreadId, out uint2 tileCoord, out uint2 dThreadId)
 {
-    uint  encodedTileIndex = g_TileList[groupId / 4];
+    uint encodedTileIndex = g_TileList[groupId / 4];
+
     tileCoord = DecodeTileIndex(encodedTileIndex);
     dThreadId = tileCoord * SCREENSPACE_SHADOWS_TILE_SIZE
               + uint2(groupId & 1, (groupId >> 1) & 1) * SCREENSPACE_SHADOWS_GROUP_SIZE
@@ -433,15 +440,14 @@ void ShadowClassifyTiles(uint3 dispatchThreadId : SV_DispatchThreadID, uint grou
         float preFilterSize = FILTER_SIZE_PREFILTER / texelSizeWS; // texel count
         preFilterSize = max(preFilterSize, 1.0);
         float preFilterRet = PreFilterSearch(PREFILTER_SAMPLE_COUNT, preFilterSize, shadowCoord.xyz, cascadeIndex);
-
-        if (preFilterRet > 0 && preFilterRet < PREFILTER_SAMPLE_COUNT)
+        bool isOcclusion = preFilterRet > 0;
+        if (isOcclusion && preFilterRet < PREFILTER_SAMPLE_COUNT)
         {
-            _SSDirShadowmapTexture[coordSS] = 0.5;
             needPenumbra = true;
         }
-        else
+        if (isOcclusion)
         {
-            _SSDirShadowmapTexture[coordSS] = preFilterRet > 0 ? 0.0 : 1.0;
+            _SSDirShadowmapTexture[coordSS] = (preFilterRet == PREFILTER_SAMPLE_COUNT) ? 0.0 : 0.5;
         }
     }
 
@@ -475,13 +481,13 @@ void ShadowClassifyTiles(uint3 dispatchThreadId : SV_DispatchThreadID, uint grou
 
 
 [numthreads(SCREENSPACE_SHADOWS_GROUP_SIZE, SCREENSPACE_SHADOWS_GROUP_SIZE, 1)]
-void ScreenSpaceShadowmap(uint3 dispatchThreadId : SV_DispatchThreadID, uint2 groupThreadId : SV_GroupThreadID, uint groupId : SV_GroupID)
+void PCSS_FILTER(uint3 dispatchThreadId : SV_DispatchThreadID, uint2 groupThreadId : SV_GroupThreadID, uint groupId : SV_GroupID)
 {
     uint2 coordSS;
     uint2 tileCoord;
     InitializeDispatchThreadIdFromTileList(groupId, groupThreadId, tileCoord, coordSS);
 
-    if (_SSDirShadowmapTexture[coordSS] != 0.5)
+    if (_PCSSTexture[coordSS] == 0.0 || _PCSSTexture[coordSS] == 1.0)
         return;
 
     float2 screenUV = coordSS * _ScreenSize.zw + (0.5 * _ScreenSize.zw);
@@ -512,7 +518,7 @@ void ScreenSpaceShadowmap(uint3 dispatchThreadId : SV_DispatchThreadID, uint2 gr
     float2 avgDepthAndCount = BlockerSearch(BLOCKER_SAMPLE_COUNT, filterSize, shadowCoord.xyz, noiseJitter, cascadeIndex);
     if (avgDepthAndCount.y == 0) // No Blocker
     {
-        _SSDirShadowmapTexture[coordSS] = 1.0;
+        _PCSSTexture[coordSS] = 1.0;
         return;
     }
 
@@ -523,7 +529,7 @@ void ScreenSpaceShadowmap(uint3 dispatchThreadId : SV_DispatchThreadID, uint2 gr
 
     float maxPCSSoffset = blockerDistance / farToNear * 0.25;
 
-    float pcssFilterSize = blockerDistance * 0.01 / texelSizeWS;
+    float pcssFilterSize = DIR_LIGHT_PENUMBRA_WIDTH * blockerDistance * 0.01 / texelSizeWS;
     pcssFilterSize = max(pcssFilterSize, 0.01);
 
 
@@ -531,7 +537,7 @@ void ScreenSpaceShadowmap(uint3 dispatchThreadId : SV_DispatchThreadID, uint2 gr
     float pcssResult = PCSSFilter(PCSS_SAMPLE_COUNT, pcssFilterSize, shadowCoord.xyz, noiseJitter, cascadeIndex, maxPCSSoffset);
     
 
-    _SSDirShadowmapTexture[coordSS] = pcssResult;
+    _PCSSTexture[coordSS] = pcssResult;
 
 }
 
@@ -636,7 +642,7 @@ void LoadCoordData(int2 coordSS, out CoordData outData)
 
     outData.normal = normalWS;
     outData.depth = LinearEyeDepth(deviceDepth, _ZBufferParams);
-    outData.color = _SSDirShadowmapTexture[coordSS];
+    outData.color = _BilateralTexture[coordSS];
 }
 
 void InitializeGroupSharedMemory(uint2 dThreadId, uint2 gThreadId)
@@ -724,7 +730,7 @@ void BILATERAL_FILTER(uint3 dispatchThreadId : SV_DispatchThreadID, uint2 groupT
         weightSum += weight;
     }
 
-    _SSDirShadowmapTexture[coordSS] = colorSum / weightSum;
+    _BilateralTexture[coordSS] = colorSum / weightSum;
 }
 
 #endif

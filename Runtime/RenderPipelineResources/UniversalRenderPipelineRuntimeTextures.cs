@@ -94,5 +94,18 @@ namespace UnityEngine.Rendering.Universal
             get => m_BlueNoise128RGTex;
             set => this.SetValueAndNotify(ref m_BlueNoise128RGTex, value);
         }
+
+        [SerializeField]
+        [ResourcePath("Textures/ShadowRamp/DirectionalShadowRamp.png")]
+        private Texture2D m_DefaultDirShadowRampTex;
+
+        /// <summary>
+        /// Default directional shadowramp texture.
+        /// </summary>
+        public Texture2D defaultDirShadowRampTex
+        {
+            get => m_DefaultDirShadowRampTex;
+            set => this.SetValueAndNotify(ref m_DefaultDirShadowRampTex, value, nameof(m_DefaultDirShadowRampTex));
+        }
     }
 }
