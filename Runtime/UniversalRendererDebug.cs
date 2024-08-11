@@ -109,7 +109,7 @@ namespace UnityEngine.Rendering.Universal
                             }
                             case DebugFullScreenMode.MainLightShadowMap:
                             {
-                                CopyToDebugTexture(renderGraph, resourceData.mainShadowsTexture, debugDepthTexture);
+                                CopyToDebugTexture(renderGraph, resourceData.directionalShadowsTexture, debugDepthTexture);
 
                                 break;
                             }

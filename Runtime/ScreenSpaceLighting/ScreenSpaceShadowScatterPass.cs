@@ -8,6 +8,7 @@ namespace UnityEngine.Rendering.Universal
 
         // Private Variables
         private Material m_Material;
+        private bool m_EnableShadowScatter;
 
         // Constants
 
@@ -34,20 +35,19 @@ namespace UnityEngine.Rendering.Universal
 
         public bool Setup(UniversalResourceData resourceData)
         {
-            if (!resourceData.mainShadowsTexture.IsValid() || !resourceData.screenSpaceShadowsTexture.IsValid())
+            if (!resourceData.directionalShadowsTexture.IsValid() || !resourceData.screenSpaceShadowsTexture.IsValid())
                 return false;
 
             var stack = VolumeManager.instance.stack;
             var shadowsVolumeSettings = stack.GetComponent<Shadows>();
-            bool enableShadowScatter = shadowsVolumeSettings != null && (shadowsVolumeSettings.shadowScatterMode.value != ShadowScatterMode.None);
+            m_EnableShadowScatter = shadowsVolumeSettings != null && (shadowsVolumeSettings.shadowScatterMode.value != ShadowScatterMode.None);
 
-            return enableShadowScatter;
+            return true;
         }
 
         private class PassData
         {
             internal Material material;
-
 
             internal TextureHandle dirShadowmapTex;
             internal TextureHandle screenSpaceShadowmapTex;
@@ -68,7 +68,7 @@ namespace UnityEngine.Rendering.Universal
 
             passData.material = m_Material;
 
-            passData.dirShadowmapTex = resourceData.mainShadowsTexture;
+            passData.dirShadowmapTex = resourceData.directionalShadowsTexture;
             passData.screenSpaceShadowmapTex = resourceData.screenSpaceShadowsTexture;
 
             passData.shadowScatterTex = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, "_ShadowScatterTexture", true, Color.white, FilterMode.Bilinear);
@@ -82,8 +82,17 @@ namespace UnityEngine.Rendering.Universal
 
         internal TextureHandle Render(RenderGraph renderGraph, ContextContainer frameData)
         {
-            // TODO: Update keywords and other shader params
+            if (!m_EnableShadowScatter)
+                return renderGraph.defaultResources.whiteTexture;
 
+
+            // Update keywords and other shader params
+            int historyFramCount = 0;
+            var historyRTSystem = HistoryFrameRTSystem.GetOrCreate(frameData.Get<UniversalCameraData>().camera);
+            if (historyRTSystem != null)
+                historyFramCount = historyRTSystem.historyFrameCount;
+
+            m_Material.SetFloat(ShaderConstants._CamHistoryFrameCount, historyFramCount);
 
             using (var builder = renderGraph.AddUnsafePass<PassData>("Render ShadowScatter", out var passData, ProfilingSampler.Get(URPProfileId.RenderShadowScatter)))
             {
@@ -125,7 +134,7 @@ namespace UnityEngine.Rendering.Universal
 
         static class ShaderConstants
         {
-            public static readonly int g_DispatchIndirectBuffer = Shader.PropertyToID("g_DispatchIndirectBuffer");
+            public static readonly int _CamHistoryFrameCount = Shader.PropertyToID("_CamHistoryFrameCount");
         }
     }
 

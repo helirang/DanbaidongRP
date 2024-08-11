@@ -1450,7 +1450,7 @@ namespace UnityEngine.Rendering.Universal
                 if (m_DirectionalLightsShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))
                 {
                     renderShadows = true;
-                    resourceData.mainShadowsTexture = m_DirectionalLightsShadowCasterPass.Render(renderGraph, frameData);
+                    resourceData.directionalShadowsTexture = m_DirectionalLightsShadowCasterPass.Render(renderGraph, frameData);
                 }
 
                 // ScreenSpaceDirectionalShadows
@@ -1491,7 +1491,7 @@ namespace UnityEngine.Rendering.Universal
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingDeferredLights, RenderPassEvent.BeforeRenderingOpaques);
 
-                TextureHandle mainShadowsTexture = resourceData.mainShadowsTexture;
+                TextureHandle mainShadowsTexture = resourceData.directionalShadowsTexture;
                 TextureHandle additionalShadowsTexture = resourceData.additionalShadowsTexture;
                 m_RenderOpaqueForwardOnlyPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, mainShadowsTexture, additionalShadowsTexture, uint.MaxValue);
             }
@@ -1554,7 +1554,7 @@ namespace UnityEngine.Rendering.Universal
                     frameData,
                     resourceData.activeColorTexture,
                     resourceData.activeDepthTexture,
-                    resourceData.mainShadowsTexture,
+                    resourceData.directionalShadowsTexture,
                     resourceData.additionalShadowsTexture);
             }
 

@@ -1,6 +1,7 @@
 #ifndef PER_OBJECT_SHADOWS_INCLUDED
 #define PER_OBJECT_SHADOWS_INCLUDED
 #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Shadows.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Shadow/ShadowSamplingDisk.hlsl"
 
 float4 _PerObjectShadowmapTexture_TexelSize;
 TEXTURE2D_SHADOW(_PerObjectShadowmapTexture);
@@ -72,6 +73,39 @@ real SamplePerObjectShadowmapFiltered(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_
     }
 
     return attenuation;
+}
+
+float PerObjectShadowmapPCF(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, float4 shadowMapTexelSize, float sampleCount, float filterSize, float2 random)
+{
+    float numBlockers = 0.0;
+    float totalSamples = 0.0;
+    float sampleCountInverse = rcp((float)sampleCount);
+    float sampleCountBias = 0.5 * sampleCountInverse;
+
+    UNITY_LOOP
+    for (int i = 0; i < sampleCount && i < DISK_SAMPLE_COUNT; i++)
+    {
+        float sampleDistNorm;
+        float2 offset = 0.0;
+        offset = ComputeFibonacciSpiralDiskSampleUniform_Directional(i, sampleCountInverse, sampleCountBias, sampleDistNorm);
+        offset = float2(offset.x *  random.y + offset.y * random.x,
+                    offset.x * -random.x + offset.y * random.y);
+        offset *= filterSize;
+        offset *= shadowMapTexelSize.x; // coord to uv
+
+        float2 sampleCoord = shadowCoord.xy + offset;
+
+
+        float depthLS = shadowCoord.z;
+
+        {
+            float shadowSample = SAMPLE_TEXTURE2D_SHADOW(ShadowMap, sampler_ShadowMap, float3(sampleCoord, depthLS));
+            numBlockers += shadowSample;
+            totalSamples++;
+        }
+    }
+
+    return totalSamples > 0 ? numBlockers / totalSamples : 1.0;
 }
 
 real SamplePerObjectShadowmap(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, half4 perObjectShadowParams)

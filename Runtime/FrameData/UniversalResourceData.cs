@@ -133,12 +133,12 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// Main shadow map.
         /// </summary>
-        public TextureHandle mainShadowsTexture
+        public TextureHandle directionalShadowsTexture
         {
-            get => CheckAndGetTextureHandle(ref _mainShadowsTexture);
-            set => CheckAndSetTextureHandle(ref _mainShadowsTexture, value);
+            get => CheckAndGetTextureHandle(ref _directionalShadowsTexture);
+            set => CheckAndSetTextureHandle(ref _directionalShadowsTexture, value);
         }
-        private TextureHandle _mainShadowsTexture;
+        private TextureHandle _directionalShadowsTexture;
 
         /// <summary>
         /// Additional shadow map.
@@ -409,7 +409,7 @@ namespace UnityEngine.Rendering.Universal
             _cameraDepthPyramidTexture = TextureHandle.nullHandle;
             _cameraDepthPyramidMipLevelOffsets = BufferHandle.nullHandle;
             cameraDepthPyramidInfo = default;
-            _mainShadowsTexture = TextureHandle.nullHandle;
+            _directionalShadowsTexture = TextureHandle.nullHandle;
             _additionalShadowsTexture = TextureHandle.nullHandle;
             _screenSpaceShadowsTexture = TextureHandle.nullHandle;
             _shadowScatterTexture = TextureHandle.nullHandle;

@@ -137,6 +137,7 @@ Shader "PerObjectShadow/ShadowProjector"
                 UNITY_DEFINE_INSTANCED_PROP(float4, _PerObjectUVScaleOffset)
 			UNITY_INSTANCING_BUFFER_END(UnityPerMaterial)
             float4 _PerObjectShadowScaledScreenParams;
+            int _CamHistoryFrameCount;
 
             v2f vert(a2v v)
 			{
@@ -185,7 +186,16 @@ Shader "PerObjectShadow/ShadowProjector"
 
                 float4 shadowCoord = TransformWorldToPerObjectShadowCoord(positionWS, worldToShadowMatrix);
 
-                float attenuation = PerObjectRealtimeShadow(shadowCoord);
+                // float attenuation = PerObjectRealtimeShadow(shadowCoord);
+
+                float2 noiseJitter = InterleavedGradientNoise(screenUV * _ScreenSize.xy, _CamHistoryFrameCount);
+                noiseJitter *= TWO_PI;
+                noiseJitter.x = sin(noiseJitter.x);
+                noiseJitter.y = cos(noiseJitter.y);
+
+
+                float attenuation = PerObjectShadowmapPCF(TEXTURE2D_ARGS(_PerObjectShadowmapTexture, sampler_LinearClampCompare), shadowCoord, _PerObjectShadowmapTexture_TexelSize, 16.0, 10.0, noiseJitter);
+
 
                 return half4(attenuation.xxx, 1);
             }

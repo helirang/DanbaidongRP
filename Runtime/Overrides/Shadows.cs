@@ -16,7 +16,7 @@ namespace UnityEngine.Rendering.Universal
         }
     }
 
-    [Serializable, VolumeComponentMenu("Lighting/Screen Space Shadows")]
+    [Serializable, VolumeComponentMenu("Lighting/Shadows")]
     [SupportedOnRenderPipeline(typeof(UniversalRenderPipelineAsset))]
     public sealed partial class Shadows : VolumeComponent, IPostProcessComponent
     {

@@ -130,7 +130,7 @@ namespace UnityEngine.Rendering.Universal.Internal
 
                 InitRendererLists(renderGraph, renderingData, cameraData, lightData, ref passData);
 
-                TextureHandle mainShadowsTexture = resourceData.mainShadowsTexture;
+                TextureHandle mainShadowsTexture = resourceData.directionalShadowsTexture;
                 TextureHandle additionalShadowsTexture = resourceData.additionalShadowsTexture;
 
 

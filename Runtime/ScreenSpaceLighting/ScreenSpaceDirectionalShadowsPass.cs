@@ -54,14 +54,13 @@ namespace UnityEngine.Rendering.Universal
             internal TextureHandle normalGBuffer;
 
             internal int camHistoryFrameCount;
-            internal TextureHandle blueNoiseArray;
         }
 
         /// <summary>
         /// Initialize the shared pass data.
         /// </summary>
         /// <param name="passData"></param>
-        private void InitPassData(RenderGraph renderGraph, PassData passData, UniversalCameraData cameraData, UniversalResourceData resourceData, HistoryFrameRTSystem historyRTSystem)
+        private void InitPassData(RenderGraph renderGraph, PassData passData, UniversalCameraData cameraData, UniversalResourceData resourceData, int historyFramCount)
         {
             RenderTextureDescriptor desc = cameraData.cameraTargetDescriptor;
             desc.colorFormat = RenderTextureFormat.RFloat;
@@ -73,6 +72,8 @@ namespace UnityEngine.Rendering.Universal
             passData.shadowmapKernel = m_SSShadowsKernel;
             passData.bilateralHKernel = m_BilateralHKernel;
             passData.bilateralVKernel = m_BilateralVKernel;
+
+            passData.camHistoryFrameCount = historyFramCount;
 
             var width = cameraData.cameraTargetDescriptor.width;
             var height = cameraData.cameraTargetDescriptor.height;
@@ -86,7 +87,7 @@ namespace UnityEngine.Rendering.Universal
             passData.tileListBuffer = renderGraph.CreateBuffer(tileListBufferDesc);
 
 
-            passData.dirShadowmapTex = resourceData.mainShadowsTexture;
+            passData.dirShadowmapTex = resourceData.directionalShadowsTexture;
             passData.screenSpaceShadowmapTex = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, "_ScreenSpaceShadowmapTexture", true, Color.white);
             passData.screenSpaceShadowmapSize = new Vector2Int(desc.width, desc.height);
 
@@ -97,7 +98,7 @@ namespace UnityEngine.Rendering.Universal
         {
             var cmd = context.cmd;
 
-            cmd.SetComputeVectorParam(data.cs, "_TilesNum", new Vector2(data.numTilesX, data.numTilesY));
+            cmd.SetComputeFloatParam(data.cs, ShaderConstants._CamHistoryFrameCount, data.camHistoryFrameCount);
             // BuildIndirect
             {
                 cmd.SetComputeBufferParam(data.cs, data.classifyTilesKernel, ShaderConstants.g_DispatchIndirectBuffer, data.dispatchIndirectBuffer);
@@ -120,28 +121,31 @@ namespace UnityEngine.Rendering.Universal
             }
 
             // Bilateral Filter
-            //{
-            //    cmd.SetComputeTextureParam(data.cs, data.bilateralHKernel, ShaderConstants._BilateralTexture, data.screenSpaceShadowmapTex);
+            // We use TAA enough
+            if (false)
+            {
+                cmd.SetComputeTextureParam(data.cs, data.bilateralHKernel, ShaderConstants._BilateralTexture, data.screenSpaceShadowmapTex);
 
-            //    // Indirect buffer & dispatch
-            //    cmd.SetComputeBufferParam(data.cs, data.bilateralHKernel, ShaderConstants.g_TileList, data.tileListBuffer);
-            //    cmd.DispatchCompute(data.cs, data.bilateralHKernel, data.dispatchIndirectBuffer, argsOffset: 0);
+                // Indirect buffer & dispatch
+                cmd.SetComputeBufferParam(data.cs, data.bilateralHKernel, ShaderConstants.g_TileList, data.tileListBuffer);
+                cmd.DispatchCompute(data.cs, data.bilateralHKernel, data.dispatchIndirectBuffer, argsOffset: 0);
 
 
 
-            //    cmd.SetComputeTextureParam(data.cs, data.bilateralVKernel, ShaderConstants._BilateralTexture, data.screenSpaceShadowmapTex);
+                cmd.SetComputeTextureParam(data.cs, data.bilateralVKernel, ShaderConstants._BilateralTexture, data.screenSpaceShadowmapTex);
 
-            //    // Indirect buffer & dispatch
-            //    cmd.SetComputeBufferParam(data.cs, data.bilateralVKernel, ShaderConstants.g_TileList, data.tileListBuffer);
-            //    cmd.DispatchCompute(data.cs, data.bilateralVKernel, data.dispatchIndirectBuffer, argsOffset: 0);
-            //}
+                // Indirect buffer & dispatch
+                cmd.SetComputeBufferParam(data.cs, data.bilateralVKernel, ShaderConstants.g_TileList, data.tileListBuffer);
+                cmd.DispatchCompute(data.cs, data.bilateralVKernel, data.dispatchIndirectBuffer, argsOffset: 0);
+            }
         }
 
         internal TextureHandle Render(RenderGraph renderGraph, ContextContainer frameData)
         {
+            int historyFramCount = 0;
             var historyRTSystem = HistoryFrameRTSystem.GetOrCreate(frameData.Get<UniversalCameraData>().camera);
-            if (historyRTSystem == null)
-                return renderGraph.defaultResources.defaultShadowTexture;
+            if (historyRTSystem != null)
+                historyFramCount = historyRTSystem.historyFrameCount;
 
             using (var builder = renderGraph.AddComputePass<PassData>("Render SS Shadow", out var passData, ProfilingSampler.Get(URPProfileId.RenderSSShadow)))
             {
@@ -152,7 +156,7 @@ namespace UnityEngine.Rendering.Universal
                 UniversalShadowData shadowData = frameData.Get<UniversalShadowData>();
 
                 // Setup passData
-                InitPassData(renderGraph, passData, cameraData, resourceData, historyRTSystem);
+                InitPassData(renderGraph, passData, cameraData, resourceData, historyFramCount);
 
                 // Setup builder state
                 builder.UseBuffer(passData.dispatchIndirectBuffer, AccessFlags.ReadWrite);
@@ -183,6 +187,7 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _ScreenSpaceShadowmapTexture = Shader.PropertyToID("_ScreenSpaceShadowmapTexture");
             public static readonly int _PCSSTexture = Shader.PropertyToID("_PCSSTexture");
             public static readonly int _BilateralTexture = Shader.PropertyToID("_BilateralTexture");
+            public static readonly int _CamHistoryFrameCount = Shader.PropertyToID("_CamHistoryFrameCount");
         }
     }
 }

@@ -60,55 +60,6 @@ namespace UnityEngine.Rendering.Universal
             return true;
         }
 
-        /// <inheritdoc/>
-        //public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
-        //{
-        //    var desc = renderingData.cameraData.cameraTargetDescriptor;
-        //    int downSampleScale = m_CurrentSettings.GetScreenSpaceShadowTexScale();
-        //    desc.width = desc.width >> downSampleScale;
-        //    desc.height = desc.height >> downSampleScale;
-        //    desc.useMipMap = false;
-        //    desc.depthBufferBits = 0;
-        //    desc.msaaSamples = 1;
-        //    desc.graphicsFormat = GraphicsFormat.R8_UNorm;
-
-        //    RenderingUtils.ReAllocateIfNeeded(ref m_ScreenSpaceShadowTexture, desc, FilterMode.Point, TextureWrapMode.Clamp, name: "_PerObjectScreenSpaceShadowmapTexture");
-        //    cmd.SetGlobalTexture(m_ScreenSpaceShadowTexture.name, m_ScreenSpaceShadowTexture.nameID);
-
-        //    ConfigureTarget(m_ScreenSpaceShadowTexture);
-        //    ConfigureClear(ClearFlag.Color, Color.white);
-        //}
-
-
-        ///// <inheritdoc/>
-        //[Obsolete(DeprecationMessage.CompatibilityScriptingAPIObsolete, false)]
-        //public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
-        //{
-        //    ContextContainer frameData = renderingData.frameData;
-        //    UniversalRenderingData universalRenderingData = frameData.Get<UniversalRenderingData>();
-        //    var cmd = universalRenderingData.commandBuffer;
-        //    using (new ProfilingScope(cmd, m_ProfilingSampler))
-        //    {
-        //        // Params
-        //        float softShadowQuality = (float)m_CurrentSettings.GetSoftShadowQuality();
-        //        float shadowStrength = 1.0f;
-        //        int downSampleScale = m_CurrentSettings.GetScreenSpaceShadowTexScale();
-        //        cmd.SetGlobalVector(PerObjectShadowProjectorConstant._PerObjectShadowParams, new Vector4(softShadowQuality, shadowStrength, downSampleScale, 0));
-
-        //        cmd.SetKeyword(ShaderGlobalKeywords.PerObjectScreenSpaceShadow, true);
-
-        //        // Draw System
-        //        Vector2 rtSize = new Vector2(m_ScreenSpaceShadowTexture.rt.width, m_ScreenSpaceShadowTexture.rt.height);
-        //        m_DrawSystem.Execute(cmd, rtSize);
-
-        //        CullingResults cullingResults = renderingData.cullResults;
-        //        SortingCriteria sortingCriteria = renderingData.cameraData.defaultOpaqueSortFlags;
-        //        DrawingSettings drawingSettings = CreateDrawingSettings(m_ShaderTagId, ref renderingData, sortingCriteria);
-        //        FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.opaque, -1);
-
-        //        context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref filteringSettings);
-        //    }
-        //}
 
         /// <summary>
         /// Clear Keyword.
@@ -129,6 +80,7 @@ namespace UnityEngine.Rendering.Universal
             internal ObjectShadowDrawSystem drawSystem;
             internal Vector2 rtSize;
             internal Vector4 perObjectShadowParams;
+            internal int historyFramCount;
         }
 
         private void InitRendererLists(ContextContainer frameData, ref PassData passData, RenderGraph renderGraph)
@@ -150,6 +102,12 @@ namespace UnityEngine.Rendering.Universal
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
             UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+
+            // Update keywords and other shader params
+            int historyFramCount = 0;
+            var historyRTSystem = HistoryFrameRTSystem.GetOrCreate(frameData.Get<UniversalCameraData>().camera);
+            if (historyRTSystem != null)
+                historyFramCount = historyRTSystem.historyFrameCount;
 
             var desc = cameraData.cameraTargetDescriptor;
             int downSampleScale = m_CurrentSettings.GetScreenSpaceShadowTexScale();
@@ -201,6 +159,7 @@ namespace UnityEngine.Rendering.Universal
                     // Draw System
                     data.drawSystem?.Execute(context.cmd, data.rtSize);
 
+                    context.cmd.SetGlobalInt("_CamHistoryFrameCount", historyFramCount);
                     context.cmd.SetGlobalVector(PerObjectShadowProjectorConstant._PerObjectShadowParams, data.perObjectShadowParams);
                     context.cmd.SetKeyword(ShaderGlobalKeywords.PerObjectScreenSpaceShadow, true);
 
