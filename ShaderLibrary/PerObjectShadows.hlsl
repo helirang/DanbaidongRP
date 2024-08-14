@@ -10,7 +10,8 @@ TEXTURE2D_X(_PerObjectScreenSpaceShadowmapTexture);
 // x: softShadowQuality
 // y: shadowStrength
 // z: downSampleScale screenspacePerObjectShadowmap 0:none 1:2x 2:4x
-half4 _PerObjectShadowParams;
+// w: penumbra
+float4 _PerObjectShadowParams;
 
 float4 TransformWorldToPerObjectShadowCoord(float3 positionWS, float4x4 worldToShadowMatrix)
 {
@@ -18,7 +19,12 @@ float4 TransformWorldToPerObjectShadowCoord(float3 positionWS, float4x4 worldToS
     return float4(shadowCoord.xyz, 0);
 }
 
-real SamplePerObjectShadowmapFiltered(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, float4 shadowMapTexelSize, half softShadowQuality)
+float GetPerObjectShadowPenumbra()
+{
+    return _PerObjectShadowParams.w;
+}
+
+real SamplePerObjectShadowmapFiltered(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, float4 shadowMapTexelSize, float softShadowQuality)
 {
     real attenuation = real(1.0);
 
@@ -75,12 +81,22 @@ real SamplePerObjectShadowmapFiltered(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_
     return attenuation;
 }
 
-float PerObjectShadowmapPCF(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, float4 shadowMapTexelSize, float sampleCount, float filterSize, float2 random)
+float PerObjectShadowmapPCF(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, float4 shadowMapTexelSize, float2 minCoord, float2 maxCoord, float sampleCount, float filterSize, float2 random, 
+    float texelSizeWS, float farToNear, float blockerInvTangent)
 {
     float numBlockers = 0.0;
     float totalSamples = 0.0;
     float sampleCountInverse = rcp((float)sampleCount);
     float sampleCountBias = 0.5 * sampleCountInverse;
+
+    // Limitation:
+    // Note that in cascade shadows, all occluders behind the near plane will get clamped to the near plane
+    // This will lead to the closest blocker sometimes being reported as much closer to the receiver than it really is
+    #if UNITY_REVERSED_Z
+    #define Z_OFFSET_DIRECTION 1
+    #else
+    #define Z_OFFSET_DIRECTION (-1)
+    #endif
 
     UNITY_LOOP
     for (int i = 0; i < sampleCount && i < DISK_SAMPLE_COUNT; i++)
@@ -95,9 +111,12 @@ float PerObjectShadowmapPCF(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap)
 
         float2 sampleCoord = shadowCoord.xy + offset;
 
+        float radialOffset = filterSize * sampleDistNorm * texelSizeWS;
+        float zoffset = radialOffset / farToNear * blockerInvTangent;
 
         float depthLS = shadowCoord.z;
 
+        if (!(any(sampleCoord < minCoord) || any(sampleCoord > maxCoord)))
         {
             float shadowSample = SAMPLE_TEXTURE2D_SHADOW(ShadowMap, sampler_ShadowMap, float3(sampleCoord, depthLS));
             numBlockers += shadowSample;
@@ -108,11 +127,11 @@ float PerObjectShadowmapPCF(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap)
     return totalSamples > 0 ? numBlockers / totalSamples : 1.0;
 }
 
-real SamplePerObjectShadowmap(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, half4 perObjectShadowParams)
+real SamplePerObjectShadowmap(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, float4 perObjectShadowParams)
 {
     real attenuation;
     real shadowStrength = perObjectShadowParams.y;
-    half softShadowQuality = perObjectShadowParams.x;
+    float softShadowQuality = perObjectShadowParams.x;
 #if (_SHADOWS_SOFT)
     if(softShadowQuality > SOFT_SHADOW_QUALITY_OFF)
     {
@@ -134,16 +153,16 @@ real SamplePerObjectShadowmap(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMa
 // x: SoftShadowQuality
 // y: shadowStrength
 // TODO: set object independent shadowStrength
-half4 GetPerObjectShadowParams()
+float4 GetPerObjectShadowParams()
 {
-    half4 params = _PerObjectShadowParams;
+    float4 params = _PerObjectShadowParams;
     return _PerObjectShadowParams;
 }
 
 
-half PerObjectRealtimeShadow(float4 shadowCoord)
+float PerObjectRealtimeShadow(float4 shadowCoord)
 {
-    half4 perObjectShadowParams = GetPerObjectShadowParams();
+    float4 perObjectShadowParams = GetPerObjectShadowParams();
     return SamplePerObjectShadowmap(TEXTURE2D_ARGS(_PerObjectShadowmapTexture, sampler_LinearClampCompare), shadowCoord, perObjectShadowParams);
 }
 

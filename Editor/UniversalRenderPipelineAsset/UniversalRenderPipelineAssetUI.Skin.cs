@@ -12,6 +12,7 @@ namespace UnityEditor.Rendering.Universal
             public static GUIContent qualitySettingsText = EditorGUIUtility.TrTextContent("Quality", "Settings that control the quality level of the Render pipeline, improving performance and graphics quality.");
             public static GUIContent lightingSettingsText = EditorGUIUtility.TrTextContent("Lighting", "Settings that affect the lighting in the Scene");
             public static GUIContent shadowSettingsText = EditorGUIUtility.TrTextContent("Shadows", "Settings that configure how shadows look and behave, and can be used to balance between the visual quality and performance of shadows.");
+            public static GUIContent perObjectShadowSettingsText = EditorGUIUtility.TrTextContent("PerObjectShadows", "Settings that control the rendering of perOjectShadows.");
             public static GUIContent postProcessingSettingsText = EditorGUIUtility.TrTextContent("Post-processing", "Settings that allow for fine tuning of post-processing effects in the Scene when this Render Pipeline Asset is in use.");
             public static GUIContent volumeSettingsText = EditorGUIUtility.TrTextContent("Volumes", "Settings related to usage of Volume Components.");
             public static GUIContent advancedSettingsText = EditorGUIUtility.TrTextContent("Advanced");
@@ -110,6 +111,14 @@ namespace UnityEditor.Rendering.Universal
                 EditorGUIUtility.TrTextContent(nameof(SoftShadowQuality.High))
             };
             public static int[] softShadowsQualityAssetValues =  { (int)SoftShadowQuality.Low, (int)SoftShadowQuality.Medium, (int)SoftShadowQuality.High };
+
+            // Per Object Shadow settings
+            public static GUIContent POShadowMaxObjectsCountText = EditorGUIUtility.TrTextContent("Max Objects Count", "Maximum shadow rendering objects num.");
+            public static GUIContent POShadowMaxDrawDistanceText = EditorGUIUtility.TrTextContent("Max Distance", "Maximum shadow rendering distance.");
+            public static GUIContent POShadowShadowmapResolutionText = EditorGUIUtility.TrTextContent("Shadowmap Resolution", "Shadow map resolution.");
+            public static GUIContent POShadowExcludeLayerText = EditorGUIUtility.TrTextContent("Exclude Layer", "Auto exclude shadow layer in the MeshRenderer/Skinned MeshRenderer when enbale PerObjectShadowProjector compoent.");
+            public static GUIContent POShadowDepthBiasText = EditorGUIUtility.TrTextContent("Depth Bias", "Controls the distance at which the shadows will be pushed away from the light. Useful for avoiding false self-shadowing artifacts.");
+            public static GUIContent POShadowNormalBiasText = EditorGUIUtility.TrTextContent("Normal Bias", "Controls distance at which the shadow casting surfaces will be shrunk along the surface normal. Useful for avoiding false self-shadowing artifacts.");
 
             // Post-processing
             public static GUIContent colorGradingMode = EditorGUIUtility.TrTextContent("Grading Mode", "Defines how color grading will be applied. Operators will react differently depending on the mode.");

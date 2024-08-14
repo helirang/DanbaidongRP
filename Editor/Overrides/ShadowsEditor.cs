@@ -1,3 +1,4 @@
+using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
 namespace UnityEditor.Rendering.Universal
@@ -8,6 +9,8 @@ namespace UnityEditor.Rendering.Universal
         SerializedDataParameter m_Penumbra;
         SerializedDataParameter m_Intensity;
 
+        SerializedDataParameter m_PerObjectShadowPenumbra;
+
         SerializedDataParameter m_ShadowScatterMode;
         SerializedDataParameter m_OcclusionPenumbra;
         SerializedDataParameter m_ShadowRampTex;
@@ -15,12 +18,16 @@ namespace UnityEditor.Rendering.Universal
         SerializedDataParameter m_ScatterG;
         SerializedDataParameter m_ScatterB;
 
+        static GUIContent s_PerObjectShadowPenumbra = EditorGUIUtility.TrTextContent("Penumbra (PerObjectShadow)", "Controls the width of PerObjectShadow.");
+
         public override void OnEnable()
         {
             var o = new PropertyFetcher<Shadows>(serializedObject);
+            
+            m_Intensity = Unpack(o.Find(x => x.intensity));
 
             m_Penumbra = Unpack(o.Find(x => x.penumbra));
-            m_Intensity = Unpack(o.Find(x => x.intensity));
+            m_PerObjectShadowPenumbra = Unpack(o.Find(x => x.perObjectShadowPenumbra));
 
             m_ShadowScatterMode = Unpack(o.Find(x => x.shadowScatterMode));
             m_OcclusionPenumbra = Unpack(o.Find(x => x.occlusionPenumbra));
@@ -32,8 +39,10 @@ namespace UnityEditor.Rendering.Universal
 
         public override void OnInspectorGUI()
         {
-            PropertyField(m_Penumbra);
             PropertyField(m_Intensity);
+
+            PropertyField(m_Penumbra);
+            PropertyField(m_PerObjectShadowPenumbra, s_PerObjectShadowPenumbra);
 
             EditorGUILayout.Space(10);
 

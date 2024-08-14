@@ -86,6 +86,16 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         public List<int> resolution;
 
+
+        // PerObjectShadows
+        internal int perObjectShadowMaxObjectsCount;
+        internal float perObjectShadowMaxDrawDistance;
+        internal int perObjectShadowShadowMapResolution;
+        internal RenderingLayerMask perObjectShadowExcludeLayer;
+        internal float perObjectShadowDepthBias;
+        internal float perObjectShadowNormalBias;
+
+
         internal bool isKeywordAdditionalLightShadowsEnabled;
         internal bool isKeywordSoftShadowsEnabled;
         internal int mainLightShadowResolution;
@@ -111,6 +121,14 @@ namespace UnityEngine.Rendering.Universal
             shadowmapDepthBufferBits = 0;
             bias?.Clear();
             resolution?.Clear();
+
+            // PerObjectShadows
+            perObjectShadowMaxObjectsCount = 0;
+            perObjectShadowMaxDrawDistance = 0;
+            perObjectShadowShadowMapResolution = 1;
+            perObjectShadowExcludeLayer = 0;
+            perObjectShadowDepthBias = 0;
+            perObjectShadowNormalBias = 0;
 
             isKeywordAdditionalLightShadowsEnabled = false;
             isKeywordSoftShadowsEnabled = false;

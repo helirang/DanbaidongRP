@@ -507,6 +507,11 @@ namespace UnityEngine.Rendering.Universal
         public float maxShadowDistance;
 
         /// <summary>
+        /// For PerObjectShadow. Maximum shadow distance visible to the camera.When set to zero shadows will be disable for that camera.
+        /// </summary>
+        public float maxPerObjectShadowDistance;
+
+        /// <summary>
         /// True if post-processing is enabled for this camera.
         /// </summary>
         public bool postProcessEnabled;
@@ -649,6 +654,7 @@ namespace UnityEngine.Rendering.Universal
             defaultOpaqueSortFlags = SortingCriteria.None;
             xr = default;
             maxShadowDistance = 0.0f;
+            maxPerObjectShadowDistance = 0.0f;
             postProcessEnabled = false;
             captureActions = default;
             volumeLayerMask = 0;

@@ -18,7 +18,9 @@ namespace UnityEngine.Rendering.Universal
         // ShadowMap uv scale offset
         public NativeArray<float4> uvScaleOffsets;
 
-        
+        // PerObject PCSS data.
+        public NativeArray<float4> pcssDatas;
+
         // CurrentChunk drawCalls
         public NativeArray<int> drawCallCounts;
         public NativeArray<int> entityIndices;
@@ -30,6 +32,7 @@ namespace UnityEngine.Rendering.Universal
             RemoveAtSwapBack(ref shadowTransforms, entityIndex, count);
             RemoveAtSwapBack(ref offsets, entityIndex, count);
             RemoveAtSwapBack(ref uvScaleOffsets, entityIndex, count);
+            RemoveAtSwapBack(ref pcssDatas, entityIndex, count);
             RemoveAtSwapBack(ref entityIndices, entityIndex, count);
             count--;
         }
@@ -40,6 +43,7 @@ namespace UnityEngine.Rendering.Universal
             shadowTransforms.ResizeArray(newCapacity);
             offsets.ResizeArray(newCapacity);
             uvScaleOffsets.ResizeArray(newCapacity);
+            pcssDatas.ResizeArray(newCapacity);
             entityIndices.ResizeArray(newCapacity);
             capacity = newCapacity;
         }
@@ -55,6 +59,7 @@ namespace UnityEngine.Rendering.Universal
             shadowTransforms.Dispose();
             offsets.Dispose();
             uvScaleOffsets.Dispose();
+            pcssDatas.Dispose();
             entityIndices.Dispose();
             count = 0;
             capacity = 0;
@@ -128,6 +133,8 @@ namespace UnityEngine.Rendering.Universal
                 uvScaleOffsets = drawCallChunk.uvScaleOffsets,
                 drawCallCounts = drawCallChunk.drawCallCounts,
                 entityIndices = drawCallChunk.entityIndices,
+
+                pcssDatas = drawCallChunk.pcssDatas,
             };
 
             var handle = drawCallJob.Schedule(cachedChunk.currentJobHandle);
@@ -159,6 +166,7 @@ namespace UnityEngine.Rendering.Universal
             [WriteOnly] public NativeArray<float4> uvScaleOffsets;
             [WriteOnly] public NativeArray<int> drawCallCounts;
             [WriteOnly] public NativeArray<int> entityIndices;
+            [WriteOnly] public NativeArray<float4> pcssDatas;
             public void Execute()
             {
                 int instanceIndex = 0;
@@ -179,10 +187,13 @@ namespace UnityEngine.Rendering.Universal
 
                     shadowTransform = PerObjectShadowUtils.ApplySliceTransformFloat44(shadowTransform, tileResolution, offset, shadowmapWidth, shadowmapHeight);
 
+                    float4 pcssData = PerObjectShadowUtils.GetPerObjectPCSSData(projMatrices[entityIndex], tileResolution);
+
                     shadowTransforms[instanceIndex] = shadowTransform;
                     offsets[instanceIndex] = offset;
                     uvScaleOffsets[instanceIndex] = uvScaleOffset;
                     entityIndices[instanceIndex] = entityIndex;
+                    pcssDatas[instanceIndex] = pcssData;
 
                     instanceIndex++;
                 }

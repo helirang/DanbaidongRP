@@ -33,11 +33,14 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
+        [Tooltip("Shadow intensity.")]
+        public ClampedFloatParameter intensity = new ClampedFloatParameter(1.0f, 0.0f, 1.0f);
+
         [Tooltip("Penumbra controls shadows soften width.")]
         public ClampedFloatParameter penumbra = new ClampedFloatParameter(1.0f, 0.001f, 3.0f);
 
-        [Tooltip("Shadow intensity.")]
-        public ClampedFloatParameter intensity = new ClampedFloatParameter(1.0f, 0.0f, 1.0f);
+        [Tooltip("Penumbra controls shadows soften width. (For Per Object Shadow)")]
+        public ClampedFloatParameter perObjectShadowPenumbra = new ClampedFloatParameter(1.0f, 0.001f, 3.0f);
 
         [Tooltip("Shadow scatter mode.")]
         public ShadowScatterModeParameter shadowScatterMode = new ShadowScatterModeParameter(ShadowScatterMode.SubSurface);

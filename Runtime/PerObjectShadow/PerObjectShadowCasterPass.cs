@@ -17,7 +17,6 @@ namespace UnityEngine.Rendering.Universal
         // Public Variables
 
         // Private Variables
-        private PerObjectShadowSettings m_CurrentSettings;
         private ObjectShadowEntityManager m_EntityManager;
         private ObjectShadowCreateDrawCallSystem m_DrawCallSystem;
         private List<PerObjectShadowData> m_ObjectsShadowDataList;
@@ -27,9 +26,13 @@ namespace UnityEngine.Rendering.Universal
         /// Values:     0: update; <0: noupdate; >0: interval--;
         /// Note:       "Manually" UpdateMode should implements a public method;
         private int m_PerObjectShadowmapID;
-        private RTHandle m_PerObjectShadowMapTexture;
+        //private RTHandle m_PerObjectShadowMapTexture;
+        private Vector2Int m_Resolution;
 
         private Matrix4x4[] m_PerObjectShadowMatrices;
+        private PerObjectShadowSliceData [] m_SliceData;
+
+        private Shadows m_volumeSettings;
 
         // Constants
         private const int k_ShadowmapBufferBits = 16;
@@ -41,9 +44,10 @@ namespace UnityEngine.Rendering.Universal
         internal PerObjectShadowCasterPass(ObjectShadowCreateDrawCallSystem drawCallSystem)
         {
             m_DrawCallSystem = drawCallSystem;
-            m_CurrentSettings = new PerObjectShadowSettings();
             
             m_PerObjectShadowMatrices = new Matrix4x4[PerObjectShadowUtils.k_MaxObjectsNum];
+            m_SliceData = new PerObjectShadowSliceData[PerObjectShadowUtils.k_MaxObjectsNum];
+            m_Resolution = Vector2Int.one;
 
             PerObjectShadowConstantBuffer._WorldToShadow = Shader.PropertyToID("_PerObjectWorldToShadowArray");
 
@@ -55,25 +59,26 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         public void Dispose()
         {
-            m_PerObjectShadowMapTexture?.Release();
+            //m_PerObjectShadowMapTexture?.Release();
         }
 
         /// <summary>
         /// Sets up the pass.
         /// </summary>
-        /// <param name="settings"></param>
         /// <param name="renderingData"></param>
-        /// <returns>True if the pass should be enqueued, otherwise false.</returns>
-        internal bool Setup(PerObjectShadowSettings settings, ref RenderingData renderingData, ObjectShadowEntityManager entityManager)
+        /// <param name="entityManager"></param>
+        /// <returns></returns>
+        internal bool Setup(ref RenderingData renderingData, ObjectShadowEntityManager entityManager, Shadows volumeSettings)
         {
-            m_CurrentSettings = settings;
             m_EntityManager = entityManager;
 
             // MainLight directional check outside.
 
             // No need to ConfigureInput
 
+            m_volumeSettings = volumeSettings;
 
+            Clear();
             m_ValidObjectsNum = 0;
             for (int chunkIndex = 0; chunkIndex < m_EntityManager.culledChunks.Count; chunkIndex++)
             {
@@ -81,15 +86,15 @@ namespace UnityEngine.Rendering.Universal
             }
 
             // Resolution calculate
-            int resolutionSetting = m_CurrentSettings.GetEquivalentShadowMapResolution();
-            Vector2Int resolution = PerObjectShadowUtils.GetPerObjectShadowMapResolution(resolutionSetting, m_ValidObjectsNum);
-            m_TileResolution = PerObjectShadowUtils.GetPerObjectTileResolutionInAtlas(resolution.x, resolution.y, m_ValidObjectsNum);
+            int resolutionSetting = renderingData.frameData.Get<UniversalShadowData>().perObjectShadowShadowMapResolution;
+            m_Resolution = PerObjectShadowUtils.GetPerObjectShadowMapResolution(resolutionSetting, m_ValidObjectsNum);
+            m_TileResolution = PerObjectShadowUtils.GetPerObjectTileResolutionInAtlas(m_Resolution.x, m_Resolution.y, m_ValidObjectsNum);
 
 
-            m_DrawCallSystem.Execute(m_TileResolution, resolution.x, resolution.y);
+            m_DrawCallSystem.Execute(m_TileResolution, m_Resolution.x, m_Resolution.y);
             
             // RTHandle.ReAllocateIfNeeded
-            ShadowUtils.ShadowRTReAllocateIfNeeded(ref m_PerObjectShadowMapTexture, resolution.x, resolution.y, k_ShadowmapBufferBits, name: "_PerObjectShadowmapTexture");
+            //ShadowUtils.ShadowRTReAllocateIfNeeded(ref m_PerObjectShadowMapTexture, resolution.x, resolution.y, k_ShadowmapBufferBits, name: "_PerObjectShadowmapTexture");
 
             return true;
         }
@@ -98,13 +103,13 @@ namespace UnityEngine.Rendering.Universal
         //bool SetupForEmptyRendering()
 
 
-        internal bool SetupObjectsShadowDataList(PerObjectShadowSettings settings)
+        internal bool SetupObjectsShadowDataList(int maxObjectsCount)
         {
-            if (!InitObjectsShadowDataList(settings.maxObjectsCount, ref m_ObjectsShadowDataList))
+            if (!InitObjectsShadowDataList(maxObjectsCount, ref m_ObjectsShadowDataList))
                 return false;
 
             // Update List, set renderers, view matrix, proj matrix
-            m_ValidObjectsNum = UpdateObjectsShadowDataList(settings.maxObjectsCount, ref m_ObjectsShadowDataList);
+            m_ValidObjectsNum = UpdateObjectsShadowDataList(maxObjectsCount, ref m_ObjectsShadowDataList);
 
             return true;
         }
@@ -190,7 +195,11 @@ namespace UnityEngine.Rendering.Universal
             //universalRenderingData.commandBuffer.SetGlobalTexture(m_PerObjectShadowmapID, m_PerObjectShadowMapTexture.nameID);
         }
 
-
+        void Clear()
+        {
+            for (int i = 0; i < m_SliceData.Length; ++i)
+                m_SliceData[i].Clear();
+        }
 
         /// <summary>
         /// Render each tile shadow in atlas
@@ -205,9 +214,8 @@ namespace UnityEngine.Rendering.Universal
             if (shadowLightIndex == -1)
                 return;
 
-            VisibleLight shadowLight = lightData.visibleLights[shadowLightIndex];
+            ref var shadowLight = ref lightData.visibleLights.UnsafeElementAtMutable(shadowLightIndex);
 
-            using (new ProfilingScope(cmd, m_ProfilingSampler))
             {
                 // Need to start by setting the Camera position as that is not set for passes executed before normal rendering
                 cmd.SetGlobalVector(ShaderPropertyId.worldSpaceCameraPos, data.cameraData.worldSpaceCameraPos);
@@ -231,22 +239,22 @@ namespace UnityEngine.Rendering.Universal
                         int entityIndex = drawCallChunk.entityIndices[instanceIndex];
 
                         Renderer[] renderers = entityChunks.objectShadowProjectors[entityIndex].childRenderers;
-                        PerObjectShadowSliceData sliceData = new PerObjectShadowSliceData();
-                        sliceData.viewMatrix = cachedChunk.viewMatrices[entityIndex];
-                        sliceData.projectionMatrix = cachedChunk.projMatrices[entityIndex];
 
-                        sliceData.shadowTransform = drawCallChunk.shadowTransforms[instanceIndex];
-                        sliceData.shadowToWorldMatrix = drawCallChunk.shadowToWorldMatrices[instanceIndex];
+                        m_SliceData[instanceIndex].viewMatrix = cachedChunk.viewMatrices[entityIndex];
+                        m_SliceData[instanceIndex].projectionMatrix = cachedChunk.projMatrices[entityIndex];
 
-                        sliceData.offsetX = drawCallChunk.offsets[instanceIndex].x;
-                        sliceData.offsetY = drawCallChunk.offsets[instanceIndex].y;
-                        sliceData.resolution = m_TileResolution;
-                        sliceData.uvScaleOffset = drawCallChunk.uvScaleOffsets[instanceIndex];
+                        m_SliceData[instanceIndex].shadowTransform = drawCallChunk.shadowTransforms[instanceIndex];
+                        m_SliceData[instanceIndex].shadowToWorldMatrix = drawCallChunk.shadowToWorldMatrices[instanceIndex];
+
+                        m_SliceData[instanceIndex].offsetX = drawCallChunk.offsets[instanceIndex].x;
+                        m_SliceData[instanceIndex].offsetY = drawCallChunk.offsets[instanceIndex].y;
+                        m_SliceData[instanceIndex].resolution = m_TileResolution;
+                        m_SliceData[instanceIndex].uvScaleOffset = drawCallChunk.uvScaleOffsets[instanceIndex];
 
                         // Render sclice shadows
-                        Vector4 shadowBias = ShadowUtils.GetShadowBias(ref shadowLight, shadowLightIndex, data.shadowData, sliceData.projectionMatrix, sliceData.resolution);
+                        Vector4 shadowBias = PerObjectShadowUtils.GetShadowBias(ref shadowLight, data.depthBias, data.normalBias, m_SliceData[instanceIndex].projectionMatrix, m_SliceData[instanceIndex].resolution);
                         PerObjectShadowUtils.SetupShadowCasterConstantBuffer(cmd, ref shadowLight, shadowBias);
-                        PerObjectShadowUtils.RenderPerObjectShadowSlice(cmd, renderers, ref sliceData, chunkMaterial, shadowPassIndex);
+                        PerObjectShadowUtils.RenderPerObjectShadowSlice(cmd, renderers, ref m_SliceData[instanceIndex], chunkMaterial, shadowPassIndex);
                     }
                 }
 
@@ -312,6 +320,9 @@ namespace UnityEngine.Rendering.Universal
             internal UniversalLightData lightData;
             internal UniversalShadowData shadowData;
 
+            internal float depthBias;
+            internal float normalBias;
+
             internal PerObjectShadowCasterPass pass;
         }
 
@@ -337,16 +348,18 @@ namespace UnityEngine.Rendering.Universal
         /// <param name="frameData"></param>
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
-            UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
-            UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
-            UniversalLightData lightData = frameData.Get<UniversalLightData>();
-            UniversalShadowData shadowData = frameData.Get<UniversalShadowData>();
-
-            // Create Texture Handles
-            var perObjectShadowMap = UniversalRenderer.CreateRenderGraphTexture(renderGraph, m_PerObjectShadowMapTexture.rt.descriptor, "_PerObjectShadowmapTexture", true, ShadowUtils.m_ForceShadowPointSampling ? FilterMode.Point : FilterMode.Bilinear);
 
             using(var builder = renderGraph.AddRasterRenderPass<PerObjectShadowPassData>("Per Object ShadowMap", out var passData, m_ProfilingSampler))
             {
+                UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
+                UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+                UniversalLightData lightData = frameData.Get<UniversalLightData>();
+                UniversalShadowData shadowData = frameData.Get<UniversalShadowData>();
+
+                var shadowDescriptor = ShadowUtils.GetTemporaryShadowTextureDescriptor(m_Resolution.x, m_Resolution.y, 16);
+
+                var perObjectShadowMap = UniversalRenderer.CreateRenderGraphTexture(renderGraph, shadowDescriptor, "_PerObjectShadowmapTexture", true, ShadowUtils.m_ForceShadowPointSampling ? FilterMode.Point : FilterMode.Bilinear);
+
                 if (!frameData.Contains<PerObjectShadowMapRefData>())
                 {
                     var shadowMapRefData = frameData.GetOrCreate<PerObjectShadowMapRefData>();
@@ -357,6 +370,8 @@ namespace UnityEngine.Rendering.Universal
                 passData.cameraData = cameraData;
                 passData.lightData = lightData;
                 passData.shadowData = shadowData;
+                passData.depthBias = shadowData.perObjectShadowDepthBias * m_volumeSettings.perObjectShadowPenumbra.value;
+                passData.normalBias = shadowData.perObjectShadowNormalBias * m_volumeSettings.perObjectShadowPenumbra.value;
                 passData.pass = this;
 
                 builder.AllowPassCulling(false);

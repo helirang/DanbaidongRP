@@ -9,12 +9,14 @@ namespace UnityEngine.Rendering.Universal
             public static int _PerObjectWorldToShadow;
             public static int _PerObjectUVScaleOffset;
             public static int _PerObjectShadowScaledScreenParams;
+            public static int _PerObjectPCSSData;
         }
         private ObjectShadowEntityManager m_EntityManager;
         private ProfilingSampler m_Sampler;
         private Matrix4x4[] m_shadowToWorlds;
         private Matrix4x4[] m_worldToShadows;
         private Vector4[] m_uvScaleOffsets;
+        private Vector4[] m_pcssDatas;
 
         private static int s_MaxObjectsNum = 64;
 
@@ -25,10 +27,12 @@ namespace UnityEngine.Rendering.Universal
             m_shadowToWorlds = new Matrix4x4[s_MaxObjectsNum];
             m_worldToShadows = new Matrix4x4[s_MaxObjectsNum];
             m_uvScaleOffsets = new Vector4[s_MaxObjectsNum];
+            m_pcssDatas = new Vector4[s_MaxObjectsNum];
 
             PerObjectShadowDrawConstant._PerObjectWorldToShadow = Shader.PropertyToID("_PerObjectWorldToShadow");
             PerObjectShadowDrawConstant._PerObjectUVScaleOffset = Shader.PropertyToID("_PerObjectUVScaleOffset");
             PerObjectShadowDrawConstant._PerObjectShadowScaledScreenParams = Shader.PropertyToID("_PerObjectShadowScaledScreenParams");
+            PerObjectShadowDrawConstant._PerObjectPCSSData = Shader.PropertyToID("_PerObjectPCSSData");
         }
 
         public void Execute(RasterCommandBuffer cmd, Vector2 rtSize)
@@ -86,8 +90,13 @@ namespace UnityEngine.Rendering.Universal
             var usScaleOffset = drawCallChunk.uvScaleOffsets.Reinterpret<Vector4>();
             NativeArray<Vector4>.Copy(usScaleOffset, 0, m_uvScaleOffsets, 0, instanceCount);
 
+            var pcssData = drawCallChunk.pcssDatas.Reinterpret<Vector4>();
+            NativeArray<Vector4>.Copy(pcssData, 0, m_pcssDatas, 0, instanceCount);
+
             cacheChunk.propertyBlock.SetMatrixArray(PerObjectShadowDrawConstant._PerObjectWorldToShadow, m_worldToShadows);
             cacheChunk.propertyBlock.SetVectorArray(PerObjectShadowDrawConstant._PerObjectUVScaleOffset, m_uvScaleOffsets);
+            cacheChunk.propertyBlock.SetVectorArray(PerObjectShadowDrawConstant._PerObjectPCSSData, m_pcssDatas);
+
 
             cmd.DrawMeshInstanced(mesh, 0, material, passIndex, m_shadowToWorlds, instanceCount, cacheChunk.propertyBlock);
 

@@ -20,10 +20,10 @@ namespace UnityEngine.Rendering.Universal
         // Public Variables
 
         // Private Variables
-        private PerObjectShadowSettings m_CurrentSettings;
         private RTHandle m_ScreenSpaceShadowTexture;
         private ObjectShadowDrawSystem m_DrawSystem;
         private ShaderTagId m_ShaderTagId;
+        private Shadows m_volumeSettings;
 
         // Constants
 
@@ -51,11 +51,11 @@ namespace UnityEngine.Rendering.Universal
             m_ScreenSpaceShadowTexture?.Release();
         }
 
-        internal bool Setup(PerObjectShadowSettings settings)
+        internal bool Setup(Shadows volumeSettings)
         {
-            m_CurrentSettings = settings;
-
             ConfigureInput(ScriptableRenderPassInput.Depth);
+
+            m_volumeSettings = volumeSettings;
 
             return true;
         }
@@ -110,7 +110,7 @@ namespace UnityEngine.Rendering.Universal
                 historyFramCount = historyRTSystem.historyFrameCount;
 
             var desc = cameraData.cameraTargetDescriptor;
-            int downSampleScale = m_CurrentSettings.GetScreenSpaceShadowTexScale();
+            int downSampleScale = 0;
             desc.width = desc.width >> downSampleScale;
             desc.height = desc.height >> downSampleScale;
             desc.useMipMap = false;
@@ -125,11 +125,21 @@ namespace UnityEngine.Rendering.Universal
             using (var builder = renderGraph.AddRasterRenderPass<PassData>("PerObject ScreenSpace Shadows", out var passData, m_ProfilingSampler))
             {
                 UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
-                
+                UniversalShadowData shadowData = frameData.Get<UniversalShadowData>();
+                UniversalLightData lightData = frameData.Get<UniversalLightData>();
+
+                int shadowLightIndex = lightData.mainLightIndex;
+                if (shadowLightIndex == -1)
+                    return;
+
+                Light shadowLight = lightData.visibleLights[shadowLightIndex].light;
+                if (shadowLight.shadows == LightShadows.None)
+                    return;
+
                 // Params
-                float softShadowQuality = (float)m_CurrentSettings.GetSoftShadowQuality();
+                float softShadowQuality = ShadowUtils.SoftShadowQualityToShaderProperty(shadowLight, true);
                 float shadowStrength = 1.0f;
-                passData.perObjectShadowParams = new Vector4(softShadowQuality, shadowStrength, downSampleScale, 0);
+                passData.perObjectShadowParams = new Vector4(softShadowQuality, shadowStrength, downSampleScale, m_volumeSettings.perObjectShadowPenumbra.value * 20.0f);
                 passData.drawSystem = m_DrawSystem;
                 passData.rtSize = new Vector2(desc.width, desc.height);
 

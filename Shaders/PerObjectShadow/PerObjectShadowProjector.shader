@@ -4,6 +4,7 @@ Shader "PerObjectShadow/ShadowProjector"
     {
         _ColorMask("Color Mask", Float) = 15
         _Cutoff("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
+        _Cull("__cull", Float) = 2.0
     }
     SubShader
     {
@@ -58,7 +59,7 @@ Shader "PerObjectShadow/ShadowProjector"
 
             // -------------------------------------
             // Unity defined keywords
-            #pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
+            #pragma multi_compile _ LOD_FADE_CROSSFADE
 
             // This is used during shadow map generation to differentiate between directional and punctual light shadows, as they use different formulas to apply Normal Bias
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
@@ -135,6 +136,7 @@ Shader "PerObjectShadow/ShadowProjector"
 			UNITY_INSTANCING_BUFFER_START(UnityPerMaterial)
 				UNITY_DEFINE_INSTANCED_PROP(float4x4, _PerObjectWorldToShadow)
                 UNITY_DEFINE_INSTANCED_PROP(float4, _PerObjectUVScaleOffset)
+                UNITY_DEFINE_INSTANCED_PROP(float4, _PerObjectPCSSData)
 			UNITY_INSTANCING_BUFFER_END(UnityPerMaterial)
             float4 _PerObjectShadowScaledScreenParams;
             int _CamHistoryFrameCount;
@@ -156,14 +158,13 @@ Shader "PerObjectShadow/ShadowProjector"
 
             half4 frag(v2f i):SV_Target
             {
-
                 UNITY_SETUP_INSTANCE_ID(i);
                 float2 screenUV = i.positionHCS.xy * _PerObjectShadowScaledScreenParams.zw;
                 TransformScreenUV(screenUV);
 
 
             #if UNITY_REVERSED_Z
-                float depth = SampleSceneDepth(screenUV).x;
+                float depth = SampleSceneDepth(screenUV);
             #else
                 float depth = lerp(UNITY_NEAR_CLIP_VALUE, 1, SampleSceneDepth(screenUV).x);
             #endif
@@ -182,9 +183,12 @@ Shader "PerObjectShadow/ShadowProjector"
                 // Prepare Instance Values
                 float4x4 worldToShadowMatrix = UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _PerObjectWorldToShadow);
                 float4 uvScaleOffset = UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _PerObjectUVScaleOffset);
-                
+                float4 pcssData = UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _PerObjectPCSSData);
 
                 float4 shadowCoord = TransformWorldToPerObjectShadowCoord(positionWS, worldToShadowMatrix);
+
+                float2 minCoord = uvScaleOffset.zw;
+                float2 maxCoord = uvScaleOffset.xy + uvScaleOffset.zw;
 
                 // float attenuation = PerObjectRealtimeShadow(shadowCoord);
 
@@ -193,8 +197,11 @@ Shader "PerObjectShadow/ShadowProjector"
                 noiseJitter.x = sin(noiseJitter.x);
                 noiseJitter.y = cos(noiseJitter.y);
 
+                float penumbra = GetPerObjectShadowPenumbra();
 
-                float attenuation = PerObjectShadowmapPCF(TEXTURE2D_ARGS(_PerObjectShadowmapTexture, sampler_LinearClampCompare), shadowCoord, _PerObjectShadowmapTexture_TexelSize, 16.0, 10.0, noiseJitter);
+                float attenuation = PerObjectShadowmapPCF(TEXTURE2D_ARGS(_PerObjectShadowmapTexture, sampler_LinearClampCompare), 
+                                                        shadowCoord, _PerObjectShadowmapTexture_TexelSize, minCoord, maxCoord, 16.0, penumbra, noiseJitter, 
+                                                        pcssData.y, pcssData.z, _PerCascadePCSSData[0].w);
 
 
                 return half4(attenuation.xxx, 1);

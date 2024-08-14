@@ -70,6 +70,14 @@ namespace UnityEditor.Rendering.Universal
         public SerializedProperty softShadowQualityProp { get; }
         public SerializedProperty conservativeEnclosingSphereProp { get; }
 
+        // Per Object Shadow Prop
+        public SerializedProperty poshadowMaxObjectsCountProp { get; }
+        public SerializedProperty poshadowMaxDrawDistanceProp { get; }
+        public SerializedProperty poshadowShadowMapResolutionProp { get; }
+        public SerializedProperty poshadowExcludeLayerProp { get; }
+        public SerializedProperty poshadowDepthBiasProp { get; }
+        public SerializedProperty poshadowNormalBiasProp { get; }
+
         public SerializedProperty srpBatcher { get; }
         public SerializedProperty supportsDynamicBatching { get; }
         public SerializedProperty mixedLightingSupportedProp { get; }
@@ -163,6 +171,14 @@ namespace UnityEditor.Rendering.Universal
             softShadowsSupportedProp = serializedObject.FindProperty("m_SoftShadowsSupported");
             softShadowQualityProp = serializedObject.FindProperty("m_SoftShadowQuality");
             conservativeEnclosingSphereProp = serializedObject.FindProperty("m_ConservativeEnclosingSphere");
+
+            // Per Object Shadow
+            poshadowMaxObjectsCountProp = serializedObject.FindProperty("m_POShadowMaxObjectsCount");
+            poshadowMaxDrawDistanceProp = serializedObject.FindProperty("m_POShadowMaxDrawDistance");
+            poshadowShadowMapResolutionProp = serializedObject.FindProperty("m_POShadowShadowMapResolution");
+            poshadowExcludeLayerProp = serializedObject.FindProperty("m_POShadowExcludeLayer");
+            poshadowDepthBiasProp = serializedObject.FindProperty("m_POShadowDepthBias");
+            poshadowNormalBiasProp = serializedObject.FindProperty("m_POShadowNormalBias");
 
             srpBatcher = serializedObject.FindProperty("m_UseSRPBatcher");
             supportsDynamicBatching = serializedObject.FindProperty("m_SupportsDynamicBatching");

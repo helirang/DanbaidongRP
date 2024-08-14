@@ -353,56 +353,6 @@ namespace UnityEngine.Rendering.Universal
         }
 
         /// <summary>
-        /// Calculates the depth and normal bias from a light.
-        /// </summary>
-        /// <param name="shadowLight"></param>
-        /// <param name="shadowLightIndex"></param>
-        /// <param name="shadowData"></param>
-        /// <param name="lightProjectionMatrix"></param>
-        /// <param name="shadowResolution"></param>
-        /// <returns>The depth and normal bias from a visible light.</returns>
-        public static Vector4 GetShadowBias(ref VisibleLight shadowLight, int shadowLightIndex, ref ShadowData shadowData, Matrix4x4 lightProjectionMatrix, float shadowResolution)
-        {
-            if (shadowLightIndex < 0 || shadowLightIndex >= shadowData.bias.Count)
-            {
-                Debug.LogWarning(string.Format("{0} is not a valid light index.", shadowLightIndex));
-                return Vector4.zero;
-            }
-
-            float frustumSize;
-            if (shadowLight.lightType == LightType.Directional)
-            {
-                // Frustum size is guaranteed to be a cube as we wrap shadow frustum around a sphere
-                frustumSize = 2.0f / lightProjectionMatrix.m00;
-            }
-            else
-            {
-                Debug.LogWarning("Only directional shadow casters are supported in per object shadow");
-                frustumSize = 0.0f;
-            }
-
-            // depth and normal bias scale is in shadowmap texel size in world space
-            float texelSize = frustumSize / shadowResolution;
-            float depthBias = -shadowData.bias[shadowLightIndex].x * texelSize;
-            float normalBias = -shadowData.bias[shadowLightIndex].y * texelSize;
-
-            if (shadowData.supportsSoftShadows && shadowLight.light.shadows == LightShadows.Soft)
-            {
-                // TODO: depth and normal bias assume sample is no more than 1 texel away from shadowmap
-                // This is not true with PCF. Ideally we need to do either
-                // cone base bias (based on distance to center sample)
-                // or receiver place bias based on derivatives.
-                // For now we scale it by the PCF kernel size of non-mobile platforms (5x5)
-                float kernelRadius = 2.5f;
-
-                depthBias *= kernelRadius;
-                normalBias *= kernelRadius;
-            }
-
-            return new Vector4(depthBias, normalBias, 0.0f, 0.0f);
-        }
-
-        /// <summary>
         /// Sets up the shadow bias, light direction and position for rendering.
         /// </summary>
         /// <param name="cmd"></param>
@@ -951,6 +901,20 @@ namespace UnityEngine.Rendering.Universal
             return shadowToworld;
         }
 
+        public static Vector4 GetPerObjectPCSSData(Matrix4x4 proj, int tileWidth)
+        {
+            //Vector4 dir = -light.transform.localToWorldMatrix.GetColumn(2);
+            //float halfBlockerSearchAngularDiameterTangent = dir.y / MathF.Sqrt(1 - dir.y * dir.y + 0.0001f);
+
+            float farToNear = MathF.Abs(2.0f / proj.m22);
+            float viewPortSizeWS = 1.0f / proj.m11 * 2.0f;
+            float radial2ShadowmapDepth = Mathf.Abs(proj.m00 / proj.m22);
+            float texelSizeWS = viewPortSizeWS / tileWidth;
+
+
+            return new Vector4(1.0f / (radial2ShadowmapDepth), texelSizeWS, farToNear, 0.0f);
+        }
+
         /// <summary>
         /// Use URP ShadowUtils.
         /// </summary>
@@ -965,6 +929,34 @@ namespace UnityEngine.Rendering.Universal
         public static bool ShadowRTReAllocateIfNeeded(ref RTHandle handle, int width, int height, int bits, int anisoLevel = 1, float mipMapBias = 0, string name = "")
         {
             return ShadowUtils.ShadowRTReAllocateIfNeeded(ref handle, width, height, bits, anisoLevel, mipMapBias, name);
+        }
+
+        /// <summary>
+        /// Get shadow bias used for perObjectShadow.
+        /// </summary>
+        /// <param name="rawDepthBias"></param>
+        /// <param name="rawNormalBias"></param>
+        /// <param name="lightProjectionMatrix"></param>
+        /// <param name="shadowResolution"></param>
+        /// <returns></returns>
+        public static Vector4 GetShadowBias(ref VisibleLight shadowLight, float rawDepthBias, float rawNormalBias, Matrix4x4 lightProjectionMatrix, float shadowResolution)
+        {
+            float frustumSize = 2.0f / lightProjectionMatrix.m00;
+
+            // depth and normal bias scale is in shadowmap texel size in world space
+            float texelSize = frustumSize / shadowResolution;
+            float depthBias = -rawDepthBias * texelSize;
+            float normalBias = -rawNormalBias * texelSize;
+
+            if (shadowLight.light.shadows == LightShadows.Soft)
+            {
+                float kernelRadius = 3.5f;
+
+                depthBias *= kernelRadius;
+                normalBias *= kernelRadius;
+            }
+
+            return new Vector4(depthBias, normalBias, 0.0f, 0.0f);
         }
     }
 }

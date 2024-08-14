@@ -274,6 +274,7 @@ namespace UnityEngine.Rendering.Universal
 
             DecalProjector.defaultMaterial = asset.decalMaterial;
 
+            PerObjectShadowProjector.excludeLayer = asset.perObjectShadowExcludeLayer;
             PerObjectShadowProjector.defaultMaterial = asset.perObjectShadowMaterial;
 
             ProceduralToonSky.defaultMaterial = asset.proceduralToonSkyBoxMat;
@@ -1538,6 +1539,8 @@ namespace UnityEngine.Rendering.Universal
                 cameraData.screenCoordScaleBias = Vector2.one;
             }
 
+            cameraData.maxPerObjectShadowDistance = cameraData.maxShadowDistance > 0 ? Mathf.Min(settings.perObjectShadowMaxDrawDistance, camera.farClipPlane) : 0.0f;
+
             // Ray Tracing
             cameraData.supportedRayTracing = settings.supportsRayTracing && (isSceneViewCamera || cameraData.isGameCamera);
             if (cameraData.supportedRayTracing)
@@ -1783,6 +1786,14 @@ namespace UnityEngine.Rendering.Universal
             shadowData.bias = m_ShadowBiasData;
             shadowData.resolution = m_ShadowResolutionData;
             shadowData.supportsSoftShadows = urpAsset.supportsSoftShadows && (shadowData.supportsMainLightShadows || shadowData.supportsAdditionalLightShadows);
+
+            // PerObjectShadow
+            shadowData.perObjectShadowMaxObjectsCount = urpAsset.perObjectShadowMaxObjectsCount;
+            shadowData.perObjectShadowMaxDrawDistance = urpAsset.perObjectShadowMaxDrawDistance;
+            shadowData.perObjectShadowShadowMapResolution = urpAsset.perObjectShadowShadowMapResolution;
+            shadowData.perObjectShadowExcludeLayer = urpAsset.perObjectShadowExcludeLayer;
+            shadowData.perObjectShadowDepthBias = urpAsset.perObjectShadowDepthBias;
+            shadowData.perObjectShadowNormalBias = urpAsset.perObjectShadowNormalBias;
 
             return shadowData;
         }

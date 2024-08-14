@@ -573,6 +573,14 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField] int m_NumIterationsEnclosingSphere = 64;
         [SerializeField] SoftShadowQuality m_SoftShadowQuality = SoftShadowQuality.High;
 
+        // Per Object Shadow Settings
+        [SerializeField] internal int m_POShadowMaxObjectsCount = 32;
+        [SerializeField] internal float m_POShadowMaxDrawDistance = 1000f;
+        [SerializeField] internal ShadowResolution m_POShadowShadowMapResolution = ShadowResolution._2048;
+        [SerializeField] internal RenderingLayerMask m_POShadowExcludeLayer = 1u << 1;
+        [SerializeField] internal float m_POShadowDepthBias = 2.0f;
+        [SerializeField] internal float m_POShadowNormalBias = 3.0f;
+
         // Light Cookie Settings
         [SerializeField] LightCookieResolution m_AdditionalLightsCookieResolution = LightCookieResolution._2048;
         [SerializeField] LightCookieFormat m_AdditionalLightsCookieFormat = LightCookieFormat.ColorHigh;
@@ -1508,6 +1516,61 @@ namespace UnityEngine.Rendering.Universal
             get => m_SoftShadowQuality;
             set => m_SoftShadowQuality = value;
         }
+
+        /// <summary>
+        /// Per Object Shadow draw objects max count.
+        /// </summary>
+        public int perObjectShadowMaxObjectsCount
+        {
+            get => m_POShadowMaxObjectsCount;
+            set => m_POShadowMaxObjectsCount = value;
+        }
+
+        /// <summary>
+        /// Per Object Shadow draw max distance.
+        /// </summary>
+        public float perObjectShadowMaxDrawDistance
+        {
+            get => m_POShadowMaxDrawDistance;
+            set => m_POShadowMaxDrawDistance = value;
+        }
+
+        /// <summary>
+        /// Per Object Shadow map resolution.
+        /// </summary>
+        public int perObjectShadowShadowMapResolution
+        {
+            get => (int)m_POShadowShadowMapResolution;
+            set => m_POShadowShadowMapResolution = (ShadowResolution)value;
+        }
+
+        /// <summary>
+        /// Per Object Shadow exclude shadow layer.
+        /// </summary>
+        public RenderingLayerMask perObjectShadowExcludeLayer
+        {
+            get => m_POShadowExcludeLayer;
+            set => m_POShadowExcludeLayer = value;
+        }
+
+        /// <summary>
+        /// Per Object Shadow depth bias.
+        /// </summary>
+        public float perObjectShadowDepthBias
+        {
+            get => m_POShadowDepthBias;
+            set => m_POShadowDepthBias = value;
+        }
+
+        /// <summary>
+        /// Per Object Shadow normal bias.
+        /// </summary>
+        public float perObjectShadowNormalBias
+        {
+            get => m_POShadowNormalBias;
+            set => m_POShadowNormalBias = value;
+        }
+
 
         /// <summary>
         /// Specifies if this <c>UniversalRenderPipelineAsset</c> should use dynamic batching.
