@@ -139,7 +139,7 @@ namespace UnityEngine.Rendering.Universal
                 // Params
                 float softShadowQuality = ShadowUtils.SoftShadowQualityToShaderProperty(shadowLight, true);
                 float shadowStrength = 1.0f;
-                passData.perObjectShadowParams = new Vector4(softShadowQuality, shadowStrength, downSampleScale, m_volumeSettings.perObjectShadowPenumbra.value * 20.0f);
+                passData.perObjectShadowParams = new Vector4(softShadowQuality, shadowStrength, downSampleScale, m_volumeSettings.perObjectShadowPenumbra.value * 0.25f);
                 passData.drawSystem = m_DrawSystem;
                 passData.rtSize = new Vector2(desc.width, desc.height);
 
@@ -160,7 +160,6 @@ namespace UnityEngine.Rendering.Universal
 
                 builder.UseRendererList(passData.rendererListHandle);
                 builder.SetRenderAttachment(screenSpaceShadowMapTexture, 0, AccessFlags.Write);
-                builder.SetRenderAttachmentDepth(resourceData.activeDepthTexture, AccessFlags.Read);
                 if (screenSpaceShadowMapTexture.IsValid())
                     builder.SetGlobalTextureAfterPass(screenSpaceShadowMapTexture, PerObjectShadowProjectorConstant._PerObjectScreenSpaceShadowmapTexture);
 

@@ -79,22 +79,21 @@ Shader "Hidden/ScreenSpaceShadowScatter"
                 float farToNear             = _PerCascadePCSSData[cascadeIndex].z;
                 float blockerInvTangent     = _PerCascadePCSSData[cascadeIndex].w;
 
+                // Sample Noise: Use Jitter instead.
+                float2 noiseJitter = 0;
+                noiseJitter.xy = InterleavedGradientNoise(screenUV * _ScreenSize.xy * DOWNSAMPLE, _CamHistoryFrameCount);
+                noiseJitter *= TWO_PI;
+                noiseJitter.x = sin(noiseJitter.x);
+                noiseJitter.y = cos(noiseJitter.y);
+
                 // PreFilter Search
                 float preFilterSize = FILTER_SIZE_PREFILTER / texelSizeWS; // texel count
                 preFilterSize = max(preFilterSize, 1.0);
-                float preFilterRet = PreFilterSearch(PREFILTER_SAMPLE_COUNT, 2.0 * preFilterSize, shadowCoord.xyz, cascadeIndex);
+                float preFilterRet = PreFilterSearch(PREFILTER_SAMPLE_COUNT, 2.0 * preFilterSize, shadowCoord.xyz, cascadeIndex, noiseJitter);
 
                 UNITY_BRANCH
                 if (preFilterRet > 0 && preFilterRet < PREFILTER_SAMPLE_COUNT)
                 {
-                    
-                    // Sample Noise: Use Jitter instead.
-                    float2 noiseJitter = 0;
-                    noiseJitter.xy = InterleavedGradientNoise(screenUV * _ScreenSize.xy * DOWNSAMPLE, _CamHistoryFrameCount);
-                    noiseJitter *= TWO_PI;
-                    noiseJitter.x = sin(noiseJitter.x);
-                    noiseJitter.y = cos(noiseJitter.y);
-
                     // Blocker Search
                     float filterSize = FILTER_SIZE_BLOCKER / texelSizeWS; // texel count
                     filterSize = max(filterSize, 1.0);

@@ -709,7 +709,6 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
 
             half4 FragUpSample_v2(Varyings i) : SV_Target
             {
-                // half4 combineScale = half4(0.3,0.3,0.26,0.15);
                 float4 combineScale = _Bloom_Danbaidong_BlurCompositeWeight;
                 half3 main = DecodeHDR(SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, i.texcoord)) * combineScale.x;
                 half3 mip0 = DecodeHDR(SAMPLE_TEXTURE2D_X(_BloomMipDown0, sampler_LinearClamp, i.texcoord)) * combineScale.y;

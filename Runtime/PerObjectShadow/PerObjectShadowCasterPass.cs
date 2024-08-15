@@ -370,8 +370,8 @@ namespace UnityEngine.Rendering.Universal
                 passData.cameraData = cameraData;
                 passData.lightData = lightData;
                 passData.shadowData = shadowData;
-                passData.depthBias = shadowData.perObjectShadowDepthBias * m_volumeSettings.perObjectShadowPenumbra.value;
-                passData.normalBias = shadowData.perObjectShadowNormalBias * m_volumeSettings.perObjectShadowPenumbra.value;
+                passData.depthBias = shadowData.perObjectShadowDepthBias;
+                passData.normalBias = shadowData.perObjectShadowNormalBias;
                 passData.pass = this;
 
                 builder.AllowPassCulling(false);

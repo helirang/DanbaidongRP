@@ -46,8 +46,6 @@ Shader "PerObjectShadow/ShadowProjector"
 
             // -------------------------------------
             // Material Keywords
-            #pragma shader_feature_local_fragment _ALPHATEST_ON
-            #pragma shader_feature_local_fragment _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
 
             //--------------------------------------
             // GPU Instancing
@@ -59,15 +57,70 @@ Shader "PerObjectShadow/ShadowProjector"
 
             // -------------------------------------
             // Unity defined keywords
-            #pragma multi_compile _ LOD_FADE_CROSSFADE
 
-            // This is used during shadow map generation to differentiate between directional and punctual light shadows, as they use different formulas to apply Normal Bias
-            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
 
             // -------------------------------------
             // Includes
             #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/LitInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/ShadowCasterPass.hlsl"
+
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Shadows.hlsl"
+
+            // Shadow Casting Light geometric parameters. These variables are used when applying the shadow Normal Bias and are set by UnityEngine.Rendering.Universal.ShadowUtils.SetupShadowCasterConstantBuffer in com.unity.render-pipelines.danbaidong/Runtime/ShadowUtils.cs
+            // For Directional lights, _LightDirection is used when applying shadow Normal Bias.
+            // For Spot lights and Point lights, _LightPosition is used to compute the actual light direction because it is different at each shadow caster geometry vertex.
+            float3 _LightDirection;
+            float3 _LightPosition;
+
+            struct Attributes
+            {
+                float4 positionOS   : POSITION;
+                float3 normalOS     : NORMAL;
+                float2 texcoord     : TEXCOORD0;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            struct Varyings
+            {
+                float4 positionCS   : SV_POSITION;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            float4 GetShadowPositionHClip(Attributes input)
+            {
+                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+
+                float3 lightDirectionWS = _LightDirection;
+
+                float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, lightDirectionWS));
+
+            // #if UNITY_REVERSED_Z
+            //     positionCS.z = min(positionCS.z, UNITY_NEAR_CLIP_VALUE);
+            // #else
+            //     positionCS.z = max(positionCS.z, UNITY_NEAR_CLIP_VALUE);
+            // #endif
+
+                return positionCS;
+            }
+
+            Varyings ShadowPassVertex(Attributes input)
+            {
+                Varyings output;
+                UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_TRANSFER_INSTANCE_ID(input, output);
+
+                output.positionCS = GetShadowPositionHClip(input);
+                return output;
+            }
+
+            half4 ShadowPassFragment(Varyings input) : SV_TARGET
+            {
+                UNITY_SETUP_INSTANCE_ID(input);
+
+                return 0;
+            }
+
             ENDHLSL
         }
 
@@ -185,6 +238,12 @@ Shader "PerObjectShadow/ShadowProjector"
                 float4 uvScaleOffset = UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _PerObjectUVScaleOffset);
                 float4 pcssData = UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _PerObjectPCSSData);
 
+                float radial2ShadowmapDepth = pcssData.x;
+                float texelSizeWS           = pcssData.y;
+                float farToNear             = pcssData.z;
+                float shadowmapTileInvSize  = pcssData.w;
+                float blockerInvTangent     = _PerCascadePCSSData[0].w;
+
                 float4 shadowCoord = TransformWorldToPerObjectShadowCoord(positionWS, worldToShadowMatrix);
 
                 float2 minCoord = uvScaleOffset.zw;
@@ -199,9 +258,12 @@ Shader "PerObjectShadow/ShadowProjector"
 
                 float penumbra = GetPerObjectShadowPenumbra();
 
+                float filterSize = penumbra * 0.03 / texelSizeWS; // texel count
+                filterSize = max(filterSize, 1.0);
+
                 float attenuation = PerObjectShadowmapPCF(TEXTURE2D_ARGS(_PerObjectShadowmapTexture, sampler_LinearClampCompare), 
-                                                        shadowCoord, _PerObjectShadowmapTexture_TexelSize, minCoord, maxCoord, 16.0, penumbra, noiseJitter, 
-                                                        pcssData.y, pcssData.z, _PerCascadePCSSData[0].w);
+                                                        shadowCoord, shadowmapTileInvSize, minCoord, maxCoord, 16.0, filterSize, noiseJitter, 
+                                                        texelSizeWS, farToNear, blockerInvTangent);
 
 
                 return half4(attenuation.xxx, 1);

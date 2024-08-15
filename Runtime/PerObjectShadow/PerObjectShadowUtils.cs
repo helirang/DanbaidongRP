@@ -912,7 +912,7 @@ namespace UnityEngine.Rendering.Universal
             float texelSizeWS = viewPortSizeWS / tileWidth;
 
 
-            return new Vector4(1.0f / (radial2ShadowmapDepth), texelSizeWS, farToNear, 0.0f);
+            return new Vector4(1.0f / (radial2ShadowmapDepth), texelSizeWS, farToNear, 1.0f / tileWidth);
         }
 
         /// <summary>

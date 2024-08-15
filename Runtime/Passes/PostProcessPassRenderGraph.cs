@@ -475,7 +475,7 @@ namespace UnityEngine.Rendering.Universal
                         // upsample once
                         for (var level = 0; level < data.iterations; level++)
                         {
-                            cmd.SetGlobalTexture("_BloomMipDown" + level, data.bloomMipDown[level]);
+                            data.material.SetTexture(ShaderConstants._BloomMipDown[level], data.bloomMipDown[level]);
                         }
 
                         Blitter.BlitCameraTexture(cmd, data.preFilterTex, data.preFilterBlurTex, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, data.material, 10);

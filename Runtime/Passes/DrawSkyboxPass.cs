@@ -190,7 +190,7 @@ namespace UnityEngine.Rendering.Universal
         /// <param name="depthTarget"></param>
         internal void Render(RenderGraph renderGraph, ContextContainer frameData, TextureHandle colorTarget, TextureHandle depthTarget)
         {
-            using (var builder = renderGraph.AddUnsafePass<ScrTrianglePassData>("Draw Skybox Pass", out var passData, base.profilingSampler))
+            using (var builder = renderGraph.AddUnsafePass<ScrTrianglePassData>("Render Sky", out var passData, base.profilingSampler))
             {
                 UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
                 UniversalLightData lightData = frameData.Get<UniversalLightData>();

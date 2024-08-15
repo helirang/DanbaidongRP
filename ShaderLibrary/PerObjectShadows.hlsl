@@ -81,7 +81,7 @@ real SamplePerObjectShadowmapFiltered(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_
     return attenuation;
 }
 
-float PerObjectShadowmapPCF(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, float4 shadowMapTexelSize, float2 minCoord, float2 maxCoord, float sampleCount, float filterSize, float2 random, 
+float PerObjectShadowmapPCF(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, float shadowMapTileInvSize, float2 minCoord, float2 maxCoord, float sampleCount, float filterSize, float2 random, 
     float texelSizeWS, float farToNear, float blockerInvTangent)
 {
     float numBlockers = 0.0;
@@ -107,7 +107,7 @@ float PerObjectShadowmapPCF(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap)
         offset = float2(offset.x *  random.y + offset.y * random.x,
                     offset.x * -random.x + offset.y * random.y);
         offset *= filterSize;
-        offset *= shadowMapTexelSize.x; // coord to uv
+        offset *= shadowMapTileInvSize; // coord to uv
 
         float2 sampleCoord = shadowCoord.xy + offset;
 

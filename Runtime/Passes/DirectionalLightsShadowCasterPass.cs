@@ -59,13 +59,13 @@ namespace UnityEngine.Rendering.Universal.Internal
         private Texture2D m_DefaultDirShadowRampTex;
 
         /// <summary>
-        /// Creates a new <c>MainLightShadowCasterPass</c> instance.
+        /// Creates a new <c>DirectionalLightsShadowCasterPass</c> instance.
         /// </summary>
         /// <param name="evt">The <c>RenderPassEvent</c> to use.</param>
         /// <seealso cref="RenderPassEvent"/>
         public DirectionalLightsShadowCasterPass(RenderPassEvent evt)
         {
-            base.profilingSampler = new ProfilingSampler(nameof(MainLightShadowCasterPass));
+            base.profilingSampler = new ProfilingSampler(nameof(DirectionalLightsShadowCasterPass));
             renderPassEvent = evt;
 
             m_PassData = new PassData();

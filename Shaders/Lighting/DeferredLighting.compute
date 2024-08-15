@@ -371,7 +371,8 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
         // TODO: add different direct light shadowmap
         float shadowAttenuation = LoadScreenSpaceShadowmap(posInput.positionSS);
         #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
-        shadowAttenuation = min(shadowAttenuation, LoadPerObjectScreenSpaceShadowmap(posInput.positionSS));
+        float perObjectShadowAtten = LoadPerObjectScreenSpaceShadowmap(posInput.positionSS);
+        shadowAttenuation = min(shadowAttenuation, perObjectShadowAtten);
         #endif
 
         // Shadow Scatter
@@ -380,6 +381,9 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
         {
             float shadowScatterTex = SAMPLE_TEXTURE2D_LOD(_ShadowScatterTexture, sampler_LinearClamp, posInput.positionNDC, 0).r; // ScatterTex is downsample, use linear sampler
             shadowScatterTex = smoothstep(0.0, 0.5, shadowScatterTex);
+            #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
+            shadowScatterTex = min(shadowScatterTex, perObjectShadowAtten);
+            #endif
 
             float3 shadowSSS = 1.0;
             if (shadowScatterMode == SHADOWSCATTERMODE_RAMPTEXTURE)

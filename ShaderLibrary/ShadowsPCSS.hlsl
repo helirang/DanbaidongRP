@@ -16,7 +16,7 @@
 
 
 // PreFilter finds the border of shadows. 
-float PreFilterSearch(float sampleCount, float filterSize, float3 shadowCoord, float cascadeIndex)
+float PreFilterSearch(float sampleCount, float filterSize, float3 shadowCoord, float cascadeIndex, float2 random)
 {
     float numBlockers = 0.0;
 
@@ -38,6 +38,8 @@ float PreFilterSearch(float sampleCount, float filterSize, float3 shadowCoord, f
     {
         float sampleRadius = sqrt((float)i * sampleCountInverse + sampleCountBias);
         float2 offset = fibonacciSpiralDirection[i] * sampleRadius;
+        offset = float2(offset.x *  random.y + offset.y * random.x,
+                        offset.x * -random.x + offset.y * random.y);
         offset *= filterSize;
         offset *= _MainLightShadowmapSize.x; // coord to uv
 
@@ -104,7 +106,7 @@ float2 BlockerSearch(float sampleCount, float filterSize, float3 shadowCoord, fl
         float2 offset = 0.0;
         offset = ComputeFibonacciSpiralDiskSampleUniform_Directional(i, sampleCountInverse, sampleCountBias, sampleDistNorm);
         offset = float2(offset.x *  random.y + offset.y * random.x,
-                    offset.x * -random.x + offset.y * random.y);
+                        offset.x * -random.x + offset.y * random.y);
         offset *= filterSize;
         offset *= _MainLightShadowmapSize.x; // coord to uv
 
@@ -154,7 +156,7 @@ float PCSSFilter(float sampleCount, float filterSize, float3 shadowCoord, float2
         float2 offset = 0.0;
         offset = ComputeFibonacciSpiralDiskSampleUniform_Directional(i, sampleCountInverse, sampleCountBias, sampleDistNorm);
         offset = float2(offset.x *  random.y + offset.y * random.x,
-                    offset.x * -random.x + offset.y * random.y);
+                        offset.x * -random.x + offset.y * random.y);
         offset *= filterSize;
         offset *= _MainLightShadowmapSize.x; // coord to uv
 

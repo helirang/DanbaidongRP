@@ -12,6 +12,9 @@ namespace UnityEngine.Rendering.Universal.Internal
         private ComputeShader m_Shader;
         private int m_DepthDownsampleKernel;
 
+        private int[] m_SrcOffset;
+        private int[] m_DstOffset;
+
         /// <summary>
         /// 
         /// </summary>
@@ -25,6 +28,8 @@ namespace UnityEngine.Rendering.Universal.Internal
             m_Shader = computeShader;
             m_DepthDownsampleKernel = m_Shader.FindKernel("KDepthDownsample8DualUav");
 
+            m_SrcOffset = new int[4];
+            m_DstOffset = new int[4];
         }
 
         private class PassData
@@ -65,12 +70,12 @@ namespace UnityEngine.Rendering.Universal.Internal
 
                 builder.SetRenderFunc((PassData data, ComputeGraphContext context) =>
                 {
-                    RenderMinDepthPyramid(context.cmd, data.cs, data.kernel, data.targetTexture, data.mipChainInfo, data.mip0AlreadyComputed);
+                    RenderMinDepthPyramid(context.cmd, data.cs, data.kernel, data.targetTexture, data.mipChainInfo, data.mip0AlreadyComputed, ref m_SrcOffset, ref m_DstOffset);
                 });
             }
         }
 
-        static void RenderMinDepthPyramid(ComputeCommandBuffer cmd, ComputeShader cs, int kernel, TextureHandle texture, RenderingUtils.PackedMipChainInfo info, bool mip0AlreadyComputed)
+        static void RenderMinDepthPyramid(ComputeCommandBuffer cmd, ComputeShader cs, int kernel, TextureHandle texture, RenderingUtils.PackedMipChainInfo info, bool mip0AlreadyComputed, ref int[] srcOffsets, ref int[] dstOffsets)
         {
             // TODO: Do it 1x MIP at a time for now. In the future, do 4x MIPs per pass, or even use a single pass.
             // Note: Gather() doesn't take a LOD parameter and we cannot bind an SRV of a MIP level,
@@ -84,9 +89,6 @@ namespace UnityEngine.Rendering.Universal.Internal
                 Vector2Int srcSize = info.mipLevelSizes[i - 1];
                 Vector2Int srcOffset = info.mipLevelOffsets[i - 1];
                 Vector2Int srcLimit = srcOffset + srcSize - Vector2Int.one;
-
-                int[] srcOffsets = new int[4];
-                int[] dstOffsets = new int[4];
 
                 srcOffsets[0] = srcOffset.x;
                 srcOffsets[1] = srcOffset.y;

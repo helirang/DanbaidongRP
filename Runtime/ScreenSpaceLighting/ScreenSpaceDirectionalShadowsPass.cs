@@ -122,22 +122,21 @@ namespace UnityEngine.Rendering.Universal
 
             // Bilateral Filter
             // We use TAA enough
-            if (false)
-            {
-                cmd.SetComputeTextureParam(data.cs, data.bilateralHKernel, ShaderConstants._BilateralTexture, data.screenSpaceShadowmapTex);
+            //{
+            //    cmd.SetComputeTextureParam(data.cs, data.bilateralHKernel, ShaderConstants._BilateralTexture, data.screenSpaceShadowmapTex);
 
-                // Indirect buffer & dispatch
-                cmd.SetComputeBufferParam(data.cs, data.bilateralHKernel, ShaderConstants.g_TileList, data.tileListBuffer);
-                cmd.DispatchCompute(data.cs, data.bilateralHKernel, data.dispatchIndirectBuffer, argsOffset: 0);
-
+            //    // Indirect buffer & dispatch
+            //    cmd.SetComputeBufferParam(data.cs, data.bilateralHKernel, ShaderConstants.g_TileList, data.tileListBuffer);
+            //    cmd.DispatchCompute(data.cs, data.bilateralHKernel, data.dispatchIndirectBuffer, argsOffset: 0);
 
 
-                cmd.SetComputeTextureParam(data.cs, data.bilateralVKernel, ShaderConstants._BilateralTexture, data.screenSpaceShadowmapTex);
 
-                // Indirect buffer & dispatch
-                cmd.SetComputeBufferParam(data.cs, data.bilateralVKernel, ShaderConstants.g_TileList, data.tileListBuffer);
-                cmd.DispatchCompute(data.cs, data.bilateralVKernel, data.dispatchIndirectBuffer, argsOffset: 0);
-            }
+            //    cmd.SetComputeTextureParam(data.cs, data.bilateralVKernel, ShaderConstants._BilateralTexture, data.screenSpaceShadowmapTex);
+
+            //    // Indirect buffer & dispatch
+            //    cmd.SetComputeBufferParam(data.cs, data.bilateralVKernel, ShaderConstants.g_TileList, data.tileListBuffer);
+            //    cmd.DispatchCompute(data.cs, data.bilateralVKernel, data.dispatchIndirectBuffer, argsOffset: 0);
+            //}
         }
 
         internal TextureHandle Render(RenderGraph renderGraph, ContextContainer frameData)
