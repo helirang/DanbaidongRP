@@ -85,10 +85,8 @@ namespace UnityEditor.Rendering.Universal
 
                 EditorGUILayout.EndHorizontal();
 
-                var preEnabled = GUI.enabled;
-                GUI.enabled = false;
+
                 EditorGUILayout.PropertyField(m_RenderersProperty);
-                GUI.enabled = preEnabled;
             }
 
             if (EditorGUI.EndChangeCheck())

@@ -40,6 +40,12 @@ namespace UnityEngine.Rendering.Universal
         private Material m_OldMaterial = null;
 
         /// <summary>
+        /// Only collect renderers once.
+        /// </summary>
+        [SerializeField]
+        private bool m_IsCollected = false;
+
+        /// <summary>
         /// All renderers for rendering shadows.
         /// </summary>
         public Renderer[] childRenderers
@@ -116,6 +122,7 @@ namespace UnityEngine.Rendering.Universal
         {
             m_Renderers = this.gameObject.GetComponentsInChildren<Renderer>();
             ExcludeMeshRenderersRenderingLayers();
+            m_IsCollected = true;
         }
 
         private void ExcludeMeshRenderersRenderingLayers()
@@ -136,7 +143,9 @@ namespace UnityEngine.Rendering.Universal
 
             m_OldMaterial = m_Material;
 
-            CollectRenderers();
+            if (!m_IsCollected)
+                CollectRenderers();
+
 
             onPerObjectShadowAdd?.Invoke(this);
 

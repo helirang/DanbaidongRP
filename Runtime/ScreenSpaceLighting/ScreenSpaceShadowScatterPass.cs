@@ -61,8 +61,8 @@ namespace UnityEngine.Rendering.Universal
         private void InitPassData(RenderGraph renderGraph, PassData passData, UniversalCameraData cameraData, UniversalResourceData resourceData)
         {
             RenderTextureDescriptor desc = cameraData.cameraTargetDescriptor;
-            desc.width /= 2;
-            desc.height /= 2;
+            desc.width = RenderingUtils.DivRoundUp(desc.width, 2);
+            desc.height = RenderingUtils.DivRoundUp(desc.height, 2);
             desc.colorFormat = RenderTextureFormat.R8;
             desc.depthBufferBits = 0;
 
