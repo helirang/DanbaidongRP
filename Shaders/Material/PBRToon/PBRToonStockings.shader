@@ -1,10 +1,13 @@
-Shader "DanbaidongRP/PBRToon/Face"
+Shader "DanbaidongRP/PBRToon/Stockings"
 {
     Properties
     {
         [FoldoutBegin(_FoldoutTexEnd)]_FoldoutTex("Textures", float) = 0
             _BaseColor                      ("BaseColor", Color)                    = (1,1,1,1)
             _BaseMap                        ("BaseMap_d", 2D)                       = "white" {}
+            [NoScaleOffset]_PBRMask         ("PBRMask(metal smooth ao)", 2D)        = "white" {}
+            [NoScaleOffset]_NormalMap       ("NormalMap", 2D)                       = "bump" {}
+            _NormalScale                    ("NormalScale",Range(0,1))              = 1
         [FoldoutEnd]_FoldoutTexEnd("_FoldoutEnd", float) = 0
 
         [FoldoutBegin(_FoldoutPBRPropEnd)]_FoldoutPBRProp("PBR Properties", float) = 0
@@ -13,14 +16,12 @@ Shader "DanbaidongRP/PBRToon/Face"
             _Occlusion                      ("Occlusion",Range(0,1))                = 1
         [FoldoutEnd]_FoldoutPBRPropEnd("_FoldoutPBRPropEnd", float) = 0
 
+        // Direct Light
         [FoldoutBegin(_FoldoutDirectLightEnd)]_FoldoutDirectLight("Direct Light", float) = 0
             [HDR]_SelfLight                 ("SelfLight", Color)                    = (1,1,1,1)
             _MainLightColorLerp             ("Unity Light or SelfLight", Range(0,1))= 0
             _DirectOcclusion                ("DirectOcclusion",Range(0,1))          = 0.1
             
-            [NoScaleOffset]
-            _FaceLightMap                    ("FaceLightMap", 2D)                    = "white" {}
-
             [Title(Shadow)]
             _ShadowColor                    ("ShadowColor", Color)                  = (0,0,0,1)
             _ShadowOffset                   ("ShadowOffset",Range(-1,1))            = 0.5
@@ -28,21 +29,13 @@ Shader "DanbaidongRP/PBRToon/Face"
             _ShadowSmoothScene              ("ShadowSmoothScene", Range(0,1))       = 0.1
             _ShadowStrength                 ("ShadowStrength", Range(0,1))          = 1.0
 
-            [Title(Specular)]
-            [HDR]_NoseSpecColor                ("NoseSpecColor", Color)                = (0,0,0,1)
-            [RangeSlider(_NoseSpecMin, _NoseSpecMax)]_NoseSpecSlider("Range:Shadow to Light", Range(0, 1)) = 0
-            _NoseSpecMin("NoseSpecMin", float) = 0
-            _NoseSpecMax("NoseSpecMax", float) = 0.5
-
         [FoldoutEnd]_FoldoutDirectLightEnd("_FoldoutEnd", float) = 0
-
 
         // Ramp
         [FoldoutBegin(_FoldoutShadowRampEnd, _SHADOW_RAMP)]_FoldoutShadowRamp("ShadowRamp", float) = 0
         [HideInInspector]_SHADOW_RAMP("_SHADOW_RAMP", float) = 0
             [Ramp]_ShadowRampTex            ("ShadowRampTex", 2D)                   = "white" { }
         [FoldoutEnd]_FoldoutShadowRampEnd("_FoldoutEnd", float) = 0
-
 
         // Indirect Light
         [FoldoutBegin(_FoldoutIndirectLightEnd)]_FoldoutIndirectLight("Indirect Light", float) = 0
@@ -89,13 +82,6 @@ Shader "DanbaidongRP/PBRToon/Face"
 
         [FoldoutEnd]_FoldoutOutlineEnd("_FoldoutEnd", float) = 0
 
-        // EyelashOutter
-        [FoldoutBegin(_FoldoutEyelashEnd, PassSwitch, CharacterTransparent)]_FoldoutEyelash("Eyelash", float) = 0
-            _BaseColorOutter                ("BaseColor", Color)                    = (1,1,1,1)
-            _BaseMapOutter                  ("BaseMap_d", 2D)                       = "white" {}
-            _AlphaOutter                    ("Alpha", Range(0, 1))                  = 1
-        [FoldoutEnd]_FoldoutEyelashEnd("_FoldoutEnd", float) = 0
-
         // Other Settings
         [Space(10)]
         [KeysEnum(FLAG_HAIRSHADOW, FLAG_EYELASH, FLAG_HAIRMASK)]
@@ -103,23 +89,169 @@ Shader "DanbaidongRP/PBRToon/Face"
         [Enum(UnityEngine.Rendering.CullMode)] 
         _Cull                               ("Cull Mode", Float)                    = 2
         _AlphaClip                          ("AlphaClip", Range(0, 1))              = 1
-        _AlphaClip2                          ("AlphaClip", Range(0, 1))              = 1
+        _Cutoff                             ("Cutoff", Range(0, 1))              = 1
     }
-
+    
     SubShader
     {
         Tags
         {
             "RenderType"="Opaque"
             "RenderPipeline" = "UniversalPipeline"
-            "Queue"="Geometry-110"
+            "Queue"="Geometry-100"
             "IgnoreProjector" = "True"
             "UniversalMaterialType" = "Character"
         }
         LOD 300
 
         // GBuffer: write depth and normal
-        UsePass "DanbaidongRP/PBRToon/Base/GBufferBase"
+        Pass
+        {
+            Name "GBufferBase"
+            Tags
+            {
+                "LightMode" = "UniversalGBuffer"
+            }
+
+            // -------------------------------------
+            // Render State Commands
+            ZWrite On
+            ZTest LEqual
+            Cull [_Cull]
+
+            HLSLPROGRAM
+            #pragma target 4.5
+
+            // Deferred Rendering Path does not support the OpenGL-based graphics API:
+            // Desktop OpenGL, OpenGL ES 3.0, WebGL 2.0.
+            #pragma exclude_renderers gles3 glcore
+
+            // -------------------------------------
+            // Shader Stages
+            #pragma vertex GBufferPassVertex
+            #pragma fragment GBufferPassFragment
+
+            // -------------------------------------
+            // Material Keywords
+            #pragma shader_feature_local _ FLAG_HAIRSHADOW FLAG_EYELASH FLAG_HAIRMASK
+
+            // -------------------------------------
+            // Universal Pipeline keywords
+            // #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            //#pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            //#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
+            // #pragma multi_compile_fragment _ _REFLECTION_PROBE_BLENDING
+            // #pragma multi_compile_fragment _ _REFLECTION_PROBE_BOX_PROJECTION
+            // #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            #pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
+            // #pragma multi_compile_fragment _ _RENDER_PASS_ENABLED
+            // #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/RenderingLayers.hlsl"
+
+            // -------------------------------------
+            // Unity defined keywords
+            // #pragma multi_compile _ LIGHTMAP_SHADOW_MIXING
+            // #pragma multi_compile _ SHADOWS_SHADOWMASK
+            // #pragma multi_compile _ DIRLIGHTMAP_COMBINED
+            // #pragma multi_compile _ LIGHTMAP_ON
+            // #pragma multi_compile _ DYNAMICLIGHTMAP_ON
+            #pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
+            #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
+
+            //--------------------------------------
+            // GPU Instancing
+            #pragma multi_compile_instancing
+            #pragma instancing_options renderinglayer
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DOTS.hlsl"
+
+            // -------------------------------------
+            // Includes
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Lighting.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/UnityInstancing.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityGBuffer.hlsl"
+
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareDepthTexture.hlsl"
+
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Material/PBRToon/PBRToon.hlsl"
+
+            CBUFFER_START(UnityPerMaterial)
+
+            CBUFFER_END
+
+            struct Attributes 
+            {
+                float4 vertex       :POSITION;
+                float3 normal       :NORMAL;
+                float4 tangent      :TANGENT;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+            struct Varyings 
+            {
+                float4 positionHCS      :SV_POSITION;
+                float3 positionWS       :TEXCOORD0;
+                float3 normalWS         :TEXCOORD1;
+                float3 tangentWS        :TEXCOORD2;
+                float3 biTangentWS      :TEXCOORD3;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+                UNITY_VERTEX_OUTPUT_STEREO
+            };
+
+
+            Varyings GBufferPassVertex(Attributes v)
+            {
+                Varyings o = (Varyings)0;
+                UNITY_SETUP_INSTANCE_ID(v);
+                UNITY_TRANSFER_INSTANCE_ID(v, o);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
+
+                o.positionHCS = TransformObjectToHClip(v.vertex.xyz);
+                o.positionWS = TransformObjectToWorld(v.vertex.xyz);
+
+                o.normalWS = TransformObjectToWorldNormal(v.normal);
+                o.tangentWS = TransformObjectToWorldDir(v.tangent.xyz);
+                o.biTangentWS = cross(o.normalWS,o.tangentWS) * v.tangent.w * GetOddNegativeScale();
+
+                return o;
+            }
+
+            // We only output normal.
+            void GBufferPassFragment(Varyings i
+                , out float4 outGBuffer0 : SV_Target0
+                #if defined(FLAG_EYELASH)
+                , out float4 outGBuffer1 : SV_Target1
+                #endif
+                , out float4 outGBuffer2 : SV_Target2)
+            {
+                UNITY_SETUP_INSTANCE_ID(i);
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
+
+                float3 packedNormalWS = PackNormal(i.normalWS);
+
+                uint toonFlags = 0;
+                #if defined(FLAG_HAIRSHADOW)
+                {
+                    toonFlags |= kToonFlagHairShadow;
+                }
+                #elif defined(FLAG_EYELASH)
+                {
+                    toonFlags |= kToonFlagEyelash;
+                }
+                #elif defined(FLAG_HAIRMASK)
+                {
+                    toonFlags |= kToonFlagHairMask;
+                }
+                #endif
+
+                outGBuffer0 = float4(0, 0, 0, EncodeToonFlags(toonFlags));
+                outGBuffer2 = float4(packedNormalWS, 0);
+
+                #if defined(FLAG_EYELASH)
+                outGBuffer1 = EncodeDepthToRGBA(i.positionHCS.z);
+                #endif
+            }
+            ENDHLSL
+
+        }
 
         // CharacterForward: shading
         Pass
@@ -193,9 +325,11 @@ Shader "DanbaidongRP/PBRToon/Face"
 
             #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Material/PBRToon/PBRToon.hlsl"
 
+
             CBUFFER_START(UnityPerMaterial)
             float3  _BaseColor;
             float4  _BaseMap_ST;
+            float   _NormalScale;
 
             // PBR Properties
             float   _Metallic;
@@ -214,11 +348,6 @@ Shader "DanbaidongRP/PBRToon/Face"
             float   _ShadowSmoothScene;
             float   _ShadowStrength;
 
-            // Specular
-            float4  _NoseSpecColor;
-            float   _NoseSpecMin;
-            float   _NoseSpecMax;
-
             // Indirect
             float4  _SelfEnvColor;
             float   _EnvColorLerp;
@@ -235,25 +364,22 @@ Shader "DanbaidongRP/PBRToon/Face"
             float   _DirectRimWidth;
             float   _PunctualRimWidth;
 
-            // FaceDirection
-            float3 _FaceRightDirWS;
-            float3 _FaceFrontDirWS;
-
             CBUFFER_END
-
-
-            TEXTURE2D_X(_GBuffer0); // Toon Flags
 
             TEXTURE2D(_BaseMap);
             SAMPLER(sampler_BaseMap);
 
-            TEXTURE2D(_FaceLightMap);
-            SAMPLER(sampler_FaceLightMap);
+            TEXTURE2D(_PBRMask);
+            SAMPLER(sampler_PBRMask);
+            TEXTURE2D(_NormalMap);
+            SAMPLER(sampler_NormalMap);    
 
             TEXTURE2D(_ShadowRampTex);
             SAMPLER(sampler_ShadowRampTex);
 
             TEXTURECUBE(_IndirSpecCubemap);
+
+
 
             struct Attributes
             {
@@ -274,7 +400,6 @@ Shader "DanbaidongRP/PBRToon/Face"
                 float3 biTangentWS      :TEXCOORD3;
                 float4 color            :TEXCOORD4;
                 float4 uv               :TEXCOORD5;// xy:uv0 zw:uv1
-                float2 faceLightDot     :TEXCOORD6;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
                 UNITY_VERTEX_OUTPUT_STEREO
             };
@@ -296,14 +421,6 @@ Shader "DanbaidongRP/PBRToon/Face"
                 o.uv.xy = v.uv0.xy;
                 o.uv.zw = v.uv1.xy;
 
-                // Face lightmap dot value
-                Light mainLight = GetMainLight();
-                float3 lightDirWS = mainLight.direction;
-                lightDirWS.xz = normalize(lightDirWS.xz);
-                _FaceRightDirWS.xz = normalize(_FaceRightDirWS.xz);
-                o.faceLightDot.x = dot(lightDirWS.xz, _FaceRightDirWS.xz);
-                o.faceLightDot.y = saturate(dot(-lightDirWS.xz, _FaceFrontDirWS.xz) * 0.5 + _ShadowOffset);
-
                 return o;
             }
 
@@ -312,38 +429,35 @@ Shader "DanbaidongRP/PBRToon/Face"
             {
                 UNITY_SETUP_INSTANCE_ID(i);
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
-
+                
                 float  depth = i.positionHCS.z;
                 float2 UV = i.uv.xy;
-                float2 UV1 = i.uv.zw;
                 float3 positionWS = i.positionWS;
                 float2 screenUV = i.positionHCS.xy / _ScreenParams.xy;
                 TransformScreenUV(screenUV);
 
-                float2 faceLightMapUV = UV1;
-                faceLightMapUV.x = 1 - faceLightMapUV.x;
-                faceLightMapUV.x = i.faceLightDot.x < 0 ? 1 - faceLightMapUV.x : faceLightMapUV.x;
-
                 // Tex Sample
                 float4 mainTex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, UV);
-                float4 faceLightMap = SAMPLE_TEXTURE2D(_FaceLightMap, sampler_FaceLightMap, faceLightMapUV);
+                float4 pbrMask = SAMPLE_TEXTURE2D(_PBRMask, sampler_PBRMask, UV);
+                float3 bumpTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap,UV), _NormalScale);
 
                 // Property prepare
                 float emission               = 1 - mainTex.a;
-                float metallic               = _Metallic;
-                float smoothness             = _Smoothness;
-                float occlusion              = _Occlusion;
-                float directOcclusion        = 1;
+                float metallic               = lerp(0, _Metallic, pbrMask.r);
+                float smoothness             = lerp(0, _Smoothness, pbrMask.g);
+                float occlusion              = lerp(1 - _Occlusion, 1, pbrMask.b);
+                float directOcclusion        = lerp(1 - _DirectOcclusion, 1, pbrMask.b);
                 float3 albedo = mainTex.rgb * _BaseColor.rgb;
+
 
                 float perceptualRoughness = PerceptualSmoothnessToPerceptualRoughness(smoothness);
                 float roughness           = PerceptualRoughnessToRoughness(perceptualRoughness);
                 float roughnessSquare     = max(roughness * roughness, FLT_MIN);
 
-                float faceSDF = faceLightMap.r;
-                float faceShadowArea = faceLightMap.a;
-
                 float3 normalWS = SafeNormalize(i.normalWS);
+                float3x3 TBN = float3x3(i.tangentWS, i.biTangentWS, i.normalWS);
+                float3 bumpWS = TransformTangentToWorld(bumpTS,TBN);
+                normalWS = SafeNormalize(bumpWS);
 
                 // Rim Light
                 float3 normalVS = TransformWorldToViewNormal(normalWS);
@@ -353,14 +467,23 @@ Shader "DanbaidongRP/PBRToon/Face"
                 float NdotV = dot(normalWS, viewDirWS);
                 float clampedNdotV = ClampNdotV(NdotV);
 
+
                 float3 directDiffuse = 0;
                 float3 directSpecular = 0;
                 float3 indirectDiffuse = 0;
                 float3 indirectSpecular = 0;
                 float3 rimColor = 0;
 
+
                 float3 diffuseColor = ComputeDiffuseColor(albedo, metallic);
                 float3 fresnel0 = ComputeFresnel0(albedo, metallic, DEFAULT_SPECULAR_VALUE);
+
+                // Stockings modify diffuse
+                float fresnelRange = pow(clampedNdotV, 2.6);
+                float3 fresnelColor1 = float3(0.7754, 0.823, 0.855);
+                float3 fresnelColor2 = float3(1.0, 0.98828, 0.95508);
+                float3 fresnelDiffuse = lerp(fresnelColor1, fresnelColor2, fresnelRange);
+                fresnelDiffuse *= diffuseColor;
 
                 float3 specularFGD;
                 float  diffuseFGD;
@@ -369,14 +492,6 @@ Shader "DanbaidongRP/PBRToon/Face"
                 float energyCompensation = 1.0 / reflectivity - 1.0;
 
                 float directRimArea = GetCharacterDirectRimLightArea(normalVS, screenUV, depth, _DirectRimWidth);
-
-                float hairShadowArea = 1;
-                float4 gbuffer0 = SAMPLE_TEXTURE2D_X_LOD(_GBuffer0, sampler_PointClamp, screenUV, 0);
-                uint toonFlags = DecodeToonFlags(gbuffer0.r);
-                if ((toonFlags & kToonFlagHairShadow) != 0)
-                {
-                    hairShadowArea = 0;
-                }
 
                 // Accumulate Direct
                 // Directional Lights
@@ -411,16 +526,15 @@ Shader "DanbaidongRP/PBRToon/Face"
                             // Apply Shadows
                             // TODO: add different direct light shadowmap
                             shadowAttenuation = SAMPLE_TEXTURE2D(_ScreenSpaceShadowmapTexture, sampler_PointClamp, screenUV).x;
-                            // #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
-                            // shadowAttenuation = min(shadowAttenuation, SamplePerObjectScreenSpaceShadowmap(screenUV));
-                            // #endif
+                            #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
+                            shadowAttenuation = min(shadowAttenuation, SamplePerObjectScreenSpaceShadowmap(screenUV));
+                            #endif
                         }
                         
                         float shadowNdotL = SigmoidSharp(halfLambert, _ShadowOffset, _ShadowSmoothNdotL * 5);
-                        float faceMapShadow = SigmoidSharp(faceSDF, i.faceLightDot.y, _ShadowSmoothNdotL * 5) * faceShadowArea;
                         float shadowScene = SigmoidSharp(shadowAttenuation, 0.5, _ShadowSmoothScene * 5);
-                        float shadowArea = min(faceMapShadow, shadowScene);
-                        shadowArea = min(shadowArea, hairShadowArea);
+                        // float shadowArea = min(shadowNdotL, shadowScene);
+                        float shadowArea = min(clampedNdotL, shadowScene);
                         shadowArea = lerp(1, shadowArea, _ShadowStrength);
 
                         float3 shadowRamp = lerp(_ShadowColor.rgb, float3(1, 1, 1), shadowArea);
@@ -445,18 +559,9 @@ Shader "DanbaidongRP/PBRToon/Face"
                         float3 backRimCol = lerp(_DirectRimBackCol.rgb, _DirectRimBackCol.rgb * dirLight.lightColor,  _DirectRimBackCol.a);
                         float3 directRim = GetRimColor(directRimArea, diffuseColor, normalVS, lightDirVS, shadowArea, frontRimCol, backRimCol);
 
-                        // Nose Spec
-                        float faceSpecStep = clamp(i.faceLightDot.y, 0.001, 0.999);
-                        faceLightMapUV.x = 1 - faceLightMapUV.x;
-                        faceLightMap = SAMPLE_TEXTURE2D(_FaceLightMap, sampler_FaceLightMap, faceLightMapUV);
-                        float noseSpecArea1 = step(faceSpecStep, faceLightMap.g);
-                        float noseSpecArea2 = step(1 - faceSpecStep, faceLightMap.b);
-                        float noseSpecArea = noseSpecArea1 * noseSpecArea2 * smoothstep(_NoseSpecMin, _NoseSpecMax, 1 - i.faceLightDot.y);
-                        float3 noseSpecColor = _NoseSpecColor.rgb * _NoseSpecColor.a * noseSpecArea;
-
                         // Accumulate
-                        directDiffuse += diffuseColor * diffTerm * shadowRamp * dirLight.lightColor * directOcclusion;
-                        directSpecular += specTerm * clampedNdotL * shadowScene * dirLight.lightColor * directOcclusion + noseSpecColor;
+                        directDiffuse += shadowRamp * fresnelDiffuse * diffTerm * dirLight.lightColor * directOcclusion;
+                        directSpecular += specTerm * clampedNdotL * shadowScene * dirLight.lightColor * directOcclusion;
                         rimColor += directRim;
                     }
                 }
@@ -527,6 +632,8 @@ Shader "DanbaidongRP/PBRToon/Face"
                     }
                 }
 
+
+
                 // Accumulate Indirect
                 // Indirect Diffuse
                 float3 SHNormal = lerp(normalWS, float3(0,1,0), _IndirDiffUpDirSH);
@@ -576,20 +683,154 @@ Shader "DanbaidongRP/PBRToon/Face"
 
         }
         
-        // EyelashOutter
-        UsePass "DanbaidongRP/Helpers/CharacterEyelashOutter/CharacterTransparent"
-
         // Outline
         UsePass "DanbaidongRP/Helpers/Outline/ForwardOutline"
 
-        // ShadowCaster
-        UsePass "DanbaidongRP/PBRToon/Base/ShadowCaster"
+        // ShadowCaster: Same as Lit.shader
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags
+            {
+                "LightMode" = "ShadowCaster"
+            }
+
+            // -------------------------------------
+            // Render State Commands
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Cull[_Cull]
+
+            HLSLPROGRAM
+            #pragma target 2.0
+
+            // -------------------------------------
+            // Shader Stages
+            #pragma vertex ShadowPassVertex
+            #pragma fragment ShadowPassFragment
+
+            // -------------------------------------
+            // Material Keywords
+            #pragma shader_feature_local_fragment _ALPHATEST_ON
+            #pragma shader_feature_local_fragment _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
+
+            //--------------------------------------
+            // GPU Instancing
+            #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DOTS.hlsl"
+
+            // -------------------------------------
+            // Universal Pipeline keywords
+
+            // -------------------------------------
+            // Unity defined keywords
+            #pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
+
+            // This is used during shadow map generation to differentiate between directional and punctual light shadows, as they use different formulas to apply Normal Bias
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+
+            // -------------------------------------
+            // Includes
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/LitInput.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/ShadowCasterPass.hlsl"
+            ENDHLSL
+        }
 
         // DepthOnly
-        UsePass "DanbaidongRP/PBRToon/Base/DepthOnly"
+        Pass
+        {
+            Name "DepthOnly"
+            Tags
+            {
+                "LightMode" = "DepthOnly"
+            }
+
+            // -------------------------------------
+            // Render State Commands
+            ZWrite On
+            ColorMask R
+            Cull[_Cull]
+
+            HLSLPROGRAM
+            #pragma target 2.0
+
+            // -------------------------------------
+            // Shader Stages
+            #pragma vertex DepthOnlyVertex
+            #pragma fragment DepthOnlyFragment
+
+            // -------------------------------------
+            // Material Keywords
+            #pragma shader_feature_local_fragment _ALPHATEST_ON
+            #pragma shader_feature_local_fragment _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
+
+            // -------------------------------------
+            // Unity defined keywords
+            #pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
+
+            //--------------------------------------
+            // GPU Instancing
+            #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DOTS.hlsl"
+
+            // -------------------------------------
+            // Includes
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/LitInput.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/DepthOnlyPass.hlsl"
+            ENDHLSL
+        }
 
         // // DepthNormals
-        // UsePass "DanbaidongRP/PBRToon/Base/DepthNormals"
+        // Pass
+        // {
+        //     Name "DepthNormals"
+        //     Tags
+        //     {
+        //         "LightMode" = "DepthNormals"
+        //     }
+
+        //     // -------------------------------------
+        //     // Render State Commands
+        //     ZWrite On
+        //     Cull[_Cull]
+
+        //     HLSLPROGRAM
+        //     #pragma target 2.0
+
+        //     // -------------------------------------
+        //     // Shader Stages
+        //     #pragma vertex DepthNormalsVertex
+        //     #pragma fragment DepthNormalsFragment
+
+        //     // -------------------------------------
+        //     // Material Keywords
+        //     #pragma shader_feature_local _NORMALMAP
+        //     #pragma shader_feature_local _PARALLAXMAP
+        //     #pragma shader_feature_local _ _DETAIL_MULX2 _DETAIL_SCALED
+        //     #pragma shader_feature_local_fragment _ALPHATEST_ON
+        //     #pragma shader_feature_local_fragment _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
+
+        //     // -------------------------------------
+        //     // Unity defined keywords
+        //     #pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
+
+        //     // -------------------------------------
+        //     // Universal Pipeline keywords
+        //     #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/RenderingLayers.hlsl"
+
+        //     //--------------------------------------
+        //     // GPU Instancing
+        //     #pragma multi_compile_instancing
+        //     #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DOTS.hlsl"
+
+        //     // -------------------------------------
+        //     // Includes
+        //     #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/LitInput.hlsl"
+        //     #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/LitDepthNormalsPass.hlsl"
+        //     ENDHLSL
+        // }
+        
 
     }
 
@@ -679,32 +920,25 @@ Shader "DanbaidongRP/PBRToon/Face"
             #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Raytracing/RaytracingLighting.hlsl"
             #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Raytracing/RayTracingCommon.hlsl"
 
+
             CBUFFER_START(UnityPerMaterial)
             float3  _BaseColor;
             float4  _BaseMap_ST;
-
+            float   _NormalScale;
             // PBR Properties
             float   _Metallic;
             float   _Smoothness;
             float   _Occlusion;
-
             // Direct Light
             float4  _SelfLight;
             float   _MainLightColorLerp;
             float   _DirectOcclusion;
-
             // Shadow
             float4  _ShadowColor;
             float   _ShadowOffset;
             float   _ShadowSmoothNdotL;
             float   _ShadowSmoothScene;
             float   _ShadowStrength;
-
-            // Specular
-            float4  _NoseSpecColor;
-            float   _NoseSpecMin;
-            float   _NoseSpecMax;
-
             // Indirect
             float4  _SelfEnvColor;
             float   _EnvColorLerp;
@@ -712,7 +946,6 @@ Shader "DanbaidongRP/PBRToon/Face"
             float   _IndirDiffIntensity;
             float   _IndirSpecCubeWeight;
             float   _IndirSpecIntensity;
-
             // Emission
             float4  _EmissionCol;
             // RimLight
@@ -721,103 +954,24 @@ Shader "DanbaidongRP/PBRToon/Face"
             float   _DirectRimWidth;
             float   _PunctualRimWidth;
 
-            // FaceDirection
-            float3 _FaceRightDirWS;
-            float3 _FaceFrontDirWS;
-
             // Alpha Test
             float   _Cutoff;
             CBUFFER_END
 
             TEXTURE2D(_BaseMap);
             SAMPLER(sampler_BaseMap);
-                        
-            // Generic function that handles the reflection code
-            [shader("closesthit")]
-            void ClosestHitMain(inout RayIntersection rayIntersection : SV_RayPayload, AttributeData attributeData : SV_IntersectionAttributes)
-            {
-                // Make sure to add the additional travel distance
-                rayIntersection.t = RayTCurrent();
-                rayIntersection.cone.width += rayIntersection.t * rayIntersection.cone.spreadAngle;
-
-                // Hit point data.
-                IntersectionVertex currentVertex;
-                FragInputs fragInput;
-                GetCurrentVertexAndBuildFragInputs(attributeData, currentVertex, fragInput);
-                PositionInputs posInput = GetPositionInput(rayIntersection.pixelCoord, _ScreenSize.zw, fragInput.positionRWS);
-
-                float3 viewDirWS = -WorldRayDirection();
+            
+            TEXTURE2D(_PBRMask);
+            SAMPLER(sampler_PBRMask);
 
 
-                            
-                float3 reflected = float3(0.0, 0.0, 0.0);
-                float reflectedWeight = 0.0;
-                // Multi bounce indirect if needed
-                #ifdef MULTI_BOUNCE_INDIRECT
-                if (rayIntersection.remainingDepth < _RaytracingMaxRecursion)
-                {
-                    // TODO: Multi bounce
-                }
-                #endif /* MULTI_BOUNCE_INDIRECT */
 
-                // Fill the ray context
-                RayContext rayContext;
-                rayContext.reflection = reflected;
-                rayContext.reflectionWeight = reflectedWeight;
-                rayContext.transmission = 0.0;
-                rayContext.transmissionWeight = 0.0;
-                #ifdef MULTI_BOUNCE_INDIRECT
-                rayContext.useAPV = _RayTracingDiffuseLightingOnly ? rayIntersection.remainingDepth == _RaytracingMaxRecursion : 1;
-                #else
-                rayContext.useAPV = 1;
-                #endif
-
-
-                float2 uv = fragInput.texCoord0.xy;
-                uv = TRANSFORM_TEX(uv, _BaseMap);
-
-
-                // Tex Sample
-                float4 mainTex = SAMPLE_TEXTURE2D_LOD(_BaseMap, sampler_BaseMap, uv, 0);
-                // float4 pbrMask = SAMPLE_TEXTURE2D_LOD(_PBRMask, sampler_PBRMask, uv, 0);
-                // float3 bumpTS = UnpackNormalScale(SAMPLE_TEXTURE2D_LOD(_NormalMap, sampler_NormalMap, uv, 0), _NormalScale);
-
-                // Property prepare
-                float emission          = 1 - mainTex.a;
-                float metallic          = 0;
-                float smoothness        = 0;
-                float occlusion         = 1;
-                // float directOcclusion   = lerp(1 - _DirectOcclusion, 1, pbrMask.b);
-                float3 albedo           = mainTex.rgb * _BaseColor.rgb;
-
-                float3 emissResult = emission * lerp(_EmissionCol.rgb, _EmissionCol.rgb * albedo.rgb, _EmissionCol.a);
-
-
-                float3 normalWS = fragInput.tangentToWorld[2];
-
-                // Ray traced Lighting
-                RayTracingShadingData shadingData = InitRayTracingShadingData(posInput, albedo, metallic, smoothness, occlusion, normalWS, viewDirWS);
-
-
-                RayTracingLightingOutput output = RayTracedToon(posInput, shadingData, rayContext, _SelfLight, _MainLightColorLerp, _SelfEnvColor, _EnvColorLerp);
-
-
-                rayIntersection.color = output.diffuseLighting + output.specularLighting + emissResult;
-            }
-
-            // Generic function that handles the reflection code
-            [shader("anyhit")]
-            void AnyHitMain(inout RayIntersection rayIntersection : SV_RayPayload, AttributeData attributeData : SV_IntersectionAttributes)
-            {
-                rayIntersection.color = 0.4;
-                IgnoreHit();
-            }
-
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Raytracing/RayTracingShaderPassPBRToon.hlsl"
 
             ENDHLSL
         }
     }
-    
+
     CustomEditor "UnityEditor.DanbaidongGUI.DanbaidongGUI"
     FallBack "Hidden/Universal Render Pipeline/FallbackError"
 }
