@@ -2,10 +2,10 @@
 #define PBR_TOON_INCLUDED
 
 // These Flag encoded to GBuffer0.a
-#define kToonFlagHairShadow     1 // Does not receive dynamic shadows
-#define kToonFlagEyelash        2 // Does not receivce specular
-#define kToonFlagHairMask       4 // The geometry uses subtractive mixed lighting
-#define kToonFlagUnused1        8 // The geometry uses subtractive mixed lighting
+#define kToonFlagHairShadow     1 // Hair Shadow mask
+#define kToonFlagEyelash        2 // Eyelash
+#define kToonFlagHairMask       4 // HairMask
+#define kToonFlagUnused1        8 // Unused
 
 float EncodeToonFlags(uint toonFlags)
 {
@@ -63,7 +63,7 @@ float GetCharacterDirectRimLightArea(float3 normalVS, float2 screenUV, float d, 
 
     float depthOffset = extendedEyeDepth - eyeDepth;
 
-    float rimArea = saturate(depthOffset * 5);
+    float rimArea = saturate(depthOffset * 4);
 
     return rimArea;
 }
@@ -104,4 +104,55 @@ float3 GetRimColor(float rimArea, float3 albedo, float3 normalVS, float3 lightDi
     return rimColor * rimArea;
 }
 
+
+//-----------------------------------------------------------------------------
+// Evaluate Environment
+// ----------------------------------------------------------------------------
+
+struct DirectLighting
+{
+    float3 diffuse;
+    float3 specular;
+};
+
+struct IndirectLighting
+{
+    float3 diffuse;
+    float3 specular;
+};
+
+void EvaluateIndirectDiffuse(inout IndirectLighting lighting, float3 diffuseColor, float3 normalWS, float upDirScale, float4 selfEnvColor, float envColorLerp, float diffuseFGD)
+{
+    float3 SHNormal = lerp(normalWS, float3(0,1,0), upDirScale);
+    float3 SHColor = SampleSH9(_AmbientProbeData, SHNormal);
+    SHColor = lerp(SHColor, selfEnvColor.rgb, envColorLerp);  
+    lighting.diffuse += diffuseFGD * SHColor * diffuseColor;
+}
+
+void EvaluateIndirectSpecular_Cubemap(inout IndirectLighting lighting, TEXTURECUBE_PARAM(textureName, samplerName), float3 reflectDirWS, float perceptualRoughness, float3 specularFGD, 
+                                inout float reflectionHierarchyWeight, float weight)
+{
+    UpdateLightingHierarchyWeights(reflectionHierarchyWeight, weight);
+    float mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness);
+    float3 cubeReflection = SAMPLE_TEXTURECUBE_LOD(textureName, samplerName, reflectDirWS, mip).xyz;
+    lighting.specular += specularFGD * cubeReflection * weight;
+}
+
+void EvaluateIndirectSpecular_Sky(inout IndirectLighting lighting, float3 reflectDirWS, float perceptualRoughness, float3 specularFGD, 
+                                inout float reflectionHierarchyWeight, float weight)
+{
+    UpdateLightingHierarchyWeights(reflectionHierarchyWeight, weight);
+    float3 skyReflection = SampleSkyEnvironment(reflectDirWS, perceptualRoughness);
+    lighting.specular += specularFGD * skyReflection * weight;
+}
+
+float3 PostEvaluate(in DirectLighting dirLighting, in IndirectLighting indirLighting, float occlusion, float3 fresnel0, float energyCompensation, float indirDiffInten, float indirSpecInten)
+{
+    // Apply ambient occlusion.
+    indirLighting.diffuse *= occlusion;
+    indirLighting.specular *= occlusion;
+
+    return dirLighting.diffuse + indirLighting.diffuse * indirDiffInten
+        + (dirLighting.specular + indirLighting.specular * indirSpecInten) * (1.0 + fresnel0 * energyCompensation);
+}
 #endif /* PBR_TOON_INCLUDED */

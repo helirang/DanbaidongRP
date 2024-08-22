@@ -245,7 +245,7 @@ Shader "DanbaidongRP/Helpers/CharacterEyelashOutter"
                 o.tangentWS = TransformObjectToWorldDir(v.tangent.xyz);
                 o.biTangentWS = cross(o.normalWS,o.tangentWS) * v.tangent.w * GetOddNegativeScale();
                 o.color = v.color;
-                o.uv.xy = v.uv0.xy;
+                o.uv.xy = TRANSFORM_TEX(v.uv0.xy, _BaseMapOutter);
                 o.uv.zw = v.uv1.xy;
 
                 // ViewAngleAlpha
@@ -327,11 +327,10 @@ Shader "DanbaidongRP/Helpers/CharacterEyelashOutter"
                 float NdotV = dot(normalWS, viewDirWS);
                 float clampedNdotV = ClampNdotV(NdotV);
 
-
-                float3 directDiffuse = 0;
-                float3 directSpecular = 0;
-                float3 indirectDiffuse = 0;
-                float3 indirectSpecular = 0;
+                DirectLighting directLighting;
+                IndirectLighting indirectLighting;
+                ZERO_INITIALIZE(DirectLighting, directLighting);
+                ZERO_INITIALIZE(IndirectLighting, indirectLighting);
                 float3 rimColor = 0;
 
 
@@ -405,8 +404,8 @@ Shader "DanbaidongRP/Helpers/CharacterEyelashOutter"
                         #endif
 
                         // Accumulate
-                        directDiffuse += diffuseColor * diffTerm * shadowRamp * dirLight.lightColor * directOcclusion;
-                        directSpecular += specTerm * clampedNdotL * shadowScene * dirLight.lightColor * directOcclusion;
+                        directLighting.diffuse += diffuseColor * diffTerm * shadowRamp * dirLight.lightColor * directOcclusion;
+                        directLighting.specular += specTerm * clampedNdotL * shadowScene * dirLight.lightColor * directOcclusion;
                     }
                 }
 
@@ -414,7 +413,7 @@ Shader "DanbaidongRP/Helpers/CharacterEyelashOutter"
                 uint lightCategory = LIGHTCATEGORY_PUNCTUAL;
                 uint lightStart;
                 uint lightCount;
-                PositionInputs posInput = GetPositionInput(screenUV * _ScreenSize.xy, _ScreenSize.zw, depth, UNITY_MATRIX_I_VP, UNITY_MATRIX_V, uint2(0, 0));
+                PositionInputs posInput = GetPositionInput(i.positionHCS.xy, _ScreenSize.zw, depth, UNITY_MATRIX_I_VP, UNITY_MATRIX_V);
                 GetCountAndStart(posInput, lightCategory, lightStart, lightCount);
                 uint v_lightListOffset = 0;
                 uint v_lightIdx = lightStart;
@@ -460,8 +459,8 @@ Shader "DanbaidongRP/Helpers/CharacterEyelashOutter"
                             diffTerm *= clampedNdotL;
                             specTerm *= clampedNdotL;
 
-                            directDiffuse += diffuseColor * diffTerm * gpuLight.lightColor * attenuation * gpuLight.baseContribution;
-                            directSpecular += specTerm * gpuLight.lightColor * attenuation * gpuLight.baseContribution;
+                            directLighting.diffuse += diffuseColor * diffTerm * gpuLight.lightColor * attenuation * gpuLight.baseContribution;
+                            directLighting.specular += specTerm * gpuLight.lightColor * attenuation * gpuLight.baseContribution;
                         }
 
                         v_lightListOffset++;
@@ -472,45 +471,27 @@ Shader "DanbaidongRP/Helpers/CharacterEyelashOutter"
 
                 // Accumulate Indirect
                 // Indirect Diffuse
-                float3 SHNormal = lerp(normalWS, float3(0,1,0), _IndirDiffUpDirSH);
-                float3 SHColor = SampleSH9(_AmbientProbeData, SHNormal); //EvaluateAmbientProbe(normalWS);
-                SHColor = lerp(SHColor, _SelfEnvColor.rgb, _EnvColorLerp);
-
-                indirectDiffuse += diffuseFGD * SHColor * diffuseColor;
+                EvaluateIndirectDiffuse(indirectLighting, diffuseColor, normalWS, _IndirDiffUpDirSH, _SelfEnvColor, _EnvColorLerp, diffuseFGD);
 
                 // Indirect Specular
                 float3 reflectDirWS = reflect(-viewDirWS, normalWS);
                 float reflectionHierarchyWeight = 0.0; // Max: 1.0
 
                 #if defined(_INDIR_CUBEMAP)
-                {
-                    float weight = _IndirSpecCubeWeight;
-                    UpdateLightingHierarchyWeights(reflectionHierarchyWeight, weight);
-                    float mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness);
-                    float3 cubeReflection = SAMPLE_TEXTURECUBE_LOD(_IndirSpecCubemap, sampler_LinearRepeat, reflectDirWS, mip).xyz;
-                    indirectSpecular += specularFGD * cubeReflection * weight;
-                }
+                EvaluateIndirectSpecular_Cubemap(indirectLighting, TEXTURECUBE_ARGS(_IndirSpecCubemap, sampler_LinearRepeat), 
+                                                reflectDirWS, perceptualRoughness, specularFGD
+                                                reflectionHierarchyWeight, _IndirSpecCubeWeight);
                 #endif
 
-                // Evaluate SkyEnvironment
-                {
-                    float weight = 1.0;
-                    UpdateLightingHierarchyWeights(reflectionHierarchyWeight, weight);
-                    float3 skyReflection = SampleSkyEnvironment(reflectDirWS, perceptualRoughness);
-                    indirectSpecular += specularFGD * skyReflection * weight;
-                }
-
-
-                // Apply ambient occlusion.
-                indirectDiffuse *= occlusion;
-                indirectSpecular *= occlusion;
+                EvaluateIndirectSpecular_Sky(indirectLighting, reflectDirWS, perceptualRoughness, specularFGD,
+                                            reflectionHierarchyWeight, 1.0);
 
                 // Emission
                 float3 emissResult = emission * lerp(_EmissionCol.rgb, _EmissionCol.rgb * albedo.rgb, _EmissionCol.a);
                 
-                float3 resultColor = directDiffuse + directSpecular 
-                                    + indirectDiffuse * _IndirDiffIntensity + indirectSpecular * _IndirSpecIntensity 
-                                    + emissResult;
+                // PostEvaluate occlusion and energyCompensation
+                float3 resultColor = PostEvaluate(directLighting, indirectLighting, occlusion, fresnel0, energyCompensation, _IndirDiffIntensity, _IndirSpecIntensity);
+                resultColor += emissResult;
 
 
                 return float4(resultColor, alpha);

@@ -12,6 +12,8 @@ Shader "DanbaidongRP/PBRToon/EyeBlend"
         _BlendDst("Blend dst", int) = 1
         [Enum(UnityEngine.Rendering.BlendOp)]
         _BlendOp("BlendOp", int) = 21
+        [Enum(Off, 0, On, 1)]
+        _ZWrite ("ZWrite", float) = 0
     }
     SubShader
     {
@@ -24,6 +26,7 @@ Shader "DanbaidongRP/PBRToon/EyeBlend"
             // Render State Commands
             BlendOp [_BlendOp]
             Blend [_BlendSrc] [_BlendDst]
+            ZWrite [_ZWrite]
 
             HLSLPROGRAM
 

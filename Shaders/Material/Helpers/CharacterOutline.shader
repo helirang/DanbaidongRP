@@ -231,7 +231,7 @@ Shader "DanbaidongRP/Helpers/Outline"
                 uint lightCategory = LIGHTCATEGORY_PUNCTUAL;
                 uint lightStart;
                 uint lightCount;
-                PositionInputs posInput = GetPositionInput(screenUV * _ScreenSize.xy, _ScreenSize.zw, depth, UNITY_MATRIX_I_VP, UNITY_MATRIX_V, uint2(0, 0));
+                PositionInputs posInput = GetPositionInput(i.positionHCS.xy, _ScreenSize.zw, depth, UNITY_MATRIX_I_VP, UNITY_MATRIX_V);
                 GetCountAndStart(posInput, lightCategory, lightStart, lightCount);
                 uint v_lightListOffset = 0;
                 uint v_lightIdx = lightStart;
