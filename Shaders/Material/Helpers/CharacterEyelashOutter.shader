@@ -479,7 +479,7 @@ Shader "DanbaidongRP/Helpers/CharacterEyelashOutter"
 
                 #if defined(_INDIR_CUBEMAP)
                 EvaluateIndirectSpecular_Cubemap(indirectLighting, TEXTURECUBE_ARGS(_IndirSpecCubemap, sampler_LinearRepeat), 
-                                                reflectDirWS, perceptualRoughness, specularFGD
+                                                reflectDirWS, perceptualRoughness, specularFGD,
                                                 reflectionHierarchyWeight, _IndirSpecCubeWeight);
                 #endif
 
