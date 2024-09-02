@@ -442,7 +442,8 @@ namespace UnityEngine.Rendering.Universal.Internal
 
             // Directional shadow ramp texture.
             {
-                var shadowRampTexture = m_volumeSettings.shadowRampTex.value == null ? m_DefaultDirShadowRampTex : m_volumeSettings.shadowRampTex.value;
+                bool volumeShadowRampValid = m_volumeSettings != null && m_volumeSettings.shadowRampTex != null && m_volumeSettings.shadowRampTex.value != null;
+                var shadowRampTexture =  volumeShadowRampValid ? m_volumeSettings.shadowRampTex.value : m_DefaultDirShadowRampTex;
                 Shader.SetGlobalTexture(m_DirectionalShadowRampID, shadowRampTexture);
             }
 

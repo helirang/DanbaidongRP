@@ -22,6 +22,12 @@ Shader "DanbaidongRP/PBRToon/EyeBlend"
 
         Pass
         {
+            Name "CharacterTransparent"
+            Tags
+            {
+                "LightMode" = "CharacterTransparent"
+            }
+
             // -------------------------------------
             // Render State Commands
             BlendOp [_BlendOp]
