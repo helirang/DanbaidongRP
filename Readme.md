@@ -50,7 +50,7 @@ Roadmap & Features:
 
 # Character Rendering
 
-![ToonRenderingSuomi](ReadmeAssets/202409011.PNG)
+![ToonRenderingSuomi](ReadmeAssets/202409011.png)
 
 ![ToonRenderingDirect](ReadmeAssets/202311071.PNG)
 
@@ -68,7 +68,7 @@ CustomEditor "UnityEditor.DanbaidongGUI.DanbaidongGUI"`
 
 **Shadow Scattering**
 
-![ShadowScatter](ReadmeAssets/202409012.PNG)
+![ShadowScatter](ReadmeAssets/202409012.png)
 
 **Per Object Shadow**
 
@@ -78,8 +78,8 @@ CustomEditor "UnityEditor.DanbaidongGUI.DanbaidongGUI"`
 
 # Reflections (RayTracing)
 
-![Reflection](ReadmeAssets/202409013.PNG)
+![Reflection](ReadmeAssets/202409013.png)
 
 # GPU Lights (Cluster)
 
-![GPULights](ReadmeAssets/202409014.PNG)
+![GPULights](ReadmeAssets/202409014.png)
