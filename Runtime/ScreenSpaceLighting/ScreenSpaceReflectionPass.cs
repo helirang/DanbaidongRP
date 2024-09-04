@@ -252,7 +252,7 @@ namespace UnityEngine.Rendering.Universal
             passData.currNumFramesAccumTexture = renderGraph.ImportTexture(currNumFramesAccumTexture);
             passData.prevNumFramesAccumTexture = renderGraph.ImportTexture(prevNumFramesAccumTexture);
 
-            passData.usedAlgo = m_volumeSettings.usedAlgorithm.value;
+            passData.usedAlgo = passData.requireRayTracing ? ScreenSpaceReflectionAlgorithm.PBRAccumulation : m_volumeSettings.usedAlgorithm.value;
         }
 
         void UpdateSSRConstantBuffer(SSRPassData passData,
