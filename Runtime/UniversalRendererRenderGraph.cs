@@ -1437,6 +1437,7 @@ namespace UnityEngine.Rendering.Universal
 
                 // GPULightList
                 m_GPULights.Render(renderGraph, frameData);
+                m_GPULights.RenderSetGlobalSync(renderGraph, frameData);
 
                 // TODO: SSAO
 
@@ -1473,7 +1474,7 @@ namespace UnityEngine.Rendering.Universal
                 if (renderShadows)
                     SetupRenderGraphCameraProperties(renderGraph, resourceData.isActiveTargetBackBuffer);
 
-                // SSR, RayTracing reflection needs mainlightshadowmap.
+                // SSR, RayTracing reflection needs mainlightshadowmap and camera properties.
                 if (m_ScreenSpaceReflectionPass.Setup())
                 {
                     resourceData.ssrLightingTexture = m_ScreenSpaceReflectionPass.RenderSSR(renderGraph, frameData, colorPyramidHistoryMipCount);
@@ -1481,7 +1482,6 @@ namespace UnityEngine.Rendering.Universal
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingShadows, RenderPassEvent.BeforeRenderingDeferredLights);
 
-                m_GPULights.RenderSetGlobalSync(renderGraph, frameData);
 
                 // DeferredLighting
                 m_DeferredLighting.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, resourceData.gBuffer);

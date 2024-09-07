@@ -295,6 +295,15 @@ namespace UnityEngine.Rendering.Universal
             set => this.SetValueAndNotify(ref m_RayTracingReflections, value);
         }
 
+        [SerializeField, ResourcePath("Shaders/RayTracing/RayTracingShadows.raytrace")]
+        private RayTracingShader m_RayTracingShadows;
+
+        public RayTracingShader rayTracingShadows
+        {
+            get => m_RayTracingShadows;
+            set => this.SetValueAndNotify(ref m_RayTracingShadows, value);
+        }
+
 #if UNITY_EDITOR
         public void EnsureShadersCompiled()
         {

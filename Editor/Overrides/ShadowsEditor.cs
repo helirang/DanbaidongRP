@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
 namespace UnityEditor.Rendering.Universal
@@ -6,6 +7,9 @@ namespace UnityEditor.Rendering.Universal
     [CustomEditor(typeof(Shadows))]
     sealed class ScreenSpaceShadowsEditor : VolumeComponentEditor
     {
+        SerializedDataParameter m_RayTracing;
+        SerializedDataParameter m_DirShadowsRayLength;
+
         SerializedDataParameter m_Penumbra;
         SerializedDataParameter m_Intensity;
 
@@ -23,7 +27,9 @@ namespace UnityEditor.Rendering.Universal
         public override void OnEnable()
         {
             var o = new PropertyFetcher<Shadows>(serializedObject);
-            
+            m_RayTracing = Unpack(o.Find(x => x.rayTracing));
+            m_DirShadowsRayLength = Unpack(o.Find(x => x.dirShadowsRayLength));
+
             m_Intensity = Unpack(o.Find(x => x.intensity));
 
             m_Penumbra = Unpack(o.Find(x => x.penumbra));
@@ -37,8 +43,30 @@ namespace UnityEditor.Rendering.Universal
             m_ScatterB = Unpack(o.Find(x => x.scatterB));
         }
 
-        public override void OnInspectorGUI()
+        void RayTracedShadowsGUI()
         {
+            var pipelineAsset = GraphicsSettings.defaultRenderPipeline as UniversalRenderPipelineAsset;
+
+            if (!pipelineAsset.supportsRayTracing)
+            {
+                EditorGUILayout.HelpBox("Check RayTracing in pipeline asset (" + pipelineAsset.name +") rendering settings.", MessageType.Error, true);
+            }
+            else
+            {
+                PropertyField(m_DirShadowsRayLength);
+
+
+                EditorGUILayout.Space(10);
+
+                PropertyField(m_Intensity);
+            }
+
+        }
+
+        void RasterShadowsGUI()
+        {
+            EditorGUILayout.Space(10);
+
             PropertyField(m_Intensity);
 
             PropertyField(m_Penumbra);
@@ -65,6 +93,25 @@ namespace UnityEditor.Rendering.Universal
                 PropertyField(m_ShadowScatterMode);
             }
 
+        }
+
+        public override void OnInspectorGUI()
+        {
+            PropertyField(m_RayTracing);
+            // Flag to track if the ray tracing parameters were displayed
+            bool rayTracingSettingsDisplayed = m_RayTracing.overrideState.boolValue
+                && m_RayTracing.value.boolValue;
+
+            // The rest of the ray tracing UI is only displayed if the asset supports ray tracing and the checkbox is checked.
+            if (rayTracingSettingsDisplayed)
+            {
+                RayTracedShadowsGUI();
+            }
+            else
+            {
+                RasterShadowsGUI();
+            }
+            
         }
     }
 }

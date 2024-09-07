@@ -183,9 +183,11 @@ namespace UnityEditor.Rendering.Universal
 
         void RayTracedReflectionGUI(RayCastingMode tracingMode)
         {
-            if (!SystemInfo.supportsRayTracing)
+            var pipelineAsset = GraphicsSettings.defaultRenderPipeline as UniversalRenderPipelineAsset;
+
+            if (!pipelineAsset.supportsRayTracing)
             {
-                EditorGUILayout.HelpBox("Check RayTracing in pipeline asset rendering settings.", MessageType.Error, true);
+                EditorGUILayout.HelpBox("Check RayTracing in pipeline asset (" + pipelineAsset.name + ") rendering settings.", MessageType.Error, true);
             }
             else
             {

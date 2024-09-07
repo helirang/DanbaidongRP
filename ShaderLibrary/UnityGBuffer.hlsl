@@ -90,7 +90,10 @@ uint UnpackMaterialFlags(float packedMaterialFlags)
     return uint((packedMaterialFlags * 255.0h) + 0.5h);
 }
 
-#ifdef _GBUFFER_NORMALS_OCT
+// Always enable this, reduce keywords num.
+// #define _GBUFFER_NORMALS_OCT
+
+#if 1
 float3 PackNormal(float3 n)
 {
     float2 octNormalWS = PackNormalOctQuadEncode(n);                  // values between [-1, +1], must use fp32 on some platforms.

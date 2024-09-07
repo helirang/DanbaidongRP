@@ -54,6 +54,14 @@ namespace UnityEngine.Rendering.Universal
             internal TextureHandle normalGBuffer;
 
             internal int camHistoryFrameCount;
+
+            // Ray Tracing
+            internal bool requireRayTracing;
+            internal RayTracingShader rtrtShader;
+            internal RayTracingAccelerationStructure rtas;
+            internal uint dispatchRaySizeX;
+            internal uint dispatchRaySizeY;
+            internal ShaderVariablesRaytracing rayTracingCB;
         }
 
         /// <summary>
@@ -92,6 +100,49 @@ namespace UnityEngine.Rendering.Universal
             passData.screenSpaceShadowmapSize = new Vector2Int(desc.width, desc.height);
 
             passData.normalGBuffer = resourceData.gBuffer[2]; // Normal GBuffer
+        }
+
+        private void InitRayTracingPassData(RenderGraph renderGraph, PassData passData, UniversalCameraData cameraData, UniversalResourceData resourceData)
+        {
+            var stack = VolumeManager.instance.stack;
+            var volumeSettings = stack.GetComponent<Shadows>();
+            if (volumeSettings == null)
+            {
+                passData.requireRayTracing = false;
+                return;
+            }
+
+            passData.requireRayTracing &= volumeSettings.rayTracing.value;
+
+            if (passData.requireRayTracing)
+            {
+                var runtimeShaders = GraphicsSettings.GetRenderPipelineSettings<UniversalRenderPipelineRuntimeShaders>();
+                passData.rtrtShader = runtimeShaders.rayTracingShadows;
+                passData.rtas = cameraData.rayTracingSystem.RequestAccelerationStructure();
+
+                var width = cameraData.cameraTargetDescriptor.width;
+                var height = cameraData.cameraTargetDescriptor.height;
+                passData.dispatchRaySizeX = (uint)width;
+                passData.dispatchRaySizeY = (uint)height;
+
+                // RayTracing constant buffer
+                {
+                    var rayTracingSettings = stack.GetComponent<RayTracingSettings>();
+
+                    passData.rayTracingCB = cameraData.rayTracingSystem.GetShaderVariablesRaytracingCB(new Vector2Int(width, height), rayTracingSettings);
+                    passData.rayTracingCB._RaytracingRayMaxLength = Mathf.Min(volumeSettings.dirShadowsRayLength.value, rayTracingSettings.directionalShadowRayLength.value);
+                    passData.rayTracingCB._RayTracingClampingFlag = 1;
+                    passData.rayTracingCB._RaytracingIntensityClamp = 1.0f;
+                    passData.rayTracingCB._RaytracingPreExposition = 0;
+                    passData.rayTracingCB._RayTracingDiffuseLightingOnly = 0;
+                    passData.rayTracingCB._RayTracingAPVRayMiss = 0;
+                    passData.rayTracingCB._RayTracingRayMissFallbackHierarchy = 0;
+                    passData.rayTracingCB._RayTracingRayMissUseAmbientProbeAsSky = 0;
+                    passData.rayTracingCB._RayTracingLastBounceFallbackHierarchy = 0;
+                    passData.rayTracingCB._RayTracingAmbientProbeDimmer = 1.0f;
+                }
+
+            }
         }
 
         private static void ExecutePass(PassData data, ComputeGraphContext context)
@@ -137,6 +188,28 @@ namespace UnityEngine.Rendering.Universal
             //    cmd.SetComputeBufferParam(data.cs, data.bilateralVKernel, ShaderConstants.g_TileList, data.tileListBuffer);
             //    cmd.DispatchCompute(data.cs, data.bilateralVKernel, data.dispatchIndirectBuffer, argsOffset: 0);
             //}
+
+            // Ray Tracing Shadows
+            if (data.requireRayTracing)
+            {
+                using (new ProfilingScope(cmd, new ProfilingSampler("RayTracingShadows")))
+                {
+                    // Define the shader pass to use for the reflection pass
+                    cmd.SetRayTracingShaderPass(data.rtrtShader, "VisibilityDXR");
+
+                    // Set the acceleration structure for the pass
+                    cmd.SetRayTracingAccelerationStructure(data.rtrtShader, "_RaytracingAccelerationStructure", data.rtas);
+
+                    // SetConstantBuffer
+                    ConstantBuffer.PushGlobal(cmd, data.rayTracingCB, RayTracingSystem._ShaderVariablesRaytracing);
+
+                    // SetTextures
+                    cmd.SetRayTracingTextureParam(data.rtrtShader, ShaderConstants._RayTracingShadowsTextureRW, data.screenSpaceShadowmapTex);
+
+                    cmd.DispatchRays(data.rtrtShader, "SingleRayGen", data.dispatchRaySizeX, data.dispatchRaySizeY, 1);
+                }
+            }
+
         }
 
         internal TextureHandle Render(RenderGraph renderGraph, ContextContainer frameData)
@@ -154,6 +227,11 @@ namespace UnityEngine.Rendering.Universal
                 UniversalLightData lightData = frameData.Get<UniversalLightData>();
                 UniversalShadowData shadowData = frameData.Get<UniversalShadowData>();
 
+                // Ray Tracing
+                passData.requireRayTracing = cameraData.supportedRayTracing && cameraData.rayTracingSystem.GetRayTracingState();
+                InitRayTracingPassData(renderGraph, passData, cameraData, resourceData);
+                shadowData.rayTracingShadowsEnabled = passData.requireRayTracing;
+
                 // Setup passData
                 InitPassData(renderGraph, passData, cameraData, resourceData, historyFramCount);
 
@@ -164,7 +242,7 @@ namespace UnityEngine.Rendering.Universal
                 builder.UseTexture(passData.screenSpaceShadowmapTex, AccessFlags.ReadWrite);
                 builder.UseTexture(passData.normalGBuffer, AccessFlags.Read);
                 builder.AllowPassCulling(false);
-                //builder.AllowGlobalStateModification(true);
+                builder.AllowGlobalStateModification(passData.requireRayTracing);
                 //builder.EnableAsyncCompute(true);
 
                 builder.SetRenderFunc((PassData data, ComputeGraphContext context) =>
@@ -187,6 +265,8 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _PCSSTexture = Shader.PropertyToID("_PCSSTexture");
             public static readonly int _BilateralTexture = Shader.PropertyToID("_BilateralTexture");
             public static readonly int _CamHistoryFrameCount = Shader.PropertyToID("_CamHistoryFrameCount");
+
+            public static readonly int _RayTracingShadowsTextureRW = Shader.PropertyToID("_RayTracingShadowsTextureRW");
         }
     }
 }

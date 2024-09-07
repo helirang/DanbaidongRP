@@ -938,6 +938,7 @@ namespace UnityEngine.Rendering.Universal
     internal static class ShaderGlobalKeywords
     {
         public static GlobalKeyword MainLightShadows;
+        public static GlobalKeyword RayTracingShadows;
         public static GlobalKeyword MainLightShadowCascades;
         public static GlobalKeyword MainLightShadowScreen;
         public static GlobalKeyword CastingPunctualLightShadow;
@@ -1051,6 +1052,7 @@ namespace UnityEngine.Rendering.Universal
         {
             // Init all keywords upfront
             ShaderGlobalKeywords.MainLightShadows = GlobalKeyword.Create(ShaderKeywordStrings.MainLightShadows);
+            ShaderGlobalKeywords.RayTracingShadows = GlobalKeyword.Create(ShaderKeywordStrings.RayTracingShadows);
             ShaderGlobalKeywords.MainLightShadowCascades = GlobalKeyword.Create(ShaderKeywordStrings.MainLightShadowCascades);
             ShaderGlobalKeywords.MainLightShadowScreen = GlobalKeyword.Create(ShaderKeywordStrings.MainLightShadowScreen);
             ShaderGlobalKeywords.CastingPunctualLightShadow = GlobalKeyword.Create(ShaderKeywordStrings.CastingPunctualLightShadow);
@@ -1139,6 +1141,9 @@ namespace UnityEngine.Rendering.Universal
     {
         /// <summary> Keyword used for shadows without cascades. </summary>
         public const string MainLightShadows = "_MAIN_LIGHT_SHADOWS";
+
+        /// <summary> Keyword used for shadows with ray tracing. </summary>
+        public const string RayTracingShadows = "_RAYTRACING_SHADOWS";
 
         /// <summary> Keyword used for shadows with cascades. </summary>
         public const string MainLightShadowCascades = "_MAIN_LIGHT_SHADOWS_CASCADE";

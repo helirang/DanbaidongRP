@@ -83,6 +83,7 @@ namespace UnityEngine.Rendering.Universal.Internal
 
             // Lighting Buffers (SSAO, SSR, SSGI, SSShadow)
             internal TextureHandle SSRLightingTexture;
+            internal bool rayTracingShadowsEnabled;
             internal TextureHandle SSShadowsTexture;
             internal TextureHandle shadowScatterTexture;
         }
@@ -93,6 +94,7 @@ namespace UnityEngine.Rendering.Universal.Internal
 
             // Due to async compute, we set global keywords here.
             cmd.SetKeyword(ShaderGlobalKeywords.ScreenSpaceReflection, data.SSRLightingTexture.IsValid());
+            cmd.SetKeyword(ShaderGlobalKeywords.RayTracingShadows, data.rayTracingShadowsEnabled);
 
 
             // BuildIndirect
@@ -183,6 +185,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                 passData.SSRLightingTexture = resourceData.ssrLightingTexture;
                 passData.SSShadowsTexture = resourceData.screenSpaceShadowsTexture;
                 passData.shadowScatterTexture = resourceData.shadowScatterTexture;
+                passData.rayTracingShadowsEnabled = shadowData.rayTracingShadowsEnabled;
 
                 // Declare input/output
                 builder.UseTexture(passData.lightingHandle, AccessFlags.ReadWrite);

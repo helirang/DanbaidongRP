@@ -8,6 +8,7 @@ namespace UnityEngine.Rendering.Universal
         RampTexture = 1,
         SubSurface = 2,
     }
+
     [Serializable]
     public sealed class ShadowScatterModeParameter : VolumeParameter<ShadowScatterMode>
     {
@@ -33,6 +34,12 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
+        [Tooltip("Use RayTracing for opaques.")]
+        public BoolParameter rayTracing = new BoolParameter(false);
+
+        [Tooltip("Controls the ray length for ray traced directional shadows.")]
+        public MinFloatParameter dirShadowsRayLength = new MinFloatParameter(1000.0f, 0.01f);
+
         [Tooltip("Shadow intensity.")]
         public ClampedFloatParameter intensity = new ClampedFloatParameter(1.0f, 0.0f, 1.0f);
 
@@ -57,6 +64,7 @@ namespace UnityEngine.Rendering.Universal
 
         [Tooltip("Penumbra controls shadows scatter occlusion soften width.")]
         public ClampedFloatParameter occlusionPenumbra = new ClampedFloatParameter(1.0f, 0.001f, 3.0f);
+
 
         /// <inheritdoc/>
         public bool IsActive() => true; // Always enable screenSpaceShadows.

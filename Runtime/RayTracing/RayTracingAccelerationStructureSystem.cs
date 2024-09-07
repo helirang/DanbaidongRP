@@ -77,8 +77,8 @@ namespace UnityEngine.Rendering.Universal
         internal Plane[] rtCullingPlaneArray = new Plane[6];
 
         // Culling tests
-        //RayTracingInstanceCullingTest ShT_CT = new RayTracingInstanceCullingTest();
-        //RayTracingInstanceCullingTest ShO_CT = new RayTracingInstanceCullingTest();
+        RayTracingInstanceCullingTest ShT_CT = new RayTracingInstanceCullingTest();
+        RayTracingInstanceCullingTest ShO_CT = new RayTracingInstanceCullingTest();
         RayTracingInstanceCullingTest AO_CT = new RayTracingInstanceCullingTest();
         RayTracingInstanceCullingTest Refl_CT = new RayTracingInstanceCullingTest();
         RayTracingInstanceCullingTest GI_CT = new RayTracingInstanceCullingTest();
@@ -135,20 +135,20 @@ namespace UnityEngine.Rendering.Universal
             cullingConfig.instanceTests = new RayTracingInstanceCullingTest[9];
 
             // Setup the culling data for transparent shadows
-            //ShT_CT.allowOpaqueMaterials = true;
-            //ShT_CT.allowAlphaTestedMaterials = true;
-            //ShT_CT.allowTransparentMaterials = true;
-            //ShT_CT.layerMask = -1;
-            //ShT_CT.shadowCastingModeMask = (1 << (int)ShadowCastingMode.On) | (1 << (int)ShadowCastingMode.TwoSided) | (1 << (int)ShadowCastingMode.ShadowsOnly);
-            //ShT_CT.instanceMask = (uint)RayTracingRendererFlag.CastShadowTransparent;
+            ShT_CT.allowOpaqueMaterials = true;
+            ShT_CT.allowAlphaTestedMaterials = true;
+            ShT_CT.allowTransparentMaterials = true;
+            ShT_CT.layerMask = -1;
+            ShT_CT.shadowCastingModeMask = (1 << (int)ShadowCastingMode.On) | (1 << (int)ShadowCastingMode.TwoSided) | (1 << (int)ShadowCastingMode.ShadowsOnly);
+            ShT_CT.instanceMask = (uint)RayTracingRendererFlag.CastShadowTransparent;
 
             // Setup the culling data for opaque shadows
-            //ShO_CT.allowOpaqueMaterials = true;
-            //ShO_CT.allowAlphaTestedMaterials = true;
-            //ShO_CT.allowTransparentMaterials = false;
-            //ShO_CT.layerMask = -1;
-            //ShO_CT.shadowCastingModeMask = (1 << (int)ShadowCastingMode.On) | (1 << (int)ShadowCastingMode.TwoSided) | (1 << (int)ShadowCastingMode.ShadowsOnly);
-            //ShO_CT.instanceMask = (uint)RayTracingRendererFlag.CastShadowOpaque;
+            ShO_CT.allowOpaqueMaterials = true;
+            ShO_CT.allowAlphaTestedMaterials = true;
+            ShO_CT.allowTransparentMaterials = false;
+            ShO_CT.layerMask = -1;
+            ShO_CT.shadowCastingModeMask = (1 << (int)ShadowCastingMode.On) | (1 << (int)ShadowCastingMode.TwoSided) | (1 << (int)ShadowCastingMode.ShadowsOnly);
+            ShO_CT.instanceMask = (uint)RayTracingRendererFlag.CastShadowOpaque;
 
             // Setup the culling data for the ambient occlusion
             AO_CT.allowOpaqueMaterials = true;
@@ -304,13 +304,13 @@ namespace UnityEngine.Rendering.Universal
             //    ShT_CT.allowVisualEffects = false;
             //}
 
-            //if (parameters.shadows || parameters.pathTracing)
-            //{
-            //    ShO_CT.allowVisualEffects = parameters.includeVFX;
-            //    ShT_CT.allowVisualEffects = parameters.includeVFX;
-            //    instanceTestArray.Add(ShO_CT);
-            //    instanceTestArray.Add(ShT_CT);
-            //}
+            if (parameters.shadows || parameters.pathTracing)
+            {
+                ShO_CT.allowVisualEffects = parameters.includeVFX;
+                ShT_CT.allowVisualEffects = parameters.includeVFX;
+                instanceTestArray.Add(ShO_CT);
+                instanceTestArray.Add(ShT_CT);
+            }
 
             if (parameters.ambientOcclusion)
             {
@@ -322,7 +322,7 @@ namespace UnityEngine.Rendering.Universal
             if (parameters.reflections)
             {
                 Refl_CT.layerMask = parameters.reflLayerMask;
-                Refl_CT.allowVisualEffects = parameters.includeVFX;
+                Refl_CT.allowVisualEffects = false;
                 instanceTestArray.Add(Refl_CT);
             }
 

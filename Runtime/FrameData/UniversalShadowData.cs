@@ -15,6 +15,11 @@ namespace UnityEngine.Rendering.Universal
         public bool supportsMainLightShadows;
 
         /// <summary>
+        /// True if ray tracing shadows are enabled.
+        /// </summary>
+        public bool rayTracingShadowsEnabled;
+
+        /// <summary>
         /// True if additional lights shadows are enabled in the URP Asset
         /// </summary>
         internal bool mainLightShadowsEnabled;
@@ -109,6 +114,7 @@ namespace UnityEngine.Rendering.Universal
         public override void Reset()
         {
             supportsMainLightShadows = false;
+            rayTracingShadowsEnabled = false;
             mainLightShadowmapWidth = 0;
             mainLightShadowmapHeight = 0;
             mainLightShadowCascadesCount = 0;

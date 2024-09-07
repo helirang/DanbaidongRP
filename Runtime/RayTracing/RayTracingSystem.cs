@@ -416,6 +416,10 @@ namespace UnityEngine.Rendering.Universal
             RayTracedEffectsParameters parameters = new RayTracedEffectsParameters();
 
             // Aggregate the shadow requirements
+            Shadows shadowSettings = volumeStack.GetComponent<Shadows>();
+            bool opaqueShadows = shadowSettings.rayTracing.value;
+            //bool transparentReflections = shadowSettings.enabledTransparent.value;
+            parameters.shadows = opaqueShadows;
 
             // Aggregate the ambient occlusion parameters
 

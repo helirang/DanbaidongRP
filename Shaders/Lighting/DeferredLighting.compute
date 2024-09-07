@@ -12,13 +12,16 @@
 #pragma kernel DeferredLighting2            DEFERRED_LIGHTING           DEFERRED_COMPUTE_ENTRY=DeferredLighting2        DEFERRED_CHARACTER
 
 #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+#pragma multi_compile _ _RAYTRACING_SHADOWS
 #pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
 #pragma multi_compile _ _SHADOWS_SOFT
 #pragma multi_compile _ _LIGHT_LAYERS
 #pragma multi_compile _ _PEROBJECT_SCREEN_SPACE_SHADOW
-#pragma multi_compile _ _GBUFFER_NORMALS_OCT
-#pragma multi_compile _ _GPU_LIGHTS_CLUSTER
 #pragma multi_compile _ _SCREEN_SPACE_REFLECTION
+
+// Always define keywords
+#define _GPU_LIGHTS_CLUSTER
+
 //--------------------------------------------------------------------------------------------------
 // Included headers
 //--------------------------------------------------------------------------------------------------
@@ -368,53 +371,62 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
 
         }
         // Apply Shadows
-        // TODO: add different direct light shadowmap
-        float shadowAttenuation = LoadScreenSpaceShadowmap(posInput.positionSS);
-        #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
-        float perObjectShadowAtten = LoadPerObjectScreenSpaceShadowmap(posInput.positionSS);
-        shadowAttenuation = min(shadowAttenuation, perObjectShadowAtten);
-        #endif
-
-        // Shadow Scatter
-        float shadowScatterMode = GetShadowScatterMode();
-        if (shadowScatterMode != SHADOWSCATTERMODE_NONE)
-        {
-            float shadowScatterTex = SAMPLE_TEXTURE2D_LOD(_ShadowScatterTexture, sampler_LinearClamp, posInput.positionNDC, 0).r; // ScatterTex is downsample, use linear sampler
-            shadowScatterTex = smoothstep(0.0, 0.5, shadowScatterTex);
-            #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
-            shadowScatterTex = min(shadowScatterTex, perObjectShadowAtten);
-            #endif
-
-            float3 shadowSSS = 1.0;
-            if (shadowScatterMode == SHADOWSCATTERMODE_RAMPTEXTURE)
-            {
-                shadowSSS = SAMPLE_TEXTURE2D_LOD(_DirShadowRampTexture, sampler_LinearClamp, float2(shadowAttenuation, 0.5), 0).rgb;
-            }
-            else
-            {
-                float sssRadius = max(1 - shadowAttenuation, HALF_MIN);
-                shadowSSS = EvaluateShadowScatterColor(sssRadius, _DirLightShadowScatterParams.rgb) / sssRadius;
-                shadowSSS = AcesFilm(sqrt(shadowSSS));
-            }
-
-            // Apply shadow strength
-            shadowSSS = LerpWhiteTo(shadowSSS, GetMainLightShadowParams().x);
-            shadowScatterTex = LerpWhiteTo(shadowScatterTex, GetMainLightShadowParams().x);
-
-            directDiffuse *= shadowSSS;
-            directSpecular *= shadowSSS;
-
-            directDiffuse *= shadowScatterTex;
-            directSpecular *= shadowScatterTex;
-        }
-        else
-        {
+        #ifdef _RAYTRACING_SHADOWS
+            float shadowAttenuation = LoadScreenSpaceShadowmap(posInput.positionSS);
             // Apply shadow strength
             shadowAttenuation = LerpWhiteTo(shadowAttenuation, GetMainLightShadowParams().x);
 
             directDiffuse *= shadowAttenuation;
             directSpecular *= shadowAttenuation;
-        }
+        #else
+            // TODO: add different direct light shadowmap
+            float shadowAttenuation = LoadScreenSpaceShadowmap(posInput.positionSS);
+            #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
+            float perObjectShadowAtten = LoadPerObjectScreenSpaceShadowmap(posInput.positionSS);
+            shadowAttenuation = min(shadowAttenuation, perObjectShadowAtten);
+            #endif
+
+            // Shadow Scatter
+            float shadowScatterMode = GetShadowScatterMode();
+            if (shadowScatterMode != SHADOWSCATTERMODE_NONE)
+            {
+                float shadowScatterTex = SAMPLE_TEXTURE2D_LOD(_ShadowScatterTexture, sampler_LinearClamp, posInput.positionNDC, 0).r; // ScatterTex is downsample, use linear sampler
+                shadowScatterTex = smoothstep(0.0, 0.5, shadowScatterTex);
+                #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
+                shadowScatterTex = min(shadowScatterTex, perObjectShadowAtten);
+                #endif
+
+                float3 shadowSSS = 1.0;
+                if (shadowScatterMode == SHADOWSCATTERMODE_RAMPTEXTURE)
+                {
+                    shadowSSS = SAMPLE_TEXTURE2D_LOD(_DirShadowRampTexture, sampler_LinearClamp, float2(shadowAttenuation, 0.5), 0).rgb;
+                }
+                else
+                {
+                    float sssRadius = max(1 - shadowAttenuation, HALF_MIN);
+                    shadowSSS = EvaluateShadowScatterColor(sssRadius, _DirLightShadowScatterParams.rgb) / sssRadius;
+                    shadowSSS = AcesFilm(sqrt(shadowSSS));
+                }
+
+                // Apply shadow strength
+                shadowSSS = LerpWhiteTo(shadowSSS, GetMainLightShadowParams().x);
+                shadowScatterTex = LerpWhiteTo(shadowScatterTex, GetMainLightShadowParams().x);
+
+                directDiffuse *= shadowSSS;
+                directSpecular *= shadowSSS;
+
+                directDiffuse *= shadowScatterTex;
+                directSpecular *= shadowScatterTex;
+            }
+            else
+            {
+                // Apply shadow strength
+                shadowAttenuation = LerpWhiteTo(shadowAttenuation, GetMainLightShadowParams().x);
+
+                directDiffuse *= shadowAttenuation;
+                directSpecular *= shadowAttenuation;
+            }
+        #endif /* _RAYTRACING_SHADOWS */
 
 
         // Punctual Lights
