@@ -15,6 +15,7 @@
 #pragma multi_compile _ _RAYTRACING_SHADOWS
 #pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
 #pragma multi_compile _ _SHADOWS_SOFT
+#pragma multi_compile _ _LIGHT_COOKIES
 #pragma multi_compile _ _LIGHT_LAYERS
 #pragma multi_compile _ _PEROBJECT_SCREEN_SPACE_SHADOW
 #pragma multi_compile _ _SCREEN_SPACE_REFLECTION
@@ -451,6 +452,23 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
                 if (IsMatchingLightLayer(gpuLight.lightLayerMask, shadingData.meshRenderingLayers))
                 #endif
                 {
+
+                    #ifdef _LIGHT_COOKIES
+                    if(gpuLight.cookieLightIndex >= 0)
+                    {
+                        float4 cookieUvRect = GetLightCookieAtlasUVRect(gpuLight.cookieLightIndex);
+                        float4x4 worldToLight = GetLightCookieWorldToLightMatrix(gpuLight.cookieLightIndex);
+                        float2 cookieUv = float2(0,0);
+                        cookieUv = ComputeLightCookieUVSpot(worldToLight, positionWS.xyz, cookieUvRect);
+                        cookieUv = ComputeLightCookieUVPoint(worldToLight, positionWS.xyz, cookieUvRect);
+                        half4 cookieColor = SampleAdditionalLightsCookieAtlasTexture(cookieUv);
+                            cookieColor = half4(IsAdditionalLightsCookieAtlasTextureRGBFormat() ? cookieColor.rgb
+                            : IsAdditionalLightsCookieAtlasTextureAlphaFormat() ? cookieColor.aaa
+                            : cookieColor.rrr, 1);
+                        gpuLight.lightColor *= cookieColor.rgb;
+                    }
+                    #endif
+
                     float3 lightVector = gpuLight.lightPosWS - positionWS.xyz;
                     float distanceSqr = max(dot(lightVector, lightVector), FLT_MIN);
                     float3 lightDirection = float3(lightVector * rsqrt(distanceSqr));
