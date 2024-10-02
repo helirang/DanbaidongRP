@@ -13,9 +13,10 @@ namespace UnityEngine.Rendering.Universal
         AmbientOcclusion = 0x08,
         Reflection = 0x10,
         GlobalIllumination = 0x20,
-        RecursiveRendering = 0x40,
+        //RecursiveRendering = 0x40,
+        CastShadowCharacter = 0x40,
         PathTracing = 0x80,
-        All = Opaque | CastShadow | AmbientOcclusion | Reflection | GlobalIllumination | RecursiveRendering | PathTracing,
+        All = Opaque | CastShadow | AmbientOcclusion | Reflection | GlobalIllumination | CastShadowCharacter | PathTracing,
     }
 
     /// <summary>
@@ -363,6 +364,10 @@ namespace UnityEngine.Rendering.Universal
                         ? (uint)(RayTracingRendererFlag.CastShadowOpaque)
                         : 0x00);
                 }
+
+                instanceFlag |= ((effectsParameters.characterShadowLayerMask & objectLayerValue) != 0)
+                        ? (uint)(RayTracingRendererFlag.CastShadowCharacter)
+                        : 0x00;
             }
 
             // We consider a mesh visible by reflection, gi, etc if it is not in the shadow only mode.
@@ -392,13 +397,13 @@ namespace UnityEngine.Rendering.Universal
                     : 0x00;
             }
 
-            if (effectsParameters.recursiveRendering && meshIsVisible)
-            {
-                // Raise the Recursive Rendering flag if needed
-                instanceFlag |= ((effectsParameters.recursiveLayerMask & objectLayerValue) != 0)
-                    ? (uint)(RayTracingRendererFlag.RecursiveRendering)
-                    : 0x00;
-            }
+            //if (effectsParameters.recursiveRendering && meshIsVisible)
+            //{
+            //    // Raise the Recursive Rendering flag if needed
+            //    instanceFlag |= ((effectsParameters.recursiveLayerMask & objectLayerValue) != 0)
+            //        ? (uint)(RayTracingRendererFlag.RecursiveRendering)
+            //        : 0x00;
+            //}
 
             if (effectsParameters.pathTracing && meshIsVisible)
             {
@@ -420,6 +425,7 @@ namespace UnityEngine.Rendering.Universal
             bool opaqueShadows = shadowSettings.rayTracing.value;
             //bool transparentReflections = shadowSettings.enabledTransparent.value;
             parameters.shadows = opaqueShadows;
+            parameters.characterShadowLayerMask = shadowSettings.characterLayerMask.value;
 
             // Aggregate the ambient occlusion parameters
 

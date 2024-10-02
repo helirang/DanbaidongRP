@@ -63,6 +63,10 @@ namespace UnityEngine.Rendering.Universal
         /// Specifies if the visual effects should be included in the ray tracing acceleration structure.
         /// </summary>
         public bool includeVFX;
+        /// <summary>
+        /// Specifies the layer mask that characters will be used to evaluate ray traced shadows.
+        /// </summary>
+        public int characterShadowLayerMask;
     };
 
     /// <summary>
@@ -85,6 +89,7 @@ namespace UnityEngine.Rendering.Universal
         //RayTracingInstanceCullingTest RR_CT = new RayTracingInstanceCullingTest();
         //RayTracingInstanceCullingTest SSS_CT = new RayTracingInstanceCullingTest();
         //RayTracingInstanceCullingTest PT_CT = new RayTracingInstanceCullingTest();
+        RayTracingInstanceCullingTest ShChar_CT = new RayTracingInstanceCullingTest();
 
         // Path tracing dirtiness parameters
         public bool transformsDirty;
@@ -205,6 +210,14 @@ namespace UnityEngine.Rendering.Universal
             //PT_CT.layerMask = -1;
             //PT_CT.shadowCastingModeMask = (1 << (int)ShadowCastingMode.Off) | (1 << (int)ShadowCastingMode.On) | (1 << (int)ShadowCastingMode.TwoSided);
             //PT_CT.instanceMask = (uint)RayTracingRendererFlag.PathTracing;
+
+            // Setup the culling data for character shadows
+            ShChar_CT.allowOpaqueMaterials = true;
+            ShChar_CT.allowAlphaTestedMaterials = true;
+            ShChar_CT.allowTransparentMaterials = false;
+            ShChar_CT.layerMask = 0;
+            ShChar_CT.shadowCastingModeMask = (1 << (int)ShadowCastingMode.On) | (1 << (int)ShadowCastingMode.TwoSided) | (1 << (int)ShadowCastingMode.ShadowsOnly);
+            ShChar_CT.instanceMask = (uint)RayTracingRendererFlag.CastShadowCharacter;
         }
 
         void SetupCullingData(bool pathTracingEnabled)
@@ -308,8 +321,13 @@ namespace UnityEngine.Rendering.Universal
             {
                 ShO_CT.allowVisualEffects = parameters.includeVFX;
                 ShT_CT.allowVisualEffects = parameters.includeVFX;
+                // We exclude character layer for self raytracing shadows.
+                ShO_CT.layerMask = ~parameters.characterShadowLayerMask;
+                ShT_CT.layerMask = ~parameters.characterShadowLayerMask;
+                ShChar_CT.layerMask = parameters.characterShadowLayerMask;
                 instanceTestArray.Add(ShO_CT);
                 instanceTestArray.Add(ShT_CT);
+                instanceTestArray.Add(ShChar_CT);
             }
 
             if (parameters.ambientOcclusion)

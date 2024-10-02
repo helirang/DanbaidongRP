@@ -40,6 +40,9 @@ namespace UnityEngine.Rendering.Universal
         [Tooltip("Controls the ray length for ray traced directional shadows.")]
         public MinFloatParameter dirShadowsRayLength = new MinFloatParameter(1000.0f, 0.01f);
 
+        [Tooltip("Controls character self shadows layer.")]
+        public LayerMaskParameter characterLayerMask = new LayerMaskParameter(0);
+
         [Tooltip("Shadow intensity.")]
         public ClampedFloatParameter intensity = new ClampedFloatParameter(1.0f, 0.0f, 1.0f);
 

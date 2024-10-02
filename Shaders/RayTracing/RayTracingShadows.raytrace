@@ -8,7 +8,7 @@
  *  1. max_recursion_depth must positive > 0
  *  2. If TraceRay() inside a closest hit shader, must > 1
  */
-#pragma max_recursion_depth 1
+#pragma max_recursion_depth 2
 
 // Always use this in DX12 RayTrace
 #define SHADER_TARGET 50
@@ -23,6 +23,7 @@
 #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/GPUCulledLights.hlsl"
 #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareDepthTexture.hlsl"
 #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityGBuffer.hlsl"
+#include "Packages/com.unity.render-pipelines.danbaidong/Runtime/Lighting/ShadingModels.cs.hlsl"
 
 #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Raytracing/ShaderVariablesRaytracing.hlsl"
 #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Raytracing/RayTracingCommon.hlsl"
@@ -35,9 +36,10 @@
 
 // Input
 TEXTURE2D_X(_GBuffer2);
+TYPED_TEXTURE2D(uint2, _StencilTexture);
 
 // Output structure of the shadows raytrace shader
-RW_TEXTURE2D(float, _RayTracingShadowsTextureRW);
+RW_TEXTURE2D(float2, _RayTracingShadowsTextureRW);
 
 //--------------------------------------------------------------------------------------------------
 // Helpers
@@ -81,7 +83,7 @@ void SingleRayGen()
         return;
 
     // TODO: check stencil?
-
+    uint stencilVal = GetStencilValue(LOAD_TEXTURE2D_X(_StencilTexture, coordSS));
 
     PositionInputs posInput = GetPositionInput(coordSS, _ScreenSize.zw, rawDepth, UNITY_MATRIX_I_VP, GetWorldToViewMatrix(), 0);
     float3 V = GetWorldSpaceNormalizeViewDir(posInput.positionWS);
@@ -96,38 +98,45 @@ void SingleRayGen()
     // TODO: Check this to different directional light.
     DirectionalLightData dirLight = g_DirectionalLightDatas[0];
 
+    // r: scene shadow, g: character selfshadow
     float3 finalColor = float3(0.0, 0.0, 0.0);
     float rayDepth = 0.0;
-
 
     // Ray
     {
         // Create the ray descriptor for this pixel
         RayDesc rayDescriptor;
-        rayDescriptor.Origin = posInput.positionWS + normalWS * rayBias;
+        rayDescriptor.Origin = posInput.positionWS + normalWS * rayBias * 1.5;
         rayDescriptor.Direction = dirLight.lightDirection;
         rayDescriptor.TMin = 0.0;
         rayDescriptor.TMax = _RaytracingRayMaxLength;
 
         // Create and init the RayIntersectionVisibility structure for this
         RayIntersectionVisibility rayIntersection;
-        rayIntersection.color = float3(0.0, 0.0, 0.0);
+        rayIntersection.color = float3(1.0, 1.0, 1.0);
         rayIntersection.t = -1.0;
         rayIntersection.pixelCoord = coordSS;
+        // rayIntersection.fromCharacter = stencilVal == SHADINGMODELS_CHARACTER;
 
-        TraceRay(_RaytracingAccelerationStructure, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, RAYTRACINGRENDERERFLAG_CAST_SHADOW, 0, 1, 0, rayDescriptor, rayIntersection);
-
-
-        // if (rayIntersection.t == _RaytracingRayMaxLength) // sky and rest different?
-        float3 sampleColor = rayIntersection.color;
+        // First we cast scene shadow
+        TraceRay(_RaytracingAccelerationStructure, RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, RAYTRACINGRENDERERFLAG_CAST_SHADOW, 0, 1, 0, rayDescriptor, rayIntersection);
+        float3 sceneShadowColor = rayIntersection.color;
+        // Second we cast character shadow
+        TraceRay(_RaytracingAccelerationStructure, RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, RAYTRACINGRENDERERFLAG_CAST_SHADOW_CHARACTER, 0, 1, 0, rayDescriptor, rayIntersection);
+        float3 charShadowColor = rayIntersection.color;
 
         // Contribute to the pixel
-        finalColor = sampleColor;
+        finalColor = float3(sceneShadowColor.x, charShadowColor.x, 1.0);
         rayDepth = rayIntersection.t;
     }
 
+    // Combine scene shadow and character shadow for deferredlighting.
+    if (stencilVal != SHADINGMODELS_CHARACTER)
+    {
+        finalColor.x = min(finalColor.x, finalColor.y);
+    }
 
-    _RayTracingShadowsTextureRW[coordSS] = finalColor.x;
+    _RayTracingShadowsTextureRW[coordSS] = finalColor.xy;
 }
 
 

@@ -9,6 +9,7 @@ namespace UnityEditor.Rendering.Universal
     {
         SerializedDataParameter m_RayTracing;
         SerializedDataParameter m_DirShadowsRayLength;
+        SerializedDataParameter m_CharacterLayerMask;
 
         SerializedDataParameter m_Penumbra;
         SerializedDataParameter m_Intensity;
@@ -29,6 +30,7 @@ namespace UnityEditor.Rendering.Universal
             var o = new PropertyFetcher<Shadows>(serializedObject);
             m_RayTracing = Unpack(o.Find(x => x.rayTracing));
             m_DirShadowsRayLength = Unpack(o.Find(x => x.dirShadowsRayLength));
+            m_CharacterLayerMask = Unpack(o.Find(x => x.characterLayerMask));
 
             m_Intensity = Unpack(o.Find(x => x.intensity));
 
@@ -54,7 +56,7 @@ namespace UnityEditor.Rendering.Universal
             else
             {
                 PropertyField(m_DirShadowsRayLength);
-
+                PropertyField(m_CharacterLayerMask);
 
                 EditorGUILayout.Space(10);
 

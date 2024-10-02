@@ -62,6 +62,7 @@ namespace UnityEngine.Rendering.Universal
             internal uint dispatchRaySizeX;
             internal uint dispatchRaySizeY;
             internal ShaderVariablesRaytracing rayTracingCB;
+            internal TextureHandle stencilHandle;
         }
 
         /// <summary>
@@ -71,7 +72,7 @@ namespace UnityEngine.Rendering.Universal
         private void InitPassData(RenderGraph renderGraph, PassData passData, UniversalCameraData cameraData, UniversalResourceData resourceData, int historyFramCount)
         {
             RenderTextureDescriptor desc = cameraData.cameraTargetDescriptor;
-            desc.colorFormat = RenderTextureFormat.RFloat;
+            desc.colorFormat = RenderTextureFormat.RG32;
             desc.depthBufferBits = 0;
             desc.enableRandomWrite = true;
 
@@ -125,6 +126,8 @@ namespace UnityEngine.Rendering.Universal
                 passData.dispatchRaySizeX = (uint)width;
                 passData.dispatchRaySizeY = (uint)height;
 
+                passData.stencilHandle = resourceData.activeDepthTexture;
+
                 // RayTracing constant buffer
                 {
                     var rayTracingSettings = stack.GetComponent<RayTracingSettings>();
@@ -149,46 +152,6 @@ namespace UnityEngine.Rendering.Universal
         {
             var cmd = context.cmd;
 
-            cmd.SetComputeFloatParam(data.cs, ShaderConstants._CamHistoryFrameCount, data.camHistoryFrameCount);
-            // BuildIndirect
-            {
-                cmd.SetComputeBufferParam(data.cs, data.classifyTilesKernel, ShaderConstants.g_DispatchIndirectBuffer, data.dispatchIndirectBuffer);
-                cmd.SetComputeBufferParam(data.cs, data.classifyTilesKernel, ShaderConstants.g_TileList, data.tileListBuffer);
-                
-                cmd.SetComputeTextureParam(data.cs, data.classifyTilesKernel, ShaderConstants._DirShadowmapTexture, data.dirShadowmapTex);
-                cmd.SetComputeTextureParam(data.cs, data.classifyTilesKernel, ShaderConstants._SSDirShadowmapTexture, data.screenSpaceShadowmapTex);
-
-                cmd.DispatchCompute(data.cs, data.classifyTilesKernel, data.numTilesX, data.numTilesY, 1);
-            }
-
-            // PCSS ScreenSpaceShadowmap
-            {
-                cmd.SetComputeTextureParam(data.cs, data.shadowmapKernel, ShaderConstants._DirShadowmapTexture, data.dirShadowmapTex);
-                cmd.SetComputeTextureParam(data.cs, data.shadowmapKernel, ShaderConstants._PCSSTexture, data.screenSpaceShadowmapTex);
-
-                // Indirect buffer & dispatch
-                cmd.SetComputeBufferParam(data.cs, data.shadowmapKernel, ShaderConstants.g_TileList, data.tileListBuffer);
-                cmd.DispatchCompute(data.cs, data.shadowmapKernel, data.dispatchIndirectBuffer, argsOffset: 0);
-            }
-
-            // Bilateral Filter
-            // We use TAA enough
-            //{
-            //    cmd.SetComputeTextureParam(data.cs, data.bilateralHKernel, ShaderConstants._BilateralTexture, data.screenSpaceShadowmapTex);
-
-            //    // Indirect buffer & dispatch
-            //    cmd.SetComputeBufferParam(data.cs, data.bilateralHKernel, ShaderConstants.g_TileList, data.tileListBuffer);
-            //    cmd.DispatchCompute(data.cs, data.bilateralHKernel, data.dispatchIndirectBuffer, argsOffset: 0);
-
-
-
-            //    cmd.SetComputeTextureParam(data.cs, data.bilateralVKernel, ShaderConstants._BilateralTexture, data.screenSpaceShadowmapTex);
-
-            //    // Indirect buffer & dispatch
-            //    cmd.SetComputeBufferParam(data.cs, data.bilateralVKernel, ShaderConstants.g_TileList, data.tileListBuffer);
-            //    cmd.DispatchCompute(data.cs, data.bilateralVKernel, data.dispatchIndirectBuffer, argsOffset: 0);
-            //}
-
             // Ray Tracing Shadows
             if (data.requireRayTracing)
             {
@@ -205,8 +168,34 @@ namespace UnityEngine.Rendering.Universal
 
                     // SetTextures
                     cmd.SetRayTracingTextureParam(data.rtrtShader, ShaderConstants._RayTracingShadowsTextureRW, data.screenSpaceShadowmapTex);
+                    cmd.SetGlobalTexture(ShaderConstants._StencilTexture, data.stencilHandle, RenderTextureSubElement.Stencil);
 
                     cmd.DispatchRays(data.rtrtShader, "SingleRayGen", data.dispatchRaySizeX, data.dispatchRaySizeY, 1);
+                }
+            }
+            else
+            {
+                cmd.SetComputeFloatParam(data.cs, ShaderConstants._CamHistoryFrameCount, data.camHistoryFrameCount);
+
+                // BuildIndirect
+                {
+                    cmd.SetComputeBufferParam(data.cs, data.classifyTilesKernel, ShaderConstants.g_DispatchIndirectBuffer, data.dispatchIndirectBuffer);
+                    cmd.SetComputeBufferParam(data.cs, data.classifyTilesKernel, ShaderConstants.g_TileList, data.tileListBuffer);
+
+                    cmd.SetComputeTextureParam(data.cs, data.classifyTilesKernel, ShaderConstants._DirShadowmapTexture, data.dirShadowmapTex);
+                    cmd.SetComputeTextureParam(data.cs, data.classifyTilesKernel, ShaderConstants._SSDirShadowmapTexture, data.screenSpaceShadowmapTex);
+
+                    cmd.DispatchCompute(data.cs, data.classifyTilesKernel, data.numTilesX, data.numTilesY, 1);
+                }
+
+                // PCSS ScreenSpaceShadowmap
+                {
+                    cmd.SetComputeTextureParam(data.cs, data.shadowmapKernel, ShaderConstants._DirShadowmapTexture, data.dirShadowmapTex);
+                    cmd.SetComputeTextureParam(data.cs, data.shadowmapKernel, ShaderConstants._PCSSTexture, data.screenSpaceShadowmapTex);
+
+                    // Indirect buffer & dispatch
+                    cmd.SetComputeBufferParam(data.cs, data.shadowmapKernel, ShaderConstants.g_TileList, data.tileListBuffer);
+                    cmd.DispatchCompute(data.cs, data.shadowmapKernel, data.dispatchIndirectBuffer, argsOffset: 0);
                 }
             }
 
@@ -241,6 +230,11 @@ namespace UnityEngine.Rendering.Universal
                 builder.UseTexture(passData.dirShadowmapTex, AccessFlags.Read);
                 builder.UseTexture(passData.screenSpaceShadowmapTex, AccessFlags.ReadWrite);
                 builder.UseTexture(passData.normalGBuffer, AccessFlags.Read);
+                if (passData.requireRayTracing)
+                {
+                    builder.UseTexture(passData.stencilHandle, AccessFlags.Read);
+                }
+
                 builder.AllowPassCulling(false);
                 builder.AllowGlobalStateModification(passData.requireRayTracing);
                 //builder.EnableAsyncCompute(true);
@@ -267,6 +261,7 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _CamHistoryFrameCount = Shader.PropertyToID("_CamHistoryFrameCount");
 
             public static readonly int _RayTracingShadowsTextureRW = Shader.PropertyToID("_RayTracingShadowsTextureRW");
+            public static readonly int _StencilTexture = Shader.PropertyToID("_StencilTexture");
         }
     }
 }

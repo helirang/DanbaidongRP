@@ -27,6 +27,9 @@ Shader "DanbaidongRP/PBRToon/Face"
             _ShadowSmoothNdotL                      ("ShadowSmoothNdotL", Range(0, 1))      = 0.25
             _ShadowSmoothScene                      ("ShadowSmoothScene", Range(0, 1))      = 0.1
             _ShadowStrength                         ("ShadowStrength", Range(0, 1))         = 1.0
+            // RayTracing fringe shadow should set fringe mesh to default layer, as scene shadows.
+            [KeysEnum(FS_Mesh, FS_RayTracing)]
+            _FringeShadowSource                     ("Fringe Shadow Source", Float)         = 0
 
             [Title(Specular)]
             [HDR]_NoseSpecColor                     ("NoseSpecColor", Color)                = (0,0,0,1)
@@ -144,6 +147,7 @@ Shader "DanbaidongRP/PBRToon/Face"
             // Material Keywords
             #pragma shader_feature_local _SHADOW_RAMP
             #pragma shader_feature_local _INDIR_CUBEMAP
+            #pragma shader_feature_local _ FS_Mesh FS_RayTracing
 
             // -------------------------------------
             // Universal Pipeline keywords
@@ -151,6 +155,7 @@ Shader "DanbaidongRP/PBRToon/Face"
             // #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
             #pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
             #pragma multi_compile _ _PEROBJECT_SCREEN_SPACE_SHADOW
+            #pragma multi_compile _ _RAYTRACING_SHADOWS
             #pragma multi_compile _ _GPU_LIGHTS_CLUSTER
             #pragma multi_compile_fragment _ _REFLECTION_PROBE_BLENDING
             #pragma multi_compile_fragment _ _REFLECTION_PROBE_BOX_PROJECTION
@@ -420,10 +425,26 @@ Shader "DanbaidongRP/PBRToon/Face"
                         {
                             // Apply Shadows
                             // TODO: add different direct light shadowmap
-                            shadowAttenuation = SAMPLE_TEXTURE2D(_ScreenSpaceShadowmapTexture, sampler_PointClamp, screenUV).x;
-                            // #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
-                            // shadowAttenuation = min(shadowAttenuation, SamplePerObjectScreenSpaceShadowmap(screenUV));
-                            // #endif
+                            #ifdef _RAYTRACING_SHADOWS
+                                float2 shadowSceneCharacter = SAMPLE_TEXTURE2D(_ScreenSpaceShadowmapTexture, sampler_PointClamp, screenUV).xy;
+                                #if defined(FS_RayTracing)
+                                shadowAttenuation = min(shadowSceneCharacter.x, shadowSceneCharacter.y);
+                                hairShadowArea = 1;
+                                #elif defined(FS_Mesh)
+                                shadowAttenuation = shadowSceneCharacter.x;
+                                // hairShadowArea = hairShadowArea;
+                                #else
+                                shadowAttenuation = shadowSceneCharacter.x;
+                                hairShadowArea = 1;
+                                #endif
+
+                            #else
+                                shadowAttenuation = SAMPLE_TEXTURE2D(_ScreenSpaceShadowmapTexture, sampler_PointClamp, screenUV).x;
+                                // #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
+                                // shadowAttenuation = min(shadowAttenuation, SamplePerObjectScreenSpaceShadowmap(screenUV));
+                                // #endif
+                            #endif /* _RAYTRACING_SHADOWS */
+
                         }
                         
                         float shadowNdotL = SigmoidSharp(halfLambert, _ShadowOffset, _ShadowSmoothNdotL * 5);
@@ -806,6 +827,95 @@ Shader "DanbaidongRP/PBRToon/Face"
                 IgnoreHit();
             }
 
+
+            ENDHLSL
+        }
+
+        
+        Pass
+        {
+            Name "VisibilityDXR"
+            Tags{ "LightMode" = "VisibilityDXR" }
+
+            HLSLPROGRAM
+
+            // -------------------------------------
+            // Shader Stages
+            #pragma only_renderers d3d11 xboxseries ps5
+            #pragma raytracing surface_shader
+
+      
+            // -------------------------------------
+            // Material Keywords
+            // #pragma shader_feature_local _NORMALMAP
+            // #pragma shader_feature_local _PARALLAXMAP
+            // #pragma shader_feature_local _RECEIVE_SHADOWS_OFF
+            // #pragma shader_feature_local _ _DETAIL_MULX2 _DETAIL_SCALED
+            // #pragma shader_feature_local_fragment _SURFACE_TYPE_TRANSPARENT
+            #pragma shader_feature_local_fragment _ALPHATEST_ON
+            // #pragma shader_feature_local_fragment _ _ALPHAPREMULTIPLY_ON _ALPHAMODULATE_ON
+            // #pragma shader_feature_local_fragment _EMISSION
+            // #pragma shader_feature_local_fragment _METALLICSPECGLOSSMAP
+            // #pragma shader_feature_local_fragment _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
+            // #pragma shader_feature_local_fragment _OCCLUSIONMAP
+            // #pragma shader_feature_local_fragment _SPECULARHIGHLIGHTS_OFF
+            // #pragma shader_feature_local_fragment _ENVIRONMENTREFLECTIONS_OFF
+            // #pragma shader_feature_local_fragment _SPECULAR_SETUP
+
+            // -------------------------------------
+            // Universal Pipeline keywords
+            // #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+            // #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            // #pragma multi_compile _ EVALUATE_SH_MIXED EVALUATE_SH_VERTEX
+            // #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
+            // #pragma multi_compile_fragment _ _REFLECTION_PROBE_BLENDING
+            // #pragma multi_compile_fragment _ _REFLECTION_PROBE_BOX_PROJECTION
+            // #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            // #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
+            // #pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
+            // #pragma multi_compile_fragment _ _LIGHT_COOKIES
+            // #pragma multi_compile _ _LIGHT_LAYERS
+            // #pragma multi_compile _ _FORWARD_PLUS
+            // #include_with_pragmas "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl"
+            // #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/RenderingLayers.hlsl"
+
+
+            // -------------------------------------
+            // Unity defined keywords
+            // #pragma multi_compile _ LIGHTMAP_SHADOW_MIXING
+            // #pragma multi_compile _ SHADOWS_SHADOWMASK
+            // #pragma multi_compile _ DIRLIGHTMAP_COMBINED
+            // #pragma multi_compile _ LIGHTMAP_ON
+            // #pragma multi_compile _ DYNAMICLIGHTMAP_ON
+            // #pragma multi_compile _ USE_LEGACY_LIGHTMAPS
+            // #pragma multi_compile _ LOD_FADE_CROSSFADE
+            // #pragma multi_compile_fog
+            // #pragma multi_compile_fragment _ DEBUG_DISPLAY
+            // #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/ProbeVolumeVariants.hlsl"
+
+            //--------------------------------------
+            // GPU Instancing
+            // #pragma multi_compile_instancing
+            // #pragma instancing_options renderinglayer
+            // #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DOTS.hlsl"
+
+
+            // List all the attributes needed in raytracing shader
+            // #define ATTRIBUTES_NEED_TEXCOORD0
+            // #define ATTRIBUTES_NEED_NORMAL
+            // #define ATTRIBUTES_NEED_TANGENT
+
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
+
+
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Raytracing/ShaderVariablesRaytracing.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Raytracing/RaytracingIntersection.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Raytracing/RaytracingFragInputs.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Raytracing/RaytracingLighting.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Raytracing/RayTracingCommon.hlsl"
+
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Raytracing/RayTracingShaderPassVisibility.hlsl"
 
             ENDHLSL
         }

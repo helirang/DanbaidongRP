@@ -24,15 +24,14 @@ void ClosestHitMain(inout RayIntersectionVisibility rayIntersection : SV_RayPayl
     // float alpha = Alpha(albedoAlpha.a, _BaseColor, _Cutoff);
     // float3 albedo = albedoAlpha.rgb * _BaseColor.rgb;
 
-
-    rayIntersection.color = 0.0;
+    rayIntersection.color.x = 0;
 }
 
 // Generic function that handles the reflection code
 [shader("anyhit")]
 void AnyHitMain(inout RayIntersectionVisibility rayIntersection : SV_RayPayload, AttributeData attributeData : SV_IntersectionAttributes)
 {
-    rayIntersection.color = 10;
+    rayIntersection.color.x = 0.5;
     IgnoreHit();
 }
 

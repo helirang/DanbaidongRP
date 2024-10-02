@@ -10,7 +10,7 @@ Shader "DanbaidongRP/Helpers/CharacterFringe"
             [Title(Shadow Caster Stencil)]
             _FriStencil("Stencil ID", Float) = 96 // SHADINGMODELS_CHARACTER
             [Enum(UnityEngine.Rendering.CompareFunction)]
-            _FriStencilComp("Stencil Comparison", Float) = 3
+            _FriStencilComp("Stencil Comparison", Float) = 0
             [Enum(UnityEngine.Rendering.StencilOp)]
             _FriStencilOp("Stencil Operation", Float) = 3
             _FriStencilWriteMask("Stencil Write Mask", Float) = 97 // SHADINGMODELS_CHARACTER + 1

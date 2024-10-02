@@ -233,6 +233,12 @@ float LoadScreenSpaceShadowmap(uint2 coordSS)
     return attenuation;
 }
 
+// x: scene shadow, y: character selfshadow
+float2 LoadScreenSpaceShadowmapCharacter(uint2 coordSS)
+{
+    return LOAD_TEXTURE2D(_ScreenSpaceShadowmapTexture, coordSS).xy;
+}
+
 real SampleShadowmapFilteredLowQuality(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, ShadowSamplingData samplingData)
 {
     // 4-tap hardware comparison

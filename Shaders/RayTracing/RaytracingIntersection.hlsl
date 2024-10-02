@@ -17,13 +17,15 @@ struct RayIntersectionVisibility
     // Distance of the intersection
     float t;
     // Velocity for the intersection point
-    float velocity;
+    // float velocity;
     // Cone representation of the ray
-    RayCone cone;
+    // RayCone cone;
     // Pixel coordinate from which the initial ray was launched
     uint2 pixelCoord;
     // Value that holds the color of the ray or debug data
     float3 color;
+    // Rays from character, use to figure out character self shadow.
+    // bool fromCharacter;
 };
 
 // Structure that defines the current state of the intersection

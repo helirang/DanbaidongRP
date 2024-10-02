@@ -131,6 +131,7 @@ Shader "DanbaidongRP/PBRToon/Eye"
             // #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
             #pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
             #pragma multi_compile _ _PEROBJECT_SCREEN_SPACE_SHADOW
+            #pragma multi_compile _ _RAYTRACING_SHADOWS
             #pragma multi_compile _ _GPU_LIGHTS_CLUSTER
             #pragma multi_compile_fragment _ _REFLECTION_PROBE_BLENDING
             #pragma multi_compile_fragment _ _REFLECTION_PROBE_BOX_PROJECTION
@@ -408,10 +409,15 @@ Shader "DanbaidongRP/PBRToon/Eye"
                         {
                             // Apply Shadows
                             // TODO: add different direct light shadowmap
-                            shadowAttenuation = SAMPLE_TEXTURE2D(_ScreenSpaceShadowmapTexture, sampler_PointClamp, screenUV).x;
-                            // #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
-                            // shadowAttenuation = min(shadowAttenuation, SamplePerObjectScreenSpaceShadowmap(screenUV));
-                            // #endif
+                            #ifdef _RAYTRACING_SHADOWS
+                                float2 shadowSceneCharacter = SAMPLE_TEXTURE2D(_ScreenSpaceShadowmapTexture, sampler_PointClamp, screenUV).x;
+                                shadowAttenuation = min(shadowSceneCharacter.x, shadowSceneCharacter.y);
+                            #else
+                                shadowAttenuation = SAMPLE_TEXTURE2D(_ScreenSpaceShadowmapTexture, sampler_PointClamp, screenUV).x;
+                                // #ifdef _PEROBJECT_SCREEN_SPACE_SHADOW
+                                // shadowAttenuation = min(shadowAttenuation, SamplePerObjectScreenSpaceShadowmap(screenUV));
+                                // #endif
+                            #endif /* _RAYTRACING_SHADOWS */
                         }
                         
                         float shadowNdotL = SigmoidSharp(halfLambert, _ShadowOffset, _ShadowSmoothNdotL * 5);
