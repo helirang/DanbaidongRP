@@ -17,24 +17,24 @@ Subscribe:
 
 Roadmap & Features:
 
-- [X]  PBR Toon Shader
-- [ ]  Cel shading
-- [X]  Danbaidong Shader GUI
-- [X]  PerObjectShadow
-- [X]  PCSS/PCF Soft Shadows
-- [X]  Shadow Scattering
-- [ ]  Ray Tracing Shadow
-- [ ]  Transparent Shadows
-- [X]  Toon Toonmapping
-- [X]  Toon Bloom
-- [X]  Visual Sky
-- [X]  High Quality SSR (Ray Tracing)
-- [ ]  High Quality SSAO
-- [ ]  High Quality SSGI
-- [X]  Cluster Deferred lighting
-- [X]  Character Forward lighting
-- [ ]  Atmosphere Fog
-- [ ]  Idol Live アイドル!!!!!
+- [x] PBR Toon Shader
+- [ ] Cel shading
+- [x] Danbaidong Shader GUI
+- [x] PerObjectShadow
+- [x] PCSS/PCF Soft Shadows
+- [x] Shadow Scattering
+- [ ] Ray Tracing Shadow
+- [ ] Transparent Shadows
+- [x] Toon Toonmapping
+- [x] Toon Bloom
+- [x] Visual Sky
+- [x] High Quality SSR (Ray Tracing)
+- [ ] High Quality SSAO
+- [ ] High Quality SSGI
+- [x] Cluster Deferred lighting
+- [x] Character Forward lighting
+- [ ] Atmosphere Fog
+- [ ] Idol Live アイドル!!!!!
 
 # Usage
 
@@ -50,36 +50,39 @@ Roadmap & Features:
 
 # Character Rendering
 
-![ToonRenderingSuomi](ReadmeAssets/202409011.png)
+![ToonRenderingSuomi](ReadmeAssets~/202409011.png)
 
-![ToonRenderingDirect](ReadmeAssets/202311071.PNG)
+![ToonRenderingDirect](ReadmeAssets~/202311071.PNG)
 
-![ToonRenderingPunctual](ReadmeAssets/202311072.PNG)
+![ToonRenderingPunctual](ReadmeAssets~/202311072.PNG)
 
 # Danbaidong Shader GUI
 
 CustomEditor "UnityEditor.DanbaidongGUI.DanbaidongGUI"`
 
-![ShaderGUI](ReadmeAssets/202311073.PNG)
+![ShaderGUI](ReadmeAssets~/202311073.PNG)
 
-![GradientEditor](ReadmeAssets/202311074.PNG)
+![GradientEditor](ReadmeAssets~/202311074.PNG)
 
 # Shadows
 
 **Shadow Scattering**
 
-![ShadowScatter](ReadmeAssets/202409012.png)
+![ShadowScatter](ReadmeAssets~/202409012.png)
 
 **Per Object Shadow**
 
-![PerObjectShadow](ReadmeAssets/202311075.PNG)
+![PerObjectShadow](ReadmeAssets~/202311075.PNG)
 
-![PerObjectShadowmap](ReadmeAssets/202311076.PNG)
+![PerObjectShadowmap](ReadmeAssets~/202311076.PNG)
 
 # Reflections (RayTracing)
 
-![Reflection](ReadmeAssets/202409013.png)
+![Reflection](ReadmeAssets~/202409013.png)
+
+![ReflectionScene](ReadmeAssets~/202410021.png)
 
 # GPU Lights (Cluster)
 
-![GPULights](ReadmeAssets/202409014.png)
+![GPULights](ReadmeAssets~/202409014.png)
+
