@@ -90,6 +90,12 @@ Shader "DanbaidongRP/PBRToon/Transparent"
         _Cutoff                                     ("Cutoff", Range(0, 1))                 = 1
 
         _Alpha("Alpha", range(0, 1)) = 1.0
+
+        // Outline
+        [FoldoutBegin(_FoldoutTransBackfaceEnd, PassSwitch, TransparentBackface)]_FoldoutTransBackface("TransBackface", float) = 0
+            _AlphaBackface("AlphaBackface", range(0, 1)) = 1.0
+        [FoldoutEnd]_FoldoutTransBackfaceEnd("_FoldoutEnd", float) = 0
+
         [Header(Blend Mode)]
         [Enum(UnityEngine.Rendering.BlendMode)]
         _BlendSrc("Blend src", int) = 5
@@ -106,7 +112,433 @@ Shader "DanbaidongRP/PBRToon/Transparent"
         Tags {"RenderType" = "Transparent"  "Queue" = "Transparent" "RenderPipeline" = "UniversalPipeline"}
         LOD 300
 
-        // CharacterForward: shading
+        // TransparentBackface: must before common transparent.
+        Pass
+        {
+            Name "TransparentBackface"
+            Tags
+            {
+                "LightMode" = "TransparentBackface"
+            }
+
+            // -------------------------------------
+            // Render State Commands
+            BlendOp [_BlendOp]
+            Blend [_BlendSrc] [_BlendDst]
+            ZWrite [_ZWrite]
+
+            Cull Front
+
+            HLSLPROGRAM
+            #pragma target 4.5
+
+            // -------------------------------------
+            // Shader Stages
+            #pragma vertex ForwardToonVert
+            #pragma fragment ForwardToonFrag
+
+            // -------------------------------------
+            // Material Keywords
+            #pragma shader_feature_local _SHADOW_RAMP
+            #pragma shader_feature_local _INDIR_CUBEMAP
+            // We use predepth in gbuffer, no need to do alpha test in CharacterForward
+            // #pragma shader_feature_local _ALPHATEST_ON
+
+            // -------------------------------------
+            // Universal Pipeline keywords
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            // #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            #pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
+            #pragma multi_compile _ _PEROBJECT_SCREEN_SPACE_SHADOW
+            #pragma multi_compile _ _RAYTRACING_SHADOWS
+            #pragma multi_compile _ _GPU_LIGHTS_CLUSTER
+            #pragma multi_compile_fragment _ _REFLECTION_PROBE_BLENDING
+            #pragma multi_compile_fragment _ _REFLECTION_PROBE_BOX_PROJECTION
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            // #pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
+            #pragma multi_compile_fragment _ _LIGHT_COOKIES
+            #pragma multi_compile _ _LIGHT_LAYERS
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/RenderingLayers.hlsl"
+
+            // -------------------------------------
+            // Unity defined keywords
+            // #pragma multi_compile _ LIGHTMAP_SHADOW_MIXING
+            // #pragma multi_compile _ SHADOWS_SHADOWMASK
+            // #pragma multi_compile _ DIRLIGHTMAP_COMBINED
+            // #pragma multi_compile _ LIGHTMAP_ON
+            // #pragma multi_compile _ DYNAMICLIGHTMAP_ON
+            // #pragma multi_compile _ USE_LEGACY_LIGHTMAPS
+            #pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
+            #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
+
+            //--------------------------------------
+            // GPU Instancing
+            #pragma multi_compile_instancing
+            #pragma instancing_options renderinglayer
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DOTS.hlsl"
+
+            // -------------------------------------
+            // Includes
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Lighting.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/UnityInstancing.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/UnityGBuffer.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareDepthTexture.hlsl"
+
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/GPUCulledLights.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/PreIntegratedFGD.hlsl"
+            #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/PerObjectShadows.hlsl"
+
+            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Material/PBRToon/PBRToon.hlsl"
+
+
+            CBUFFER_START(UnityPerMaterial)
+            float3  _BaseColor;
+            float4  _BaseMap_ST;
+            float   _NormalScale;
+
+            // PBR Properties
+            float   _Metallic;
+            float   _Smoothness;
+            float   _Occlusion;
+
+            // Direct Light
+            float4  _SelfLight;
+            float   _MainLightColorLerp;
+            float   _DirectOcclusion;
+
+            // Shadow
+            float4  _ShadowColor;
+            float   _ShadowOffset;
+            float   _ShadowSmoothNdotL;
+            float   _ShadowSmoothScene;
+            float   _ShadowStrength;
+
+            // Indirect
+            float4  _SelfEnvColor;
+            float   _EnvColorLerp;
+            float   _IndirDiffUpDirSH;
+            float   _IndirDiffIntensity;
+            float   _IndirSpecCubeWeight;
+            float   _IndirSpecIntensity;
+
+            // Emission
+            float4  _EmissionCol;
+            // RimLight
+            float4  _DirectRimFrontCol;
+            float4  _DirectRimBackCol;
+            float   _DirectRimWidth;
+            float   _PunctualRimWidth;
+
+            // Alpha Test
+            float   _Cutoff;
+
+            // Alpha Blend
+            float   _Alpha;
+            float   _AlphaBackface;
+            CBUFFER_END
+
+            TEXTURE2D(_BaseMap);
+            SAMPLER(sampler_BaseMap);
+
+            TEXTURE2D(_PBRMask);
+            SAMPLER(sampler_PBRMask);
+            TEXTURE2D(_NormalMap);
+            SAMPLER(sampler_NormalMap);    
+
+            TEXTURE2D(_ShadowRampTex);
+            SAMPLER(sampler_ShadowRampTex);
+
+            TEXTURECUBE(_IndirSpecCubemap);
+
+
+            struct Attributes
+            {
+                float4 vertex       :POSITION;
+                float3 normal       :NORMAL;
+                float4 tangent      :TANGENT;
+                float4 color        :COLOR;
+                float2 uv0          :TEXCOORD0;
+                float2 uv1          :TEXCOORD1;
+                UNITY_VERTEX_INPUT_INSTANCE_ID 
+            };
+
+            struct Varyings 
+            {
+                float4 positionHCS      :SV_POSITION;
+                float3 positionWS       :TEXCOORD0;
+                float3 normalWS         :TEXCOORD1;
+                float3 tangentWS        :TEXCOORD2;
+                float3 biTangentWS      :TEXCOORD3;
+                float4 color            :TEXCOORD4;
+                float4 uv               :TEXCOORD5;// xy:uv0 zw:uv1
+                // Other Props
+
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+                UNITY_VERTEX_OUTPUT_STEREO
+            };
+
+            Varyings ForwardToonVert(Attributes v)
+            {
+                Varyings o;
+                ZERO_INITIALIZE(Varyings, o);
+                
+                UNITY_SETUP_INSTANCE_ID(v); 
+                UNITY_TRANSFER_INSTANCE_ID(v,o); 
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
+
+                o.positionHCS = TransformObjectToHClip(v.vertex.xyz);
+                o.positionWS = TransformObjectToWorld(v.vertex.xyz);
+                o.normalWS = TransformObjectToWorldNormal(v.normal);
+                o.tangentWS = TransformObjectToWorldDir(v.tangent.xyz);
+                o.biTangentWS = cross(o.normalWS, o.tangentWS) * v.tangent.w * GetOddNegativeScale();
+                o.color = v.color;
+                o.uv.xy = TRANSFORM_TEX(v.uv0.xy, _BaseMap);
+                o.uv.zw = v.uv1.xy;
+
+                return o;
+            }
+
+
+            float4 ForwardToonFrag(Varyings i) : SV_Target0
+            {
+                UNITY_SETUP_INSTANCE_ID(i);
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
+
+                float  depth = i.positionHCS.z;
+                float2 UV = i.uv.xy;
+                float2 UV1 = i.uv.zw;
+                float3 positionWS = i.positionWS;
+                float2 screenUV = i.positionHCS.xy / _ScreenParams.xy;
+                TransformScreenUV(screenUV);
+
+                // Tex Sample
+                float4 mainTex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, UV);
+                float4 pbrMask = SAMPLE_TEXTURE2D(_PBRMask, sampler_PBRMask, UV);
+                float3 bumpTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, UV), _NormalScale);
+
+                // Property prepare
+                float emission               = 1 - pbrMask.a;
+                float metallic               = lerp(0, _Metallic, pbrMask.r);
+                float smoothness             = lerp(0, _Smoothness, pbrMask.g);
+                float occlusion              = lerp(1 - _Occlusion, 1, pbrMask.b);
+                float directOcclusion        = lerp(1 - _DirectOcclusion, 1, pbrMask.b);
+                float3 albedo                = mainTex.rgb * _BaseColor.rgb;
+                float alpha                  = mainTex.a * _Alpha;
+
+
+                float perceptualRoughness = PerceptualSmoothnessToPerceptualRoughness(smoothness);
+                float roughness           = PerceptualRoughnessToRoughness(perceptualRoughness);
+                float roughnessSquare     = max(roughness * roughness, FLT_MIN);
+
+                float3 normalWS = SafeNormalize(i.normalWS);
+                float3x3 TBN = float3x3(i.tangentWS, i.biTangentWS, i.normalWS);
+                float3 bumpWS = TransformTangentToWorld(bumpTS, TBN);
+                normalWS = SafeNormalize(bumpWS);
+
+                // Rim Light
+                float3 normalVS = TransformWorldToViewNormal(normalWS);
+                normalVS = SafeNormalize(normalVS);
+
+                float3 viewDirWS = GetWorldSpaceNormalizeViewDir(positionWS);
+                float NdotV = dot(normalWS, viewDirWS);
+                float clampedNdotV = ClampNdotV(NdotV);
+
+                uint meshRenderingLayers = GetMeshRenderingLayer();
+
+                DirectLighting directLighting;
+                IndirectLighting indirectLighting;
+                ZERO_INITIALIZE(DirectLighting, directLighting);
+                ZERO_INITIALIZE(IndirectLighting, indirectLighting);
+                float3 rimColor = 0;
+
+                float3 diffuseColor = ComputeDiffuseColor(albedo, metallic);
+                float3 fresnel0 = ComputeFresnel0(albedo, metallic, DEFAULT_SPECULAR_VALUE);
+
+                float3 specularFGD;
+                float  diffuseFGD;
+                float  reflectivity;
+                GetPreIntegratedFGDGGXAndDisneyDiffuse(clampedNdotV, perceptualRoughness, fresnel0, specularFGD, diffuseFGD, reflectivity);
+                float energyCompensation = 1.0 / reflectivity - 1.0;
+
+                float directRimArea = GetCharacterDirectRimLightArea(normalVS, screenUV, depth, _DirectRimWidth);
+
+                // Accumulate Direct
+                // Directional Lights
+                uint lightIndex = 0;
+                for (lightIndex = 0; lightIndex < _DirectionalLightCount; lightIndex++)
+                {
+                    DirectionalLightData dirLight = g_DirectionalLightDatas[lightIndex];
+
+                    #ifdef _LIGHT_LAYERS
+                    if (IsMatchingLightLayer(dirLight.lightLayerMask, meshRenderingLayers))
+                    #endif
+                    {
+                        dirLight.lightColor = lerp(dirLight.lightColor, _SelfLight.rgb, _MainLightColorLerp);
+
+                        float3 lightDirWS = dirLight.lightDirection;
+                        float NdotL = dot(normalWS, lightDirWS);
+                        
+                        float clampedNdotL = saturate(NdotL);
+                        float halfLambert = NdotL * 0.5 + 0.5;
+                        float clampedRoughness = max(roughness, dirLight.minRoughness);
+
+                        float LdotV, NdotH, LdotH, invLenLV;
+                        GetBSDFAngle(viewDirWS, lightDirWS, NdotL, NdotV, LdotV, NdotH, LdotH, invLenLV);
+                        float3 lightDirVS = TransformWorldToViewDir(lightDirWS);
+                        lightDirVS = SafeNormalize(lightDirVS);
+
+                        // Shadow
+                        // Remap Shadow area for NPR diffuse, but we should use clampedNdotL for PBR specular.
+                        float shadowAttenuation = 1;
+                        if (lightIndex == 0)
+                        {
+                            // Apply Shadows
+                            // TODO: add different direct light shadowmap
+                            #ifdef _RAYTRACING_SHADOWS
+                                float2 shadowSceneCharacter = SAMPLE_TEXTURE2D(_ScreenSpaceShadowmapTexture, sampler_PointClamp, screenUV).xy;
+                                shadowAttenuation = min(shadowSceneCharacter.x, shadowSceneCharacter.y);
+                            #else
+                                shadowAttenuation = MainLightRealtimeShadow(TransformWorldToShadowCoord(positionWS));
+                            #endif /* _RAYTRACING_SHADOWS */
+
+                        }
+                        
+                        float shadowNdotL = SigmoidSharp(halfLambert, _ShadowOffset, _ShadowSmoothNdotL * 5);
+                        float shadowScene = SigmoidSharp(shadowAttenuation, 0.5, _ShadowSmoothScene * 5);
+                        float shadowArea = min(shadowNdotL, shadowScene);
+                        shadowArea = lerp(1, shadowArea, _ShadowStrength);
+
+                        float3 shadowRamp = lerp(_ShadowColor.rgb, float3(1, 1, 1), shadowArea);
+                        #ifdef _SHADOW_RAMP
+                        shadowRamp = SampleDirectShadowRamp(TEXTURE2D_ARGS(_ShadowRampTex, sampler_ShadowRampTex), shadowArea).xyz;
+                        #endif
+
+                        // BRDF
+                        float3 F = F_Schlick(fresnel0, LdotH);
+                        float DV = DV_SmithJointGGX(NdotH, abs(NdotL), clampedNdotV, clampedRoughness);
+                        float3 specTerm = F * DV;
+                        float diffTerm = Lambert();
+
+                        #ifdef _SHADOW_RAMP
+                        float specRange = saturate(DV);
+                        float3 specRampCol = SampleDirectSpecularRamp(TEXTURE2D_ARGS(_ShadowRampTex, sampler_ShadowRampTex), specRange).xyz;
+                        specTerm = F * clamp(specRampCol.rgb + DV, 0, 10);
+                        #endif
+
+                        // Direct Rim Light
+                        float3 frontRimCol = lerp(_DirectRimFrontCol.rgb, _DirectRimFrontCol.rgb * dirLight.lightColor,  _DirectRimFrontCol.a);
+                        float3 backRimCol = lerp(_DirectRimBackCol.rgb, _DirectRimBackCol.rgb * dirLight.lightColor,  _DirectRimBackCol.a);
+                        float3 directRim = GetRimColor(directRimArea, diffuseColor, normalVS, lightDirVS, shadowArea, frontRimCol, backRimCol);
+
+                        // Accumulate
+                        directLighting.diffuse += diffuseColor * diffTerm * shadowRamp * dirLight.lightColor * directOcclusion;
+                        directLighting.specular += specTerm * clampedNdotL * shadowScene * dirLight.lightColor * directOcclusion;
+                        rimColor += directRim;
+                    }
+                }
+
+                // Punctual Lights
+                uint lightCategory = LIGHTCATEGORY_PUNCTUAL;
+                uint lightStart;
+                uint lightCount;
+                PositionInputs posInput = GetPositionInput(i.positionHCS.xy, _ScreenSize.zw, depth, UNITY_MATRIX_I_VP, UNITY_MATRIX_V);
+                GetCountAndStart(posInput, lightCategory, lightStart, lightCount);
+                uint v_lightListOffset = 0;
+                uint v_lightIdx = lightStart;
+
+                if (lightCount > 0) // avoid 0 iteration warning.
+                {
+                    while (v_lightListOffset < lightCount)
+                    {
+                        v_lightIdx = FetchIndex(lightStart, v_lightListOffset);
+                        if (v_lightIdx == -1)
+                            break;
+
+                        GPULightData gpuLight = FetchLight(v_lightIdx);
+
+                        #ifdef _LIGHT_LAYERS
+                        if (IsMatchingLightLayer(gpuLight.lightLayerMask, meshRenderingLayers))
+                        #endif
+                        {
+                            float3 lightVector = gpuLight.lightPosWS - positionWS.xyz;
+                            float distanceSqr = max(dot(lightVector, lightVector), FLT_MIN);
+                            float3 lightDirection = float3(lightVector * rsqrt(distanceSqr));
+                            float shadowMask = 1;
+
+                            float distanceAtten = DistanceAttenuation(distanceSqr, gpuLight.lightAttenuation.xy) * AngleAttenuation(gpuLight.lightDirection.xyz, lightDirection, gpuLight.lightAttenuation.zw);
+                            float shadowAtten = gpuLight.shadowType == 0 ? 1 : AdditionalLightShadow(gpuLight.shadowLightIndex, positionWS, lightDirection, shadowMask, gpuLight.lightOcclusionProbInfo);
+                            float attenuation = distanceAtten * shadowAtten;
+
+                            // Lighting Logical Code Begins
+                            float3 lightDirWS = lightDirection;
+                            float NdotL = dot(normalWS, lightDirWS);
+                            
+                            float clampedNdotL = saturate(NdotL);
+                            float clampedRoughness = max(roughness, gpuLight.minRoughness);
+
+                            float LdotV, NdotH, LdotH, invLenLV;
+                            GetBSDFAngle(viewDirWS, lightDirWS, NdotL, NdotV, LdotV, NdotH, LdotH, invLenLV);
+
+
+                            float3 F = F_Schlick(fresnel0, LdotH);
+                            float DV = DV_SmithJointGGX(NdotH, abs(NdotL), clampedNdotV, clampedRoughness);
+                            float3 specTerm = F * DV;
+                            float diffTerm = Lambert();
+
+                            diffTerm *= clampedNdotL;
+                            specTerm *= clampedNdotL;
+
+                            // Punctual Rim Light
+                            float3 lightDirVS = TransformWorldToViewDir(lightDirWS);
+                            lightDirVS = SafeNormalize(lightDirVS);
+                            float punctualRimArea = GetCharacterPunctualRimLightArea(lightDirVS, screenUV, depth, _PunctualRimWidth);
+                            float3 punctualRim = GetRimColor(punctualRimArea, diffuseColor, normalVS, lightDirVS, 1, gpuLight.lightColor, float3(0,0,0));
+
+                            directLighting.diffuse += diffuseColor * diffTerm * gpuLight.lightColor * attenuation * gpuLight.baseContribution;
+                            directLighting.specular += specTerm * gpuLight.lightColor * attenuation * gpuLight.baseContribution;
+                            rimColor += punctualRim * attenuation * gpuLight.rimContribution;
+
+                        }
+
+                        v_lightListOffset++;
+                    }
+                }
+
+
+
+                // Accumulate Indirect
+                // Indirect Diffuse
+                EvaluateIndirectDiffuse(indirectLighting, diffuseColor, normalWS, _IndirDiffUpDirSH, _SelfEnvColor, _EnvColorLerp, diffuseFGD);
+
+                // Indirect Specular
+                float3 reflectDirWS = reflect(-viewDirWS, normalWS);
+                float reflectionHierarchyWeight = 0.0; // Max: 1.0
+
+                #if defined(_INDIR_CUBEMAP)
+                EvaluateIndirectSpecular_Cubemap(indirectLighting, TEXTURECUBE_ARGS(_IndirSpecCubemap, sampler_LinearRepeat), 
+                                                reflectDirWS, perceptualRoughness, specularFGD,
+                                                reflectionHierarchyWeight, _IndirSpecCubeWeight);
+                #endif
+
+                EvaluateIndirectSpecular_Sky(indirectLighting, reflectDirWS, perceptualRoughness, specularFGD,
+                                            reflectionHierarchyWeight, 1.0);
+
+                // Emission
+                float3 emissResult = emission * lerp(_EmissionCol.rgb, _EmissionCol.rgb * albedo.rgb, _EmissionCol.a);
+                
+                // PostEvaluate occlusion and energyCompensation
+                float3 resultColor = PostEvaluate(directLighting, indirectLighting, occlusion, fresnel0, energyCompensation, _IndirDiffIntensity, _IndirSpecIntensity);
+                resultColor += emissResult;
+
+
+                return float4(resultColor, _AlphaBackface);
+            }
+            ENDHLSL
+
+        }
+
+        // Transparent: transparent shading
         Pass
         {
             Name "Transparent"
@@ -229,6 +661,7 @@ Shader "DanbaidongRP/PBRToon/Transparent"
 
             // Alpha Blend
             float   _Alpha;
+            float   _AlphaBackface;
             CBUFFER_END
 
             TEXTURE2D(_BaseMap);

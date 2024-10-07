@@ -369,8 +369,16 @@ namespace UnityEngine.Rendering.Universal
             if (needTransparencyPass)
 #endif
             {
+                // Add Transparents backeFace rendering, DanbaidongRP.
+                ShaderTagId[] transparentShaderTagIds = new ShaderTagId[]
+                {
+                    new ShaderTagId("TransparentBackface"), // For BackFace Transparents.
+                    new ShaderTagId("UniversalForwardOnly"),
+                    new ShaderTagId("UniversalForward"),
+                    new ShaderTagId("SRPDefaultUnlit"),
+                };
                 m_TransparentSettingsPass = new TransparentSettingsPass(RenderPassEvent.BeforeRenderingTransparents, data.shadowTransparentReceive);
-                m_RenderTransparentForwardPass = new DrawObjectsPass(URPProfileId.DrawTransparentObjects, false, RenderPassEvent.BeforeRenderingTransparents, RenderQueueRange.transparent, data.transparentLayerMask, m_DefaultStencilState, stencilData.stencilReference);
+                m_RenderTransparentForwardPass = new DrawObjectsPass(URPProfileId.DrawTransparentObjects, transparentShaderTagIds, false, RenderPassEvent.BeforeRenderingTransparents, RenderQueueRange.transparent, data.transparentLayerMask, m_DefaultStencilState, stencilData.stencilReference);
             }
             m_OnRenderObjectCallbackPass = new InvokeOnRenderObjectCallbackPass(RenderPassEvent.BeforeRenderingPostProcessing);
 
