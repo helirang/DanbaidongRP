@@ -328,6 +328,13 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
     float  diffuseFGD;
     float  reflectivity;
     GetPreIntegratedFGDGGXAndDisneyDiffuse(clampedNdotV, shadingData.perceptualRoughness, shadingData.fresnel0, specularFGD, diffuseFGD, reflectivity);
+    
+    // Ref: Practical multiple scattering compensation for microfacet models.
+    // We only apply the formulation for metals.
+    // For dielectrics, the change of reflectance is negligible.
+    // We deem the intensity difference of a couple of percent for high values of roughness
+    // to not be worth the cost of another precomputed table.
+    // Note: this formulation bakes the BSDF non-symmetric!
     float energyCompensation = 1.0 / reflectivity - 1.0;
 
     float3 directDiffuse = 0;
