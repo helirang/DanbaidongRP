@@ -1,4 +1,3 @@
-#if ENABLE_VR && ENABLE_XR_MODULE
 using System;
 
 namespace UnityEngine.Rendering.Universal
@@ -34,7 +33,7 @@ namespace UnityEngine.Rendering.Universal
 
         [SerializeField]
         [ResourcePath("Shaders/XR/XRMirrorView.shader")]
-        public Shader m_xrMirrorViewPS;
+        private Shader m_xrMirrorViewPS;
 
         /// <summary>
         /// XR Mirror View shader.
@@ -43,6 +42,19 @@ namespace UnityEngine.Rendering.Universal
         {
             get => m_xrMirrorViewPS;
             set => this.SetValueAndNotify(ref m_xrMirrorViewPS, value, nameof(m_xrMirrorViewPS));
+        }
+
+        [SerializeField]
+        [ResourcePath("Shaders/XR/XRMotionVector.shader")]
+        private Shader m_xrMotionVector;
+
+        /// <summary>
+        /// XR MotionVector shader.
+        /// </summary>
+        public Shader xrMotionVector
+        {
+            get => m_xrMotionVector;
+            set => this.SetValueAndNotify(ref m_xrMotionVector, value, nameof(m_xrMotionVector));
         }
 
         internal bool valid
@@ -55,9 +67,11 @@ namespace UnityEngine.Rendering.Universal
                 if (xrMirrorViewPS == null)
                     return false;
 
+                if (m_xrMotionVector == null)
+                    return false;
+
                 return true;
             }
         }
     }
 }
-#endif

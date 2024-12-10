@@ -5,8 +5,6 @@
   "unity": "6000.0",
   "displayName": "Universal RP",
   "dependencies": {
-    "com.unity.mathematics": "1.2.1",
-    "com.unity.burst": "1.8.9",
     "com.unity.render-pipelines.core": "17.0.3",
     "com.unity.shadergraph": "17.0.3",
     "com.unity.render-pipelines.universal-config": "17.0.3"
@@ -31,5 +29,5 @@
       "path": "Samples~/URPRenderGraphSamples"
     }
   ],
-  "_fingerprint": "438a071df28be3f6b72aa2445ec699bbc6250e68"
+  "_fingerprint": "ab772dad2c1bf67d1b3463f09340fcdd5ce4659b"
 }

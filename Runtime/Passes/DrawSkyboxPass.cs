@@ -12,8 +12,6 @@ namespace UnityEngine.Rendering.Universal
     /// </summary>
     public class DrawSkyboxPass : ScriptableRenderPass
     {
-        static readonly int s_CameraDepthTextureID = Shader.PropertyToID("_CameraDepthTexture");
-
         /// <summary>
         /// Creates a new <c>DrawSkyboxPass</c> instance.
         /// </summary>
@@ -21,8 +19,7 @@ namespace UnityEngine.Rendering.Universal
         /// <seealso cref="RenderPassEvent"/>
         public DrawSkyboxPass(RenderPassEvent evt)
         {
-            base.profilingSampler = new ProfilingSampler(nameof(DrawSkyboxPass));
-
+            profilingSampler = ProfilingSampler.Get(URPProfileId.DrawSkybox);
             renderPassEvent = evt;
         }
 
@@ -123,6 +120,7 @@ namespace UnityEngine.Rendering.Universal
         {
             internal XRPass xr;
             internal RendererListHandle skyRendererListHandle;
+            internal Material material;
         }
 
         private void InitPassData(ref PassData passData, in XRPass xr, in RendererListHandle handle)
@@ -131,7 +129,7 @@ namespace UnityEngine.Rendering.Universal
             passData.skyRendererListHandle = handle;
         }
 
-        internal void Render(RenderGraph renderGraph, ContextContainer frameData, ScriptableRenderContext context, TextureHandle colorTarget, TextureHandle depthTarget, bool hasDepthCopy = false)
+        internal void Render(RenderGraph renderGraph, ContextContainer frameData, ScriptableRenderContext context, TextureHandle colorTarget, TextureHandle depthTarget, Material skyboxMaterial)
         {
             UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
             UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
@@ -147,26 +145,21 @@ namespace UnityEngine.Rendering.Universal
                 }
             }
 
-            using (var builder = renderGraph.AddRasterRenderPass<PassData>("Draw Skybox Pass", out var passData,
-                base.profilingSampler))
+            using (var builder = renderGraph.AddRasterRenderPass<PassData>(passName, out var passData, profilingSampler))
             {
                 var skyRendererListHandle = CreateSkyBoxRendererList(renderGraph, cameraData);
                 InitPassData(ref passData, cameraData.xr, skyRendererListHandle);
+                passData.material = skyboxMaterial;
                 builder.UseRendererList(skyRendererListHandle);
                 builder.SetRenderAttachment(colorTarget, 0, AccessFlags.Write);
                 builder.SetRenderAttachmentDepth(depthTarget, AccessFlags.Write);
 
-                UniversalRenderer renderer = cameraData.renderer as UniversalRenderer;
-                if (hasDepthCopy && resourceData.cameraDepthTexture.IsValid())
-                {
-                    if (renderer.renderingModeActual != RenderingMode.Deferred)
-                        builder.UseGlobalTexture(s_CameraDepthTextureID);
-                    else if (renderer.deferredLights.GbufferDepthIndex != -1)
-                        builder.UseGlobalTexture(DeferredLights.k_GBufferShaderPropertyIDs[renderer.deferredLights.GbufferDepthIndex]);
-                }
-
                 builder.AllowPassCulling(false);
-                builder.EnableFoveatedRasterization(cameraData.xr.supportsFoveatedRendering);
+                if (cameraData.xr.enabled)
+                {
+                    bool passSupportsFoveation = cameraData.xrUniversal.canFoveateIntermediatePasses || resourceData.isActiveTargetBackBuffer;
+                    builder.EnableFoveatedRasterization(cameraData.xr.supportsFoveatedRendering && passSupportsFoveation);
+                }
 
                 builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
                 {

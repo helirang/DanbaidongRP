@@ -9,7 +9,7 @@ namespace UnityEditor.Rendering.Universal
 
     internal partial class UniversalRenderPipelineAssetUI
     {
-        enum Expandable
+        internal enum Expandable
         {
             Rendering = 1 << 1,
             Quality = 1 << 2,
@@ -39,15 +39,6 @@ namespace UnityEditor.Rendering.Universal
         internal static void UnregisterEditor(UniversalRenderPipelineAssetEditor editor)
         {
             k_AdditionalPropertiesState.UnregisterEditor(editor);
-        }
-
-        [SetAdditionalPropertiesVisibility]
-        internal static void SetAdditionalPropertiesVisibility(bool value)
-        {
-            if (value)
-                k_AdditionalPropertiesState.ShowAll();
-            else
-                k_AdditionalPropertiesState.HideAll();
         }
 
         static bool ValidateRendererGraphicsAPIsForLightLayers(UniversalRenderPipelineAsset pipelineAsset, out string unsupportedGraphicsApisMessage)
@@ -102,6 +93,11 @@ namespace UnityEditor.Rendering.Universal
 
         static readonly ExpandedState<Expandable, UniversalRenderPipelineAsset> k_ExpandedState = new(Expandable.Rendering, "URP");
         readonly static AdditionalPropertiesState<ExpandableAdditional, Light> k_AdditionalPropertiesState = new(0, "URP");
+
+        internal static void Expand(Expandable expandable, bool state)
+        {
+            k_ExpandedState[expandable] = state;
+        }
 
         public static readonly CED.IDrawer Inspector = CED.Group(
             CED.AdditionalPropertiesFoldoutGroup(Styles.renderingSettingsText, Expandable.Rendering, k_ExpandedState, ExpandableAdditional.Rendering, k_AdditionalPropertiesState, DrawRendering, DrawRenderingAdditional),

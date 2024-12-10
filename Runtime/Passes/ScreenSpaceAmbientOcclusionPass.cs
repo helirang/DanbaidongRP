@@ -1,4 +1,5 @@
 using System;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 
 namespace UnityEngine.Rendering.Universal
@@ -178,7 +179,7 @@ namespace UnityEngine.Rendering.Universal
                     ConfigureInput(ScriptableRenderPassInput.Depth);
                     break;
                 case ScreenSpaceAmbientOcclusionSettings.DepthSource.DepthNormals:
-                    ConfigureInput(ScriptableRenderPassInput.Normal); // need depthNormal prepass for forward-only geometry
+                    ConfigureInput(ScriptableRenderPassInput.Depth | ScriptableRenderPassInput.Normal); // need depthNormal prepass for forward-only geometry
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
@@ -308,7 +309,6 @@ namespace UnityEngine.Rendering.Universal
             internal TextureHandle AOTexture;
             internal TextureHandle finalTexture;
             internal TextureHandle blurTexture;
-            internal TextureHandle cameraDepthTexture;
             internal TextureHandle cameraNormalsTexture;
         }
 
@@ -334,15 +334,13 @@ namespace UnityEngine.Rendering.Universal
                                        out TextureHandle finalTexture);
 
             // Get the resources
-            UniversalRenderer universalRenderer = cameraData.renderer as UniversalRenderer;
-            bool isDeferred = universalRenderer != null && universalRenderer.renderingModeActual == RenderingMode.Deferred;
-            TextureHandle cameraDepthTexture = isDeferred ? resourceData.activeDepthTexture : resourceData.cameraDepthTexture;
+            TextureHandle cameraDepthTexture = resourceData.cameraDepthTexture;
             TextureHandle cameraNormalsTexture = resourceData.cameraNormalsTexture;
 
             // Update keywords and other shader params
             SetupKeywordsAndParameters(ref m_CurrentSettings, ref cameraData);
 
-            using (IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass<SSAOPassData>("SSAO", out var passData, m_ProfilingSampler))
+            using (IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass<SSAOPassData>("Blit SSAO", out var passData, m_ProfilingSampler))
             {
                 // Shader keyword changes are considered as global state modifications
                 builder.AllowGlobalStateModification(true);
@@ -354,7 +352,6 @@ namespace UnityEngine.Rendering.Universal
                 passData.AOTexture = aoTexture;
                 passData.finalTexture = finalTexture;
                 passData.blurTexture = blurTexture;
-                passData.cameraDepthTexture = isDeferred ? cameraDepthTexture : TextureHandle.nullHandle;
 
                 // Declare input textures
                 builder.UseTexture(passData.AOTexture, AccessFlags.ReadWrite);
@@ -380,18 +377,12 @@ namespace UnityEngine.Rendering.Universal
 
                 builder.SetRenderFunc((SSAOPassData data, UnsafeGraphContext rgContext) =>
                 {
-                    if (data.cameraDepthTexture.IsValid())
-                        data.material.SetTexture(s_CameraDepthTextureID, data.cameraDepthTexture);
-
                     CommandBuffer cmd = CommandBufferHelpers.GetNativeCommandBuffer(rgContext.cmd);
                     RenderBufferLoadAction finalLoadAction = data.afterOpaque ? RenderBufferLoadAction.Load : RenderBufferLoadAction.DontCare;
 
                     // Setup
                     if (data.cameraColor.IsValid())
                         PostProcessUtils.SetSourceSize(cmd, data.cameraColor);
-
-                    if (data.cameraDepthTexture.IsValid())
-                        data.material.SetTexture(s_CameraDepthTextureID, data.cameraDepthTexture);
 
                     if (data.cameraNormalsTexture.IsValid())
                         data.material.SetTexture(s_CameraNormalsTextureID, data.cameraNormalsTexture);
@@ -440,7 +431,7 @@ namespace UnityEngine.Rendering.Universal
             // Descriptor for the final blur pass
             RenderTextureDescriptor finalTextureDescriptor = cameraData.cameraTargetDescriptor;
             finalTextureDescriptor.colorFormat = m_SupportsR8RenderTextureFormat ? RenderTextureFormat.R8 : RenderTextureFormat.ARGB32;
-            finalTextureDescriptor.depthBufferBits = 0;
+            finalTextureDescriptor.depthStencilFormat = GraphicsFormat.None;
             finalTextureDescriptor.msaaSamples = 1;
 
             // Descriptor for the AO and Blur passes
@@ -486,7 +477,7 @@ namespace UnityEngine.Rendering.Universal
             int downsampleDivider = m_CurrentSettings.Downsample ? 2 : 1;
             RenderTextureDescriptor descriptor = renderingData.cameraData.cameraTargetDescriptor;
             descriptor.msaaSamples = 1;
-            descriptor.depthBufferBits = 0;
+            descriptor.depthStencilFormat = GraphicsFormat.None;
 
             // AO PAss
             m_AOPassDescriptor = descriptor;

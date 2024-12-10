@@ -1262,9 +1262,6 @@ namespace UnityEngine.Rendering.Universal
         /// <summary> Keyword used for high quality Bloom dirt. </summary>
         public const string BloomHQDirt = "_BLOOM_HQ_DIRT";
 
-        /// <summary> Keyword used for RGBM format for Bloom. </summary>
-        public const string UseRGBM = "_USE_RGBM";
-
         /// <summary> Keyword used for Distortion. </summary>
         public const string Distortion = "_DISTORTION";
 
@@ -1273,6 +1270,9 @@ namespace UnityEngine.Rendering.Universal
 
         /// <summary> Keyword used for HDR Color Grading. </summary>
         public const string HDRGrading = "_HDR_GRADING";
+
+        /// <summary> Keyword used for HDR UI Overlay compositing. </summary>
+        public const string HDROverlay = "_HDR_OVERLAY";
 
         /// <summary> Keyword used for ACES Tonemapping. </summary>
         public const string TonemapACES = "_TONEMAP_ACES";
@@ -1525,21 +1525,16 @@ namespace UnityEngine.Rendering.Universal
                 return GraphicsFormat.R8G8B8A8_UNorm;
         }
 
-        static RenderTextureDescriptor CreateRenderTextureDescriptor(Camera camera, float renderScale,
+        internal static RenderTextureDescriptor CreateRenderTextureDescriptor(Camera camera, UniversalCameraData cameraData,
             bool isHdrEnabled, HDRColorBufferPrecision requestHDRColorBufferPrecision, int msaaSamples, bool needsAlpha, bool requiresOpaqueTexture)
         {
-            int scaledWidth = (int)((float)camera.pixelWidth * renderScale);
-            int scaledHeight = (int)((float)camera.pixelHeight * renderScale);
-
             RenderTextureDescriptor desc;
 
             if (camera.targetTexture == null)
             {
-                desc = new RenderTextureDescriptor(camera.pixelWidth, camera.pixelHeight);
-                desc.width = scaledWidth;
-                desc.height = scaledHeight;
+                desc = new RenderTextureDescriptor(cameraData.scaledWidth, cameraData.scaledHeight);
                 desc.graphicsFormat = MakeRenderTextureGraphicsFormat(isHdrEnabled, requestHDRColorBufferPrecision, needsAlpha);
-                desc.depthBufferBits = 32;
+                desc.depthStencilFormat = SystemInfo.GetGraphicsFormat(DefaultFormat.DepthStencil);
                 desc.msaaSamples = msaaSamples;
                 desc.sRGB = (QualitySettings.activeColorSpace == ColorSpace.Linear);
             }
@@ -1547,8 +1542,8 @@ namespace UnityEngine.Rendering.Universal
             {
                 desc = camera.targetTexture.descriptor;
                 desc.msaaSamples = msaaSamples;
-                desc.width = scaledWidth;
-                desc.height = scaledHeight;
+                desc.width = cameraData.scaledWidth;
+                desc.height = cameraData.scaledHeight;
 
                 if (camera.cameraType == CameraType.SceneView && !isHdrEnabled)
                 {
@@ -1560,10 +1555,6 @@ namespace UnityEngine.Rendering.Universal
                 // RenderTextureFormats available resolves in a black render texture when no warning or error
                 // is given.
             }
-
-            // Make sure dimension is non zero
-            desc.width = Mathf.Max(1, desc.width);
-            desc.height = Mathf.Max(1, desc.height);
 
             desc.enableRandomWrite = false;
             desc.bindMS = false;
@@ -1863,7 +1854,7 @@ namespace UnityEngine.Rendering.Universal
         ColorGradingLUT,
         CopyColor,
         CopyDepth,
-        DepthNormalPrepass,
+        DrawDepthNormalPrepass,
         DepthPrepass,
         UpdateReflectionProbeAtlas,
 
@@ -1897,7 +1888,7 @@ namespace UnityEngine.Rendering.Universal
         LensFlareDataDrivenComputeOcclusion,
         LensFlareDataDriven,
         LensFlareScreenSpace,
-        MotionVectors,
+        DrawMotionVectors,
         DrawFullscreen,
 
         // PostProcessPass RenderGraph
@@ -1928,7 +1919,8 @@ namespace UnityEngine.Rendering.Universal
         [HideInDebugUI] RG_FinalFSRScale,
         [HideInDebugUI] RG_FinalBlit,
 
-        FinalBlit
+        BlitFinalToBackBuffer,
+        DrawSkybox
     }
 
     // Internal class to detect and cache runtime platform information.
@@ -2009,5 +2001,7 @@ namespace UnityEngine.Rendering.Universal
 
             return mode;
         }
+
+        internal static bool isRunningOnPowerVRGPU = SystemInfo.graphicsDeviceName.Contains("PowerVR");
     }
 }
