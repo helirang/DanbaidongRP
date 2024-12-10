@@ -64,17 +64,6 @@ namespace UnityEngine.Rendering.Universal
         {
             public static class Pipeline
             {
-                // TODO: Would be better to add Profiling name hooks into RenderPipeline.cs, requires changes outside of Universal.
-#if UNITY_2021_1_OR_NEWER
-                public static readonly ProfilingSampler beginContextRendering  = new ProfilingSampler($"{nameof(RenderPipeline)}.{nameof(BeginContextRendering)}");
-                public static readonly ProfilingSampler endContextRendering    = new ProfilingSampler($"{nameof(RenderPipeline)}.{nameof(EndContextRendering)}");
-#else
-                public static readonly ProfilingSampler beginFrameRendering = new ProfilingSampler($"{nameof(RenderPipeline)}.{nameof(BeginFrameRendering)}");
-                public static readonly ProfilingSampler endFrameRendering = new ProfilingSampler($"{nameof(RenderPipeline)}.{nameof(EndFrameRendering)}");
-#endif
-                public static readonly ProfilingSampler beginCameraRendering = new ProfilingSampler($"{nameof(RenderPipeline)}.{nameof(BeginCameraRendering)}");
-                public static readonly ProfilingSampler endCameraRendering = new ProfilingSampler($"{nameof(RenderPipeline)}.{nameof(EndCameraRendering)}");
-
                 const string k_Name = nameof(UniversalRenderPipeline);
                 public static readonly ProfilingSampler initializeCameraData = new ProfilingSampler($"{k_Name}.{nameof(CreateCameraData)}");
                 public static readonly ProfilingSampler initializeStackedCameraData = new ProfilingSampler($"{k_Name}.{nameof(InitializeStackedCameraData)}");
@@ -191,6 +180,13 @@ namespace UnityEngine.Rendering.Universal
 
         // Store locally the value on the instance due as the Render Pipeline Asset data might change before the disposal of the asset, making some APV Resources leak.
         internal bool apvIsEnabled = false;
+
+        // In some specific cases, we modify Screen.msaaSamples to reduce GPU bandwidth
+        internal static bool canOptimizeScreenMSAASamples { get; private set; }
+
+        // For iOS and macOS players, the Screen API MSAA samples change request is only applied in the next frame (UUM-42825)
+        // To adress this, we need to store here the MSAA sample count at the beginning of the frame
+        internal static int startFrameScreenMSAASamples { get; private set; }
 
         // Reference to the asset associated with the pipeline.
         // When a pipeline asset is switched in `GraphicsSettings`, the `UniversalRenderPipelineCore.asset` member
@@ -385,6 +381,62 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
+        readonly struct CameraRenderingScope : IDisposable
+        {
+            static readonly ProfilingSampler beginCameraRenderingSampler = new ProfilingSampler($"{nameof(RenderPipeline)}.{nameof(BeginCameraRendering)}");
+            static readonly ProfilingSampler endCameraRenderingSampler = new ProfilingSampler($"{nameof(RenderPipeline)}.{nameof(EndCameraRendering)}");
+
+            private readonly ScriptableRenderContext m_Context;
+            private readonly Camera m_Camera;
+
+            public CameraRenderingScope(ScriptableRenderContext context, Camera camera)
+            {
+                using (new ProfilingScope(beginCameraRenderingSampler))
+                {
+                    m_Context = context;
+                    m_Camera = camera;
+
+                    BeginCameraRendering(context, camera);
+                }
+            }
+
+            public void Dispose()
+            {
+                using (new ProfilingScope(endCameraRenderingSampler))
+                {
+                    EndCameraRendering(m_Context, m_Camera);
+                }
+            }
+        }
+
+        readonly struct ContextRenderingScope : IDisposable
+        {
+            static readonly ProfilingSampler beginContextRenderingSampler = new ProfilingSampler($"{nameof(RenderPipeline)}.{nameof(BeginContextRendering)}");
+            static readonly ProfilingSampler endContextRenderingSampler = new ProfilingSampler($"{nameof(RenderPipeline)}.{nameof(EndContextRendering)}");
+
+            private readonly ScriptableRenderContext m_Context;
+            private readonly List<Camera> m_Cameras;
+
+            public ContextRenderingScope(ScriptableRenderContext context, List<Camera> cameras)
+            {
+                m_Context = context;
+                m_Cameras = cameras;
+
+                using (new ProfilingScope(beginContextRenderingSampler))
+                {
+                    BeginContextRendering(m_Context, m_Cameras);
+                }
+            }
+
+            public void Dispose()
+            {
+                using (new ProfilingScope(endContextRenderingSampler))
+                {
+                    EndContextRendering(m_Context, m_Cameras);
+                }
+            }
+        }
+
 #if UNITY_2021_1_OR_NEWER
         /// <inheritdoc/>
         protected override void Render(ScriptableRenderContext renderContext, Camera[] cameras)
@@ -411,6 +463,9 @@ namespace UnityEngine.Rendering.Universal
 #endif
             // For XR, HDR and no camera cases, UI Overlay ownership must be enforced
             AdjustUIOverlayOwnership(cameraCount);
+            
+            // Bandwidth optimization with Render Graph in some circumstances
+            SetupScreenMSAASamplesState(cameraCount);
 
             GPUResidentDrawer.ReinitializeIfNeeded();
 
@@ -418,22 +473,12 @@ namespace UnityEngine.Rendering.Universal
             // C#8 feature, only in >= 2020.2
             using var profScope = new ProfilingScope(ProfilingSampler.Get(URPProfileId.UniversalRenderTotal));
 
-#if UNITY_2021_1_OR_NEWER
-            using (new ProfilingScope(Profiling.Pipeline.beginContextRendering))
+            using (new ContextRenderingScope(renderContext, cameras))
             {
-                BeginContextRendering(renderContext, cameras);
-            }
-#else
-            using (new ProfilingScope(Profiling.Pipeline.beginFrameRendering))
-            {
-                BeginFrameRendering(renderContext, cameras);
-            }
-#endif
-
-            GraphicsSettings.lightsUseLinearIntensity = (QualitySettings.activeColorSpace == ColorSpace.Linear);
-            GraphicsSettings.lightsUseColorTemperature = true;
-            SetupPerFrameShaderConstants();
-            XRSystem.SetDisplayMSAASamples((MSAASamples)asset.msaaSampleCount);
+                GraphicsSettings.lightsUseLinearIntensity = (QualitySettings.activeColorSpace == ColorSpace.Linear);
+                GraphicsSettings.lightsUseColorTemperature = true;
+                SetupPerFrameShaderConstants();
+                XRSystem.SetDisplayMSAASamples((MSAASamples)asset.msaaSampleCount);
 
             // For CleanHistoryFrameRTSystem to remove unused Cameras
             // Copy from HDRenderPipeline, which is HDCamera.CleanUnused()
@@ -461,68 +506,50 @@ namespace UnityEngine.Rendering.Universal
             }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
-            if (DebugManager.instance.isAnyDebugUIActive)
-                UniversalRenderPipelineDebugDisplaySettings.Instance.UpdateDisplayStats();
+                if (DebugManager.instance.isAnyDebugUIActive)
+                    UniversalRenderPipelineDebugDisplaySettings.Instance.UpdateDisplayStats();
 
-            // This is for texture streaming
-            UniversalRenderPipelineDebugDisplaySettings.Instance.UpdateMaterials();
+                // This is for texture streaming
+                UniversalRenderPipelineDebugDisplaySettings.Instance.UpdateMaterials();
 #endif
+                // URP uses the camera's allowDynamicResolution flag to decide if useDynamicScale should be enabled for camera render targets.
+                // However, the RTHandle system has an additional setting that controls if useDynamicScale will be set for render targets allocated via RTHandles.
+                // In order to avoid issues at runtime, we must make the RTHandle system setting consistent with URP's logic. URP already synchronizes the setting
+                // during initialization, but unfortunately it's possible for external code to overwrite the setting due to RTHandle state being global.
+                // The best we can do to avoid errors in this situation is to ensure the state is set to the correct value every time we perform rendering.
+                RTHandles.SetHardwareDynamicResolutionState(true);
 
-            // URP uses the camera's allowDynamicResolution flag to decide if useDynamicScale should be enabled for camera render targets.
-            // However, the RTHandle system has an additional setting that controls if useDynamicScale will be set for render targets allocated via RTHandles.
-            // In order to avoid issues at runtime, we must make the RTHandle system setting consistent with URP's logic. URP already synchronizes the setting
-            // during initialization, but unfortunately it's possible for external code to overwrite the setting due to RTHandle state being global.
-            // The best we can do to avoid errors in this situation is to ensure the state is set to the correct value every time we perform rendering.
-            RTHandles.SetHardwareDynamicResolutionState(true);
-
-            SortCameras(cameras);
+                SortCameras(cameras);
 #if UNITY_2021_1_OR_NEWER
-            for (int i = 0; i < cameras.Count; ++i)
+                for (int i = 0; i < cameras.Count; ++i)
 #else
-            for (int i = 0; i < cameras.Length; ++i)
+                for (int i = 0; i < cameras.Length; ++i)
 #endif
-            {
-                var camera = cameras[i];
-                if (IsGameCamera(camera))
                 {
-                    RenderCameraStack(renderContext, camera);
-                }
-                else
-                {
-                    using (new ProfilingScope(Profiling.Pipeline.beginCameraRendering))
+                    var camera = cameras[i];
+                    if (IsGameCamera(camera))
                     {
-                        BeginCameraRendering(renderContext, camera);
+                        RenderCameraStack(renderContext, camera);
                     }
+                    else
+                    {
+                        using (new CameraRenderingScope(renderContext, camera))
+                        {
 #if VISUAL_EFFECT_GRAPH_0_0_1_OR_NEWER
-                    //It should be called before culling to prepare material. When there isn't any VisualEffect component, this method has no effect.
-                    //N.B.: We aren't expecting an XR camera at this stage
-                    VFX.VFXManager.PrepareCamera(camera);
+                        //It should be called before culling to prepare material. When there isn't any VisualEffect component, this method has no effect.
+                        //N.B.: We aren't expecting an XR camera at this stage
+                        VFX.VFXManager.PrepareCamera(camera);
 #endif
-                    UpdateVolumeFramework(camera, null);
+                            UpdateVolumeFramework(camera, null);
 
-                    RenderSingleCameraInternal(renderContext, camera);
-
-                    using (new ProfilingScope(Profiling.Pipeline.endCameraRendering))
-                    {
-                        EndCameraRendering(renderContext, camera);
+                            RenderSingleCameraInternal(renderContext, camera);
+                        }
                     }
                 }
-            }
 
-            s_RenderGraph.EndFrame();
-            s_RTHandlePool.PurgeUnusedResources(Time.frameCount);
-
-#if UNITY_2021_1_OR_NEWER
-            using (new ProfilingScope(Profiling.Pipeline.endContextRendering))
-            {
-                EndContextRendering(renderContext, cameras);
+                s_RenderGraph.EndFrame();
+                s_RTHandlePool.PurgeUnusedResources(Time.frameCount);
             }
-#else
-            using (new ProfilingScope(Profiling.Pipeline.endFrameRendering))
-            {
-                EndFrameRendering(renderContext, cameras);
-            }
-#endif
 
 #if ENABLE_SHADER_DEBUG_PRINT
             ShaderDebugPrintManager.instance.EndFrame();
@@ -606,8 +633,17 @@ namespace UnityEngine.Rendering.Universal
                 }
                 else
                 {
-                    camera.gameObject.TryGetComponent<UniversalAdditionalCameraData>(out var additionalCameraData);
-                    RenderSingleCameraInternal(context, camera, ref additionalCameraData);
+                    using (ListPool<Camera>.Get(out var tmp))
+                    {
+                        tmp.Add(camera);
+
+                        using (new ContextRenderingScope(context, tmp))
+                        using (new CameraRenderingScope(context, camera))
+                        {
+                            camera.gameObject.TryGetComponent<UniversalAdditionalCameraData>(out var additionalCameraData);
+                            RenderSingleCameraInternal(context, camera, ref additionalCameraData);
+                        }
+                    }
                 }
 
                 if(temporaryRT)
@@ -697,6 +733,12 @@ namespace UnityEngine.Rendering.Universal
             if (additionalCameraData != null && additionalCameraData.renderType != CameraRenderType.Base)
             {
                 Debug.LogWarning("Only Base cameras can be rendered with standalone RenderSingleCamera. Camera will be skipped.");
+                return;
+            }
+
+            if (camera.targetTexture.width == 0 || camera.targetTexture.height == 0 || camera.pixelWidth == 0 || camera.pixelHeight == 0)
+            {
+                Debug.LogWarning($"Camera '{camera.name}' has an invalid render target size (width: {camera.targetTexture.width}, height: {camera.targetTexture.height}) or pixel dimensions (width: {camera.pixelWidth}, height: {camera.pixelHeight}). Camera will be skipped.");
                 return;
             }
 
@@ -792,6 +834,10 @@ namespace UnityEngine.Rendering.Universal
                 SetupPerCameraEnvironmentShaderConstants(cmd);// TODO: use SkySystem.instance.UpdateEnvironment();
                 //SetupPerCameraShaderConstants(cmd);
 
+                ProbeVolumesOptions apvOptions = null;
+                if (camera.TryGetComponent<UniversalAdditionalCameraData>(out var additionalCameraData))
+                    apvOptions = additionalCameraData.volumeStack?.GetComponent<ProbeVolumesOptions>();
+
                 bool supportProbeVolume = asset != null && asset.lightProbeSystem == LightProbeSystem.ProbeVolumes;
                 ProbeReferenceVolume.instance.SetEnableStateFromSRP(supportProbeVolume);
                 ProbeReferenceVolume.instance.SetVertexSamplingEnabled(asset.shEvalMode  == ShEvalMode.PerVertex || asset.shEvalMode  == ShEvalMode.Mixed);
@@ -803,7 +849,7 @@ namespace UnityEngine.Rendering.Universal
                         camera.cameraType != CameraType.Preview)
                     {
                         // TODO: Move this to one call for all cameras
-                        ProbeReferenceVolume.instance.UpdateCellStreaming(cmd, camera);
+                        ProbeReferenceVolume.instance.UpdateCellStreaming(cmd, camera, apvOptions);
                     }
                 }
 
@@ -820,13 +866,13 @@ namespace UnityEngine.Rendering.Universal
                     ProbeReferenceVolume.instance.BindAPVRuntimeResources(cmd, true);
 
                 // Must be called before culling because it emits intermediate renderers via Graphics.DrawInstanced.
-                ProbeReferenceVolume.instance.RenderDebug(camera, Texture2D.whiteTexture);
+                ProbeReferenceVolume.instance.RenderDebug(camera, apvOptions, Texture2D.whiteTexture);
 
                 // Update camera motion tracking (prev matrices) from cameraData.
                 // Called and updated only once, as the same camera can be rendered multiple times.
                 // NOTE: Tracks only the current (this) camera, not shadow views or any other offscreen views.
                 // NOTE: Shared between both Execute and Render (RG) paths.
-                if (camera.TryGetComponent<UniversalAdditionalCameraData>(out var additionalCameraData))
+                if (additionalCameraData != null)
                     additionalCameraData.motionVectorsPersistentData.Update(cameraData);
 
                 // TODO: Move into the renderer. Problem: It modifies the AdditionalCameraData which is copied into RenderingData which causes value divergence for value types.
@@ -852,7 +898,7 @@ namespace UnityEngine.Rendering.Universal
                 var data = frameData.Create<UniversalRenderingData>();
                 data.cullResults = context.Cull(ref cullingParameters);
 
-                GPUResidentDrawer.PostCullBeginCameraRendering(new RenderRequestBatcherContext { commandBuffer = cmd, ambientProbe = RenderSettings.ambientProbe });
+                GPUResidentDrawer.PostCullBeginCameraRendering(new RenderRequestBatcherContext { commandBuffer = cmd });
 
                 var isForwardPlus = cameraData.renderer is UniversalRenderer { renderingModeActual: RenderingMode.ForwardPlus };
 
@@ -1035,72 +1081,79 @@ namespace UnityEngine.Rendering.Universal
                 {
                     xrActive = true;
                     UpdateCameraStereoMatrices(baseCamera, xrPass);
+
+                    // Apply XR display's viewport scale to URP's dynamic resolution solution
+                    float xrViewportScale = XRSystem.GetRenderViewportScale();
+                    ScalableBufferManager.ResizeBuffers(xrViewportScale, xrViewportScale);
                 }
 
-                using (new ProfilingScope(Profiling.Pipeline.beginCameraRendering))
+                bool finalOutputHDR = false;
+#if VISUAL_EFFECT_GRAPH_0_0_1_OR_NEWER
+                VFX.VFXCameraXRSettings cameraXRSettings;
+#endif
+                using (new CameraRenderingScope(context, baseCamera))
                 {
-                    BeginCameraRendering(context, baseCamera);
-                }
+                    // Update volumeframework before initializing additional camera data
+                    UpdateVolumeFramework(baseCamera, baseCameraAdditionalData);
 
-                // Update volumeframework before initializing additional camera data
-                UpdateVolumeFramework(baseCamera, baseCameraAdditionalData);
-
-                ContextContainer frameData = renderer.frameData;
-                UniversalCameraData baseCameraData = CreateCameraData(frameData, baseCamera, baseCameraAdditionalData, !isStackedRendering);
+                    ContextContainer frameData = renderer.frameData;
+                    UniversalCameraData baseCameraData = CreateCameraData(frameData, baseCamera,
+                        baseCameraAdditionalData, !isStackedRendering);
 
 #if ENABLE_VR && ENABLE_XR_MODULE
-                if (xrPass.enabled)
-                {
-                    baseCameraData.xr = xrPass;
+                    if (xrPass.enabled)
+                    {
+                        baseCameraData.xr = xrPass;
 
-                    // Helper function for updating cameraData with xrPass Data
-                    // Need to update XRSystem using baseCameraData to handle the case where camera position is modified in BeginCameraRendering
-                    UpdateCameraData(baseCameraData, xrPass);
+                        // Helper function for updating cameraData with xrPass Data
+                        // Need to update XRSystem using baseCameraData to handle the case where camera position is modified in BeginCameraRendering
+                        UpdateCameraData(baseCameraData, xrPass);
 
-                    // Handle the case where camera position is modified in BeginCameraRendering
-                    xrLayout.ReconfigurePass(xrPass, baseCamera);
-                    XRSystemUniversal.BeginLateLatching(baseCamera, xrPassUniversal);
-                }
+                        // Handle the case where camera position is modified in BeginCameraRendering
+                        xrLayout.ReconfigurePass(xrPass, baseCamera);
+                        XRSystemUniversal.BeginLateLatching(baseCamera, xrPassUniversal);
+                    }
 #endif
-                // InitializeAdditionalCameraData needs to be initialized after the cameraTargetDescriptor is set because it needs to know the
-                // msaa level of cameraTargetDescriptor and XR modifications.
-                InitializeAdditionalCameraData(baseCamera, baseCameraAdditionalData, !isStackedRendering, baseCameraData);
+                    // InitializeAdditionalCameraData needs to be initialized after the cameraTargetDescriptor is set because it needs to know the
+                    // msaa level of cameraTargetDescriptor and XR modifications.
+                    InitializeAdditionalCameraData(baseCamera, baseCameraAdditionalData, !isStackedRendering,
+                        baseCameraData);
 
 #if VISUAL_EFFECT_GRAPH_0_0_1_OR_NEWER
-                //It should be called before culling to prepare material. When there isn't any VisualEffect component, this method has no effect.
-                VFX.VFXCameraXRSettings cameraXRSettings;
-                cameraXRSettings.viewTotal = baseCameraData.xr.enabled ? 2u : 1u;
-                cameraXRSettings.viewCount = baseCameraData.xr.enabled ? (uint)baseCameraData.xr.viewCount : 1u;
-                cameraXRSettings.viewOffset = (uint)baseCameraData.xr.multipassId;
-                VFX.VFXManager.PrepareCamera(baseCamera, cameraXRSettings);
+                    //It should be called before culling to prepare material. When there isn't any VisualEffect component, this method has no effect.
+                    cameraXRSettings.viewTotal = baseCameraData.xr.enabled ? 2u : 1u;
+                    cameraXRSettings.viewCount = baseCameraData.xr.enabled ? (uint)baseCameraData.xr.viewCount : 1u;
+                    cameraXRSettings.viewOffset = (uint)baseCameraData.xr.multipassId;
+                    VFX.VFXManager.PrepareCamera(baseCamera, cameraXRSettings);
 #endif
 #if ADAPTIVE_PERFORMANCE_2_0_0_OR_NEWER
-                if (asset.useAdaptivePerformance)
-                    ApplyAdaptivePerformance(baseCameraData);
+                    if (asset.useAdaptivePerformance)
+                        ApplyAdaptivePerformance(baseCameraData);
 #endif
-                // update the base camera flag so that the scene depth is stored if needed by overlay cameras later in the frame
-                baseCameraData.postProcessingRequiresDepthTexture |= cameraStackRequiresDepthForPostprocessing;
+                    // update the base camera flag so that the scene depth is stored if needed by overlay cameras later in the frame
+                    baseCameraData.postProcessingRequiresDepthTexture |= cameraStackRequiresDepthForPostprocessing;
 
-                // Check whether the camera stack final output is HDR
-                // This is equivalent of UniversalCameraData.isHDROutputActive but without necessiting the base camera to be the last camera in the stack.
-                bool hdrDisplayOutputActive = mainHdrDisplayOutputActive;
+                    // Check whether the camera stack final output is HDR
+                    // This is equivalent of UniversalCameraData.isHDROutputActive but without necessiting the base camera to be the last camera in the stack.
+                    bool hdrDisplayOutputActive = mainHdrDisplayOutputActive;
 #if ENABLE_VR && ENABLE_XR_MODULE
-                // If we are rendering to xr then we need to look at the XR Display rather than the main non-xr display.
-                if (xrPass.enabled)
-                    hdrDisplayOutputActive = xrPass.isHDRDisplayOutputActive;
+                    // If we are rendering to xr then we need to look at the XR Display rather than the main non-xr display.
+                    if (xrPass.enabled)
+                        hdrDisplayOutputActive = xrPass.isHDRDisplayOutputActive;
 #endif
-                bool finalOutputHDR = asset.supportsHDR && hdrDisplayOutputActive // Check whether any HDR display is active and the render pipeline asset allows HDR rendering
-                    && baseCamera.targetTexture == null && (baseCamera.cameraType == CameraType.Game || baseCamera.cameraType == CameraType.VR) // Check whether the stack outputs to a screen
-                    && baseCameraData.allowHDROutput; // Check whether the base camera allows HDR output
+                    finalOutputHDR =
+                        asset.supportsHDR &&
+                        hdrDisplayOutputActive // Check whether any HDR display is active and the render pipeline asset allows HDR rendering
+                        && baseCamera.targetTexture == null &&
+                        (baseCamera.cameraType == CameraType.Game ||
+                         baseCamera.cameraType == CameraType.VR) // Check whether the stack outputs to a screen
+                        && baseCameraData.allowHDROutput; // Check whether the base camera allows HDR output
 
-                // Update stack-related parameters
-                baseCameraData.stackAnyPostProcessingEnabled = anyPostProcessingEnabled;
-                baseCameraData.stackLastCameraOutputToHDR = finalOutputHDR;
+                    // Update stack-related parameters
+                    baseCameraData.stackAnyPostProcessingEnabled = anyPostProcessingEnabled;
+                    baseCameraData.stackLastCameraOutputToHDR = finalOutputHDR;
 
-                RenderSingleCamera(context, baseCameraData);
-                using (new ProfilingScope(Profiling.Pipeline.endCameraRendering))
-                {
-                    EndCameraRendering(context, baseCamera);
+                    RenderSingleCamera(context, baseCameraData);
                 }
 
                 // Late latching is not supported after this point
@@ -1135,29 +1188,23 @@ namespace UnityEngine.Rendering.Universal
 
                             UpdateCameraStereoMatrices(overlayAdditionalCameraData.camera, xrPass);
 
-                            using (new ProfilingScope(Profiling.Pipeline.beginCameraRendering))
+                            using (new CameraRenderingScope(context, overlayCamera))
                             {
-                                BeginCameraRendering(context, overlayCamera);
-                            }
 #if VISUAL_EFFECT_GRAPH_0_0_1_OR_NEWER
-                            //It should be called before culling to prepare material. When there isn't any VisualEffect component, this method has no effect.
-                            VFX.VFXManager.PrepareCamera(overlayCamera, cameraXRSettings);
+                                //It should be called before culling to prepare material. When there isn't any VisualEffect component, this method has no effect.
+                                VFX.VFXManager.PrepareCamera(overlayCamera, cameraXRSettings);
 #endif
-                            UpdateVolumeFramework(overlayCamera, overlayAdditionalCameraData);
+                                UpdateVolumeFramework(overlayCamera, overlayAdditionalCameraData);
 
-                            bool lastCamera = i == lastActiveOverlayCameraIndex;
-                            InitializeAdditionalCameraData(overlayCamera, overlayAdditionalCameraData, lastCamera, overlayCameraData);
+                                bool lastCamera = i == lastActiveOverlayCameraIndex;
+                                InitializeAdditionalCameraData(overlayCamera, overlayAdditionalCameraData, lastCamera, overlayCameraData);
 
-                            overlayCameraData.stackAnyPostProcessingEnabled = anyPostProcessingEnabled;
-                            overlayCameraData.stackLastCameraOutputToHDR = finalOutputHDR;
+                                overlayCameraData.stackAnyPostProcessingEnabled = anyPostProcessingEnabled;
+                                overlayCameraData.stackLastCameraOutputToHDR = finalOutputHDR;
 
-                            xrLayout.ReconfigurePass(overlayCameraData.xr, overlayCamera);
+                                xrLayout.ReconfigurePass(overlayCameraData.xr, overlayCamera);
 
-                            RenderSingleCamera(context, overlayCameraData);
-
-                            using (new ProfilingScope(Profiling.Pipeline.endCameraRendering))
-                            {
-                                EndCameraRendering(context, overlayCamera);
+                                RenderSingleCamera(context, overlayCameraData);
                             }
                         }
                     }
@@ -1269,8 +1316,7 @@ namespace UnityEngine.Rendering.Universal
             if (!cameraData.postProcessEnabled)
                 return false;
 
-            if ((cameraData.antialiasing == AntialiasingMode.SubpixelMorphologicalAntiAliasing || cameraData.IsTemporalAAEnabled())
-                && cameraData.renderType == CameraRenderType.Base)
+            if (cameraData.IsTemporalAAEnabled() && (cameraData.renderType == CameraRenderType.Base))
                 return true;
 
             return CheckPostProcessForDepth();
@@ -1354,7 +1400,7 @@ namespace UnityEngine.Rendering.Universal
             bool needsAlphaChannel = Graphics.preserveFramebufferAlpha;
 
             cameraData.hdrColorBufferPrecision = asset ? asset.hdrColorBufferPrecision : HDRColorBufferPrecision._32Bits;
-            cameraData.cameraTargetDescriptor = CreateRenderTextureDescriptor(camera, cameraData.renderScale,
+            cameraData.cameraTargetDescriptor = CreateRenderTextureDescriptor(camera, cameraData,
                 cameraData.isHdrEnabled, cameraData.hdrColorBufferPrecision, msaaSamples, needsAlphaChannel, cameraData.requiresOpaqueTexture);
 
             uint count = GraphicsFormatUtility.GetAlphaComponentCount(cameraData.cameraTargetDescriptor.graphicsFormat);
@@ -1454,12 +1500,12 @@ namespace UnityEngine.Rendering.Universal
             }
             else if ((cameraData.renderScale < 1.0f) || (!isScenePreviewOrReflectionCamera && ((cameraData.upscalingFilter == ImageUpscalingFilter.FSR) || (cameraData.upscalingFilter == ImageUpscalingFilter.STP))))
             {
-                // When certain upscalers are enabled, we still consider 100% render scale an upscaling operation. (This behavior is only intended for game view cameras)
+                // When certain upscalers are requested, we still consider 100% render scale an upscaling operation. (This behavior is only intended for game view cameras)
                 // This allows us to run the upscaling shader passes all the time since they improve visual quality even at 100% scale.
 
                 cameraData.imageScalingMode = ImageScalingMode.Upscaling;
 
-                // When STP is enabled, we force temporal anti-aliasing on since it's a prerequisite.
+                // When STP is requested, we force temporal anti-aliasing on since it's a prerequisite.
                 if (cameraData.upscalingFilter == ImageUpscalingFilter.STP)
                 {
                     cameraData.antialiasing = AntialiasingMode.TemporalAntiAliasing;
@@ -1631,7 +1677,7 @@ namespace UnityEngine.Rendering.Universal
 
             UniversalRenderingData data = frameData.Get<UniversalRenderingData>();
             data.supportsDynamicBatching = settings.supportsDynamicBatching;
-            data.perObjectData = GetPerObjectLightFlags(universalLightData.additionalLightsCount, isForwardPlus);
+            data.perObjectData = GetPerObjectLightFlags(universalLightData.additionalLightsCount, isForwardPlus, settings.reflectionProbeBlending);
 
             // Render graph does not support RenderingData.commandBuffer as its execution timeline might break.
             // RenderingData.commandBuffer is available only for the old non-RG execute code path.
@@ -1931,7 +1977,7 @@ namespace UnityEngine.Rendering.Universal
                 xrMultipassEnabled = cameraData.xr.enabled && !cameraData.xr.singlePassEnabled;
 #endif
                 bool allocation;
-                if (cameraData.IsSTPEnabled())
+                if (cameraData.IsSTPRequested())
                 {
                     Debug.Assert(cameraData.stpHistory != null);
 
@@ -1954,9 +2000,9 @@ namespace UnityEngine.Rendering.Universal
             {
                 cameraData.taaHistory.Reset();   // TAA GPUResources is explicitly released if the feature is turned off. We could refactor this to rely on the type request and the "gc" only.
 
-                // In the case where STP is enabled, but TAA gets disabled for various reasons, we should release the STP history resources
-                if (cameraData.IsSTPEnabled())
-                    cameraData.stpHistory.Reset();
+                // In the case where STP is requested, but TAA gets disabled for various reasons so STP is disabled, we should release the STP history resources
+                if (cameraData.IsSTPRequested())
+                    cameraData.stpHistory?.Reset();
             }
         }
 
@@ -1982,7 +2028,7 @@ namespace UnityEngine.Rendering.Universal
 #endif
         }
 
-        static PerObjectData GetPerObjectLightFlags(int additionalLightsCount, bool isForwardPlus)
+        static PerObjectData GetPerObjectLightFlags(int additionalLightsCount, bool isForwardPlus, bool reflectionProbeBlending)
         {
             using var profScope = new ProfilingScope(Profiling.Pipeline.getPerObjectLightFlags);
 
@@ -1991,6 +2037,10 @@ namespace UnityEngine.Rendering.Universal
             if (!isForwardPlus)
             {
                 configuration |= PerObjectData.ReflectionProbes | PerObjectData.LightData;
+            }
+            else if (!reflectionProbeBlending)
+            {
+                configuration |= PerObjectData.ReflectionProbes;
             }
 
             if (additionalLightsCount > 0 && !isForwardPlus)
@@ -2441,17 +2491,27 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         static void AdjustUIOverlayOwnership(int cameraCount)
         {
-            // If rendering to XR device, we don't render SS UI overlay within SRP as the overlay should not be visible in HMD eyes, only when mirroring (after SRP XR Mirror pass)
-            // If there is no camera to render in URP, SS UI overlay has to be rendered in the engine
+            // If rendering to XR device, we don't render Screen Space UI overlay within SRP as the overlay should not be visible in HMD eyes, only when mirroring (after SRP XR Mirror pass)
+            // If there is no camera to render in URP, SS UI overlay also has to be rendered in the engine
             if (XRSystem.displayActive || cameraCount == 0)
             {
                 SupportedRenderingFeatures.active.rendersUIOverlay = false;
             }
-            // When HDR is active and no XR we enforce UI overlay per camera as we want all UI to be calibrated to white paper inside a single pass
-            else if (HDROutputForAnyDisplayIsActive())
+            else
             {
+                // Otherwise we enforce SS UI overlay rendering in URP
+                // If needed, users can still request its rendering to be after URP
+                // by setting rendersUIOverlay (public API) to false in a callback added to RenderPipelineManager.beginContextRendering
                 SupportedRenderingFeatures.active.rendersUIOverlay = true;
             }
+        }
+
+        private static void SetupScreenMSAASamplesState(int cameraCount)
+        {
+            // Enable potential bandwidth optimization only when rendering a single base camera
+            canOptimizeScreenMSAASamples = (cameraCount == 1);
+            // Save ScreenMSAASamples value at beginning of the frame, useful for iOS/macOS
+            startFrameScreenMSAASamples = Screen.msaaSamples;
         }
     }
 }

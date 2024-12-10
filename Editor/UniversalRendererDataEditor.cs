@@ -24,7 +24,8 @@ namespace UnityEditor.Rendering.Universal
             public static readonly GUIContent RenderingSectionLabel = EditorGUIUtility.TrTextContent("Rendering", "Settings related to rendering and lighting.");
             public static readonly GUIContent RenderingModeLabel = EditorGUIUtility.TrTextContent("Rendering Path", "Select a rendering path.");
             public static readonly GUIContent DepthPrimingModeLabel = EditorGUIUtility.TrTextContent("Depth Priming Mode", "With depth priming enabled, Unity uses the depth buffer generated in the depth prepass to determine if a fragment should be rendered or skipped during the Base Camera opaque pass. Disabled: Unity does not perform depth priming. Auto: If there is a Render Pass that requires a depth prepass, Unity performs the depth prepass and depth priming. Forced: Unity performs the depth prepass and depth priming.");
-            public static readonly GUIContent DepthPrimingModeInfo = EditorGUIUtility.TrTextContent("On Android, iOS, and Apple TV, Unity performs depth priming only in the Forced mode. On tiled GPUs, which are common to those platforms, depth priming might reduce performance when combined with MSAA.");
+            public static readonly GUIContent DepthPrimingModeInfo = EditorGUIUtility.TrTextContent("On Android, iOS, and Apple TV, Unity performs depth priming only in Forced mode.");
+            public static readonly GUIContent DepthPrimingMSAAWarning = EditorGUIUtility.TrTextContent("Depth priming is not supported because MSAA is enabled.");
             public static readonly GUIContent CopyDepthModeLabel = EditorGUIUtility.TrTextContent("Depth Texture Mode", "Controls after which pass URP copies the scene depth. It has a significant impact on mobile devices bandwidth usage. It also allows to force a depth prepass to generate it.");
             public static readonly GUIContent DepthAttachmentFormat = EditorGUIUtility.TrTextContent("Depth Attachment Format", "Which format to use (if it is supported) when creating _CameraDepthAttachment.");
             public static readonly GUIContent DepthTextureFormat = EditorGUIUtility.TrTextContent("Depth Texture Format", "Which format to use (if it is supported) when creating _CameraDepthTexture.");
@@ -36,7 +37,7 @@ namespace UnityEditor.Rendering.Universal
 
             public static readonly GUIContent OverridesSectionLabel = EditorGUIUtility.TrTextContent("Overrides", "This section contains Render Pipeline properties that this Renderer overrides.");
 
-            public static readonly GUIContent accurateGbufferNormalsLabel = EditorGUIUtility.TrTextContent("Accurate G-buffer normals", "Normals in G-buffer use octahedron encoding/decoding. This improves visual quality but might reduce performance. Always enabled in DanbaidongRP");
+            public static readonly GUIContent accurateGbufferNormalsLabel = EditorGUIUtility.TrTextContent("Accurate G-buffer Normals", "Normals in G-buffer use octahedron encoding/decoding. This improves visual quality but might reduce performance. Always enabled in DanbaidongRP");
             public static readonly GUIContent defaultStencilStateLabel = EditorGUIUtility.TrTextContent("Default Stencil State", "Configure the stencil state for the opaque and transparent render passes.");
             public static readonly GUIContent shadowTransparentReceiveLabel = EditorGUIUtility.TrTextContent("Transparent Receive Shadows", "When disabled, none of the transparent objects will receive shadows.");
             public static readonly GUIContent invalidStencilOverride = EditorGUIUtility.TrTextContent("Error: When using the deferred rendering path, the Renderer requires the control over the 4 highest bits of the stencil buffer to store Material types. The current combination of the stencil override options prevents the Renderer from controlling the required bits. Try changing one of the options to Replace.");
@@ -190,7 +191,14 @@ namespace UnityEditor.Rendering.Universal
                 EditorGUILayout.PropertyField(m_DepthPrimingMode, Styles.DepthPrimingModeLabel);
                 if (m_DepthPrimingMode.intValue != (int)DepthPrimingMode.Disabled)
                 {
-                    EditorGUILayout.HelpBox(Styles.DepthPrimingModeInfo.text, MessageType.Info);
+                    if (GraphicsSettings.currentRenderPipeline != null && GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset asset && asset.msaaSampleCount > 1)
+                    {
+                        EditorGUILayout.HelpBox(Styles.DepthPrimingMSAAWarning.text, MessageType.Warning);
+                    }
+                    else
+                    {
+                        EditorGUILayout.HelpBox(Styles.DepthPrimingModeInfo.text, MessageType.Info);
+                    }
                 }
 
                 EditorGUI.indentLevel--;
@@ -205,11 +213,15 @@ namespace UnityEditor.Rendering.Universal
 
 
             EditorGUI.indentLevel--;
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField(Styles.RenderPassSectionLabel, EditorStyles.boldLabel);
-            EditorGUI.indentLevel++;
-            EditorGUILayout.PropertyField(m_UseNativeRenderPass, Styles.RenderPassLabel);
-            EditorGUI.indentLevel--;
+            if (GraphicsSettings.TryGetRenderPipelineSettings<RenderGraphSettings>(out var renderGraphSettings)
+                && renderGraphSettings.enableRenderCompatibilityMode)
+            {
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField(Styles.RenderPassSectionLabel, EditorStyles.boldLabel);
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(m_UseNativeRenderPass, Styles.RenderPassLabel);
+                EditorGUI.indentLevel--;
+            }
             EditorGUILayout.Space();
             EditorGUILayout.LabelField(Styles.ShadowsSectionLabel, EditorStyles.boldLabel);
             EditorGUI.indentLevel++;

@@ -158,7 +158,7 @@ Shader "Universal Render Pipeline/Particles/Lit"
 
             // -------------------------------------
             // Includes
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitInput.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitInput.hlsl"
             #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitForwardPass.hlsl"
             ENDHLSL
         }
@@ -229,7 +229,7 @@ Shader "Universal Render Pipeline/Particles/Lit"
 
             // -------------------------------------
             // Includes
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitInput.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitInput.hlsl"
             #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitGbufferPass.hlsl"
             ENDHLSL
         }
@@ -272,7 +272,7 @@ Shader "Universal Render Pipeline/Particles/Lit"
 
             // -------------------------------------
             // Includes
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitInput.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitInput.hlsl"
             #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesDepthOnlyPass.hlsl"
             ENDHLSL
         }
@@ -313,7 +313,7 @@ Shader "Universal Render Pipeline/Particles/Lit"
 
             // -------------------------------------
             // Includes
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitInput.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitInput.hlsl"
             #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesDepthNormalsPass.hlsl"
             ENDHLSL
         }
@@ -356,8 +356,8 @@ Shader "Universal Render Pipeline/Particles/Lit"
 
             // -------------------------------------
             // Includes
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesEditorPass.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitInput.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesEditorPass.hlsl"
 
             ENDHLSL
         }
@@ -401,8 +401,8 @@ Shader "Universal Render Pipeline/Particles/Lit"
 
             // -------------------------------------
             // Includes
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesEditorPass.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitInput.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesEditorPass.hlsl"
 
             ENDHLSL
         }
@@ -435,7 +435,7 @@ Shader "Universal Render Pipeline/Particles/Lit"
 
             // -------------------------------------
             // Includes
-            #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitInput.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.danbaidong/Shaders/Particles/ParticlesLitInput.hlsl"
             #include "Packages/com.unity.render-pipelines.danbaidong/Shaders/Utils/Universal2D.hlsl"
             ENDHLSL
         }

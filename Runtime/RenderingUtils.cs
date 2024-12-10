@@ -125,7 +125,17 @@ namespace UnityEngine.Rendering.Universal
         /// <param name="projectionMatrix">Projection matrix to be set.</param>
         /// <param name="setInverseMatrices">Set this to true if you also need to set inverse camera matrices.</param>
         public static void SetViewAndProjectionMatrices(CommandBuffer cmd, Matrix4x4 viewMatrix, Matrix4x4 projectionMatrix, bool setInverseMatrices) { SetViewAndProjectionMatrices(CommandBufferHelpers.GetRasterCommandBuffer(cmd), viewMatrix, projectionMatrix, setInverseMatrices); }
-        internal static void SetViewAndProjectionMatrices(RasterCommandBuffer cmd, Matrix4x4 viewMatrix, Matrix4x4 projectionMatrix, bool setInverseMatrices)
+        
+        /// <summary>
+        /// Set view and projection matrices.
+        /// This function will set <c>UNITY_MATRIX_V</c>, <c>UNITY_MATRIX_P</c>, <c>UNITY_MATRIX_VP</c> to given view and projection matrices.
+        /// If <c>setInverseMatrices</c> is set to true this function will also set <c>UNITY_MATRIX_I_V</c> and <c>UNITY_MATRIX_I_VP</c>.
+        /// </summary>
+        /// <param name="cmd">RasterCommandBuffer to submit data to GPU.</param>
+        /// <param name="viewMatrix">View matrix to be set.</param>
+        /// <param name="projectionMatrix">Projection matrix to be set.</param>
+        /// <param name="setInverseMatrices">Set this to true if you also need to set inverse camera matrices.</param>        
+        public static void SetViewAndProjectionMatrices(RasterCommandBuffer cmd, Matrix4x4 viewMatrix, Matrix4x4 projectionMatrix, bool setInverseMatrices)
         {
             Matrix4x4 viewAndProjectionMatrix = projectionMatrix * viewMatrix;
             cmd.SetGlobalMatrix(ShaderPropertyId.viewMatrix, viewMatrix);
@@ -252,7 +262,19 @@ namespace UnityEngine.Rendering.Universal
                 cmd.SetRenderTarget(BuiltinRenderTextureType.CameraTarget,
                     loadAction, storeAction, // color
                     RenderBufferLoadAction.DontCare, RenderBufferStoreAction.DontCare); // depth
-                cmd.Blit(source.nameID, destination.nameID);
+
+                // Necessary to disable the wireframe here, since Vulkan is handling the wireframe differently
+                // to handle the Terrain "Draw Instanced" scenario (Ono: case-1205332).
+                if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Vulkan)
+                {
+                    cmd.SetWireframe(false);
+                    cmd.Blit(source, destination);
+                    cmd.SetWireframe(true);
+                }
+                else
+                {
+                    cmd.Blit(source, destination);
+                }
             }
             else if (source.rt == null)
                 Blitter.BlitTexture(cmd, source.nameID, scaleBias, material, passIndex);  // Obsolete usage of RTHandle aliasing a RenderTargetIdentifier
@@ -598,9 +620,11 @@ namespace UnityEngine.Rendering.Universal
                 return true;
             if (!scaled && (handle.rt.width != descriptor.width || handle.rt.height != descriptor.height))
                 return true;
+
+            var rtHandleFormat = (handle.rt.descriptor.depthStencilFormat != GraphicsFormat.None) ? handle.rt.descriptor.depthStencilFormat : handle.rt.descriptor.graphicsFormat;
+
             return
-                (DepthBits)handle.rt.descriptor.depthBufferBits != descriptor.depthBufferBits ||
-                (handle.rt.descriptor.depthBufferBits == (int)DepthBits.None && handle.rt.descriptor.graphicsFormat != descriptor.colorFormat) ||
+                rtHandleFormat != descriptor.format ||
                 handle.rt.descriptor.dimension != descriptor.dimension ||
                 handle.rt.descriptor.enableRandomWrite != descriptor.enableRandomWrite ||
                 handle.rt.descriptor.useMipMap != descriptor.useMipMap ||
@@ -807,6 +831,8 @@ namespace UnityEngine.Rendering.Universal
             float mipMapBias = 0,
             string name = "")
         {
+            Assertions.Assert.IsTrue(descriptor.graphicsFormat == GraphicsFormat.None ^ descriptor.depthStencilFormat == GraphicsFormat.None);
+
             TextureDesc requestRTDesc = RTHandleResourcePool.CreateTextureDesc(descriptor, TextureSizeMode.Explicit, anisoLevel, 0, filterMode, wrapMode, name);
             if (RTHandleNeedsReAlloc(handle, requestRTDesc, false))
             {

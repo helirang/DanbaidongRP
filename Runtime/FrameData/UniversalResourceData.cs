@@ -89,7 +89,7 @@ namespace UnityEngine.Rendering.Universal
         public TextureHandle backBufferColor
         {
             get => CheckAndGetTextureHandle(ref _backBufferColor);
-            set => CheckAndSetTextureHandle(ref _backBufferColor, value);
+            internal set => CheckAndSetTextureHandle(ref _backBufferColor, value);
         }
         private TextureHandle _backBufferColor;
 
@@ -100,7 +100,7 @@ namespace UnityEngine.Rendering.Universal
         public TextureHandle backBufferDepth
         {
             get => CheckAndGetTextureHandle(ref _backBufferDepth);
-            set => CheckAndSetTextureHandle(ref _backBufferDepth, value);
+            internal set => CheckAndSetTextureHandle(ref _backBufferDepth, value);
         }
         private TextureHandle _backBufferDepth;
 
@@ -190,7 +190,7 @@ namespace UnityEngine.Rendering.Universal
         public TextureHandle cameraOpaqueTexture
         {
             get => CheckAndGetTextureHandle(ref _cameraOpaqueTexture);
-            set => CheckAndSetTextureHandle(ref _cameraOpaqueTexture, value);
+            internal set => CheckAndSetTextureHandle(ref _cameraOpaqueTexture, value);
         }
         private TextureHandle _cameraOpaqueTexture;
 
@@ -210,7 +210,7 @@ namespace UnityEngine.Rendering.Universal
         public TextureHandle cameraDepthTexture
         {
             get => CheckAndGetTextureHandle(ref _cameraDepthTexture);
-            set => CheckAndSetTextureHandle(ref _cameraDepthTexture, value);
+            internal set => CheckAndSetTextureHandle(ref _cameraDepthTexture, value);
         }
         private TextureHandle _cameraDepthTexture;
 
@@ -239,7 +239,7 @@ namespace UnityEngine.Rendering.Universal
         public TextureHandle cameraNormalsTexture
         {
             get => CheckAndGetTextureHandle(ref _cameraNormalsTexture);
-            set => CheckAndSetTextureHandle(ref _cameraNormalsTexture, value);
+            internal set => CheckAndSetTextureHandle(ref _cameraNormalsTexture, value);
         }
         private TextureHandle _cameraNormalsTexture;
 
@@ -306,7 +306,7 @@ namespace UnityEngine.Rendering.Universal
         public TextureHandle afterPostProcessColor
         {
             get => CheckAndGetTextureHandle(ref _afterPostProcessColor);
-            set => CheckAndSetTextureHandle(ref _afterPostProcessColor, value);
+            internal set => CheckAndSetTextureHandle(ref _afterPostProcessColor, value);
         }
         private TextureHandle _afterPostProcessColor;
 
@@ -316,7 +316,7 @@ namespace UnityEngine.Rendering.Universal
         public TextureHandle overlayUITexture
         {
             get => CheckAndGetTextureHandle(ref _overlayUITexture);
-            set => CheckAndSetTextureHandle(ref _overlayUITexture, value);
+            internal set => CheckAndSetTextureHandle(ref _overlayUITexture, value);
         }
         private TextureHandle _overlayUITexture;
 
@@ -328,7 +328,7 @@ namespace UnityEngine.Rendering.Universal
         public TextureHandle renderingLayersTexture
         {
             get => CheckAndGetTextureHandle(ref _renderingLayersTexture);
-            set => CheckAndSetTextureHandle(ref _renderingLayersTexture, value);
+            internal set => CheckAndSetTextureHandle(ref _renderingLayersTexture, value);
         }
         private TextureHandle _renderingLayersTexture;
 
@@ -360,7 +360,7 @@ namespace UnityEngine.Rendering.Universal
         public TextureHandle ssaoTexture
         {
             get => CheckAndGetTextureHandle(ref _ssaoTexture);
-            set => CheckAndSetTextureHandle(ref _ssaoTexture, value);
+            internal set => CheckAndSetTextureHandle(ref _ssaoTexture, value);
         }
         private TextureHandle _ssaoTexture;
 

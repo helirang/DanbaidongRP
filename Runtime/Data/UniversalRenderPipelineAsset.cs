@@ -223,18 +223,6 @@ namespace UnityEngine.Rendering.Universal
         _4xBilinear
     }
 
-    internal enum DefaultMaterialType
-    {
-        Standard,
-        Particle,
-        Terrain,
-        Sprite,
-        UnityBuiltinDefault,
-        SpriteMask,
-        Decal,
-        PerObjectShadow,
-        ProceduralToonSkyBox,
-    }
 
     /// <summary>
     /// Options for light rendering mode.
@@ -453,7 +441,7 @@ namespace UnityEngine.Rendering.Universal
 #if UNITY_EDITOR
     [ShaderKeywordFilter.ApplyRulesIfTagsEqual("RenderPipeline", "UniversalPipeline")]
 #endif
-    public partial class UniversalRenderPipelineAsset : RenderPipelineAsset<UniversalRenderPipeline>, ISerializationCallbackReceiver, IProbeVolumeEnabledRenderPipeline, IGPUResidentRenderPipeline, IRenderGraphEnabledRenderPipeline
+    public partial class UniversalRenderPipelineAsset : RenderPipelineAsset<UniversalRenderPipeline>, ISerializationCallbackReceiver, IProbeVolumeEnabledRenderPipeline, IGPUResidentRenderPipeline, IRenderGraphEnabledRenderPipeline, ISTPEnabledRenderPipeline
     {
         ScriptableRenderer[] m_Renderers = new ScriptableRenderer[1];
 
@@ -846,18 +834,6 @@ namespace UnityEngine.Rendering.Universal
                 renderer.Dispose();
                 renderer = null;
             }
-        }
-
-        /// <summary>
-        /// Unity calls this function when it loads the asset or when the asset is changed with the Inspector.
-        /// </summary>
-        protected override void OnValidate()
-        {
-            DestroyRenderers();
-
-            // This will call RenderPipelineManager.CleanupRenderPipeline that in turn disposes the render pipeline instance and
-            // assign pipeline asset reference to null
-            base.OnValidate();
         }
 
         /// <summary>
@@ -2069,5 +2045,13 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         [Obsolete("This property is no longer necessary.")]
         public ProbeVolumeSceneData probeVolumeSceneData => null;
+
+        /// <summary>
+        /// Returns true if the asset is configured to use STP as an upscaling filter
+        /// </summary>
+        public bool isStpUsed
+        {
+            get { return m_UpscalingFilter == UpscalingFilterSelection.STP; }
+        }
     }
 }

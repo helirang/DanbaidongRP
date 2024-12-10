@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
+using UnityEngine.Experimental.Rendering;
 
 namespace UnityEngine.Rendering.Universal.Internal
 {
@@ -93,7 +94,7 @@ namespace UnityEngine.Rendering.Universal.Internal
 
         public void SetCameraSettings(RenderTextureDescriptor desc, FilterMode filterMode)
         {
-            desc.depthBufferBits = 0;
+            desc.depthStencilFormat = GraphicsFormat.None;
             // Change camera color target to UAV for compute shader. Danbaidong 20240416.
             desc.enableRandomWrite = true;
             m_Desc = desc;

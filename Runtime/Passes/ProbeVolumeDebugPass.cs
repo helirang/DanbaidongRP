@@ -20,7 +20,7 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         public ProbeVolumeDebugPass(RenderPassEvent evt, ComputeShader computeShader)
         {
-            base.profilingSampler = new ProfilingSampler(nameof(ProbeVolumeDebugPass));
+            base.profilingSampler = new ProfilingSampler("Dispatch APV Debug");
             renderPassEvent = evt;
             m_ComputeShader = computeShader;
         }
@@ -78,14 +78,16 @@ namespace UnityEngine.Rendering.Universal
 
             if (ProbeReferenceVolume.instance.GetProbeSamplingDebugResources(cameraData.camera, out var resultBuffer, out Vector2 coords))
             {
-                using (var builder = renderGraph.AddComputePass<WriteApvData>("APV Debug", out var passData, base.profilingSampler))
+                using (var builder = renderGraph.AddComputePass<WriteApvData>(passName, out var passData, profilingSampler))
                 {
-                    passData.resultBuffer = renderGraph.ImportBuffer(resultBuffer);
                     passData.clickCoordinates = coords;
-                    passData.depthBuffer = depthPyramidBuffer;
-                    passData.normalBuffer = normalBuffer;
                     passData.computeShader = m_ComputeShader;
 
+                    passData.resultBuffer = renderGraph.ImportBuffer(resultBuffer);
+                    passData.depthBuffer = depthPyramidBuffer;
+                    passData.normalBuffer = normalBuffer;
+
+                    builder.UseBuffer(passData.resultBuffer, AccessFlags.Write);
                     builder.UseTexture(passData.depthBuffer, AccessFlags.Read);
                     builder.UseTexture(passData.normalBuffer, AccessFlags.Read);
 

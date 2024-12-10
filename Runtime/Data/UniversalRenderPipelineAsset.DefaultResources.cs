@@ -3,6 +3,19 @@ using UnityEditor;
 
 namespace UnityEngine.Rendering.Universal
 {
+    internal enum DefaultMaterialType
+    {
+        Standard,
+        Particle,
+        Terrain,
+        Sprite,
+        UnityBuiltinDefault,
+        SpriteMask,
+        Decal,
+        PerObjectShadow,
+        ProceduralToonSkyBox,
+    }
+
     public partial class UniversalRenderPipelineAsset
     {
         #region Materials
@@ -21,13 +34,13 @@ namespace UnityEngine.Rendering.Universal
                 {
                     return materialType switch
                     {
-                      DefaultMaterialType.Standard => defaultMaterials.defaultMaterial,
+                      DefaultMaterialType.Default => defaultMaterials.defaultMaterial,
                       DefaultMaterialType.Particle => defaultMaterials.defaultParticleUnlitMaterial,
                       DefaultMaterialType.Terrain => defaultMaterials.defaultTerrainLitMaterial,
                       DefaultMaterialType.Decal => defaultMaterials.defaultDecalMaterial,
                       DefaultMaterialType.PerObjectShadow => defaultMaterials.defaultPerObjectShadowMaterial,
                       DefaultMaterialType.ProceduralToonSkyBox => defaultMaterials.defaulProceduralToonSkyBoxMaterial,
-                      _ => null,// Unity Builtin Default
+                      _ => null
                     };
                 }
             }
@@ -42,7 +55,7 @@ namespace UnityEngine.Rendering.Universal
         /// Returns the default Material.
         /// </summary>
         /// <returns>Returns the default Material.</returns>
-        public override Material defaultMaterial => GetMaterial(DefaultMaterialType.Standard);
+        public override Material defaultMaterial => GetMaterial(DefaultMaterialType.Default);
 
         /// <summary>
         /// Returns the default particle Material.
@@ -61,24 +74,6 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         /// <returns>Returns the default terrain Material.</returns>
         public override Material defaultTerrainMaterial => GetMaterial(DefaultMaterialType.Terrain);
-
-        /// <summary>
-        /// Returns the default UI Material.
-        /// </summary>
-        /// <returns>Returns the default UI Material.</returns>
-        public override Material defaultUIMaterial => GetMaterial(DefaultMaterialType.UnityBuiltinDefault);
-
-        /// <summary>
-        /// Returns the default UI overdraw Material.
-        /// </summary>
-        /// <returns>Returns the default UI overdraw Material.</returns>
-        public override Material defaultUIOverdrawMaterial => GetMaterial(DefaultMaterialType.UnityBuiltinDefault);
-
-        /// <summary>
-        /// Returns the default UIETC1 supported Material for this asset.
-        /// </summary>
-        /// <returns>Returns the default UIETC1 supported Material.</returns>
-        public override Material defaultUIETC1SupportedMaterial => GetMaterial(DefaultMaterialType.UnityBuiltinDefault);
 
         /// <summary>
         /// Returns the default material for the 2D renderer.
@@ -107,6 +102,7 @@ namespace UnityEngine.Rendering.Universal
         /// Returns the Material that DanbaidongRP uses to render ProceduralToonSky.
         /// </summary>
         public Material proceduralToonSkyBoxMat => GetMaterial(DefaultMaterialType.ProceduralToonSkyBox);
+
         #endregion
 
         #region Shaders

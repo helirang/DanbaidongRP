@@ -253,6 +253,9 @@ namespace UnityEngine.Rendering.Universal.Internal
                     m_BinCount = (int)(camera.farClipPlane * m_ZBinScale + m_ZBinOffset);
                 }
 
+                // Necessary to avoid negative bin count when the farClipPlane is set to Infinity in the editor.
+                m_BinCount = Math.Max(m_BinCount, 0);
+
                 var worldToViews = new Fixed2<float4x4>(cameraData.GetViewMatrix(0), cameraData.GetViewMatrix(math.min(1, viewCount - 1)));
                 var viewToClips = new Fixed2<float4x4>(cameraData.GetProjectionMatrix(0), cameraData.GetProjectionMatrix(math.min(1, viewCount - 1)));
 
@@ -374,7 +377,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             SetupLights(CommandBufferHelpers.GetUnsafeCommandBuffer(renderingData.commandBuffer), universalRenderingData, cameraData, lightData);
         }
 
-        static ProfilingSampler s_SetupForwardLights = new ProfilingSampler("Setup Forward lights.");
+        static ProfilingSampler s_SetupForwardLights = new ProfilingSampler("Setup Forward Lights");
         private class SetupLightPassData
         {
             internal UniversalRenderingData renderingData;
@@ -387,7 +390,7 @@ namespace UnityEngine.Rendering.Universal.Internal
         /// </summary>
         internal void SetupRenderGraphLights(RenderGraph renderGraph, UniversalRenderingData renderingData, UniversalCameraData cameraData, UniversalLightData lightData)
         {
-            using (var builder = renderGraph.AddUnsafePass<SetupLightPassData>("SetupForwardLights", out var passData,
+            using (var builder = renderGraph.AddUnsafePass<SetupLightPassData>(s_SetupForwardLights.name, out var passData,
                 s_SetupForwardLights))
             {
                 passData.renderingData = renderingData;
@@ -466,7 +469,8 @@ namespace UnityEngine.Rendering.Universal.Internal
                 bool enableProbeVolumes = ProbeReferenceVolume.instance.UpdateShaderVariablesProbeVolumes(
                     CommandBufferHelpers.GetNativeCommandBuffer(cmd),
                     stack.GetComponent<ProbeVolumesOptions>(),
-                    cameraData.IsTemporalAAEnabled() ? Time.frameCount : 0);
+                    cameraData.IsTemporalAAEnabled() ? Time.frameCount : 0,
+                    lightData.supportsLightLayers);
 
                 cmd.SetGlobalInt("_EnableProbeVolumes", enableProbeVolumes ? 1 : 0);
                 cmd.SetKeyword(ShaderGlobalKeywords.LightLayers, lightData.supportsLightLayers && !CoreUtils.IsSceneLightingDisabled(cameraData.camera));

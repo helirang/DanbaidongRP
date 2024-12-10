@@ -114,12 +114,14 @@ namespace UnityEditor.Rendering.Universal
         Shader m_ScreenSpaceLensFlareShader = Shader.Find("Hidden/Universal Render Pipeline/LensFlareScreenSpace");
         Shader m_XROcclusionMeshShader = Shader.Find("Hidden/Universal Render Pipeline/XR/XROcclusionMesh");
         Shader m_XRMirrorViewShader = Shader.Find("Hidden/Universal Render Pipeline/XR/XRMirrorView");
+        Shader m_XRMotionVectorShader = Shader.Find("Hidden/Universal Render Pipeline/XR/XRMotionVector");
 
         // Pass names
         public static readonly string kPassNameUniversal2D = "Universal2D";
         public static readonly string kPassNameGBuffer = "GBuffer";
         public static readonly string kPassNameForwardLit = "ForwardLit";
         public static readonly string kPassNameDepthNormals = "DepthNormals";
+        public static readonly string kPassNameXRMotionVectors = "XRMotionVectors";
 
         // Keywords
         LocalKeyword m_MainLightShadows;
@@ -724,6 +726,15 @@ namespace UnityEditor.Rendering.Universal
             return strippingData.stripUnusedXRVariants;
         }
 
+        internal bool StripUnusedFeatures_XRMotionVector(ref IShaderScriptableStrippingData strippingData)
+        {
+            if (strippingData.shader != m_XRMotionVectorShader)
+                return false;
+
+            return strippingData.stripUnusedXRVariants;
+        }
+        
+
         internal bool StripUnusedFeatures(ref IShaderScriptableStrippingData strippingData)
         {
             if (StripUnusedFeatures_DebugDisplay(ref strippingData))
@@ -820,6 +831,9 @@ namespace UnityEditor.Rendering.Universal
                 return true;
 
             if (StripUnusedFeatures_XROcclusionMesh(ref strippingData))
+                return true;
+
+            if (StripUnusedFeatures_XRMotionVector(ref strippingData))
                 return true;
 
             return false;
@@ -996,6 +1010,14 @@ namespace UnityEditor.Rendering.Universal
             return false;
         }
 
+        internal bool StripUnusedPass_XRMotionVectors(ref IShaderScriptableStrippingData strippingData)
+        {
+            // Strip XR MotionVector Passes if there is no XR
+            if (strippingData.passName == kPassNameXRMotionVectors && strippingData.stripUnusedXRVariants)
+                return true;
+            return false;
+        }        
+
         internal bool StripUnusedPass(ref IShaderScriptableStrippingData strippingData)
         {
             if (StripUnusedPass_2D(ref strippingData))
@@ -1008,6 +1030,9 @@ namespace UnityEditor.Rendering.Universal
                 return true;
 
             if (StripUnusedPass_Decals(ref strippingData))
+                return true;
+
+            if (StripUnusedPass_XRMotionVectors(ref strippingData))
                 return true;
 
             return false;

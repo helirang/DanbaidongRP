@@ -7,6 +7,8 @@
 #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareDepthTexture.hlsl"
 #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/DeclareOpaqueTexture.hlsl"
 #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/ParticlesInstancing.hlsl"
+#include_with_pragmas "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRendering.hlsl"
 
 struct ParticleParams
 {
@@ -87,7 +89,10 @@ float SoftParticles(float near, float far, float4 projection)
     float fade = 1;
     if (near > 0.0 || far > 0.0)
     {
-        float rawDepth = SAMPLE_TEXTURE2D_X(_CameraDepthTexture, sampler_PointClamp, UnityStereoTransformScreenSpaceTex(projection.xy / projection.w)).r;
+        float2 uv = UnityStereoTransformScreenSpaceTex(projection.xy / projection.w);
+        uv = FoveatedRemapLinearToNonUniform(uv);
+
+        float rawDepth = SAMPLE_TEXTURE2D_X(_CameraDepthTexture, sampler_PointClamp, uv).r;
         float sceneZ = (unity_OrthoParams.w == 0) ? LinearEyeDepth(rawDepth, _ZBufferParams) : LinearDepthToEyeDepth(rawDepth);
         float thisZ = LinearEyeDepth(projection.z / projection.w, _ZBufferParams);
         fade = saturate(far * ((sceneZ - near) - thisZ));
@@ -101,7 +106,10 @@ float SoftParticles(float near, float far, ParticleParams params)
     float fade = 1;
     if (near > 0.0 || far > 0.0)
     {
-        float rawDepth = SampleSceneDepth(params.projectedPosition.xy / params.projectedPosition.w);
+        float2 uv = UnityStereoTransformScreenSpaceTex(params.projectedPosition.xy / params.projectedPosition.w);
+        uv = FoveatedRemapLinearToNonUniform(uv);
+
+        float rawDepth = SAMPLE_TEXTURE2D_X(_CameraDepthTexture, sampler_CameraDepthTexture, uv).r;
         float sceneZ = (unity_OrthoParams.w == 0) ? LinearEyeDepth(rawDepth, _ZBufferParams) : LinearDepthToEyeDepth(rawDepth);
         float thisZ = LinearEyeDepth(params.positionWS.xyz, GetWorldToViewMatrix());
         fade = saturate(far * ((sceneZ - near) - thisZ));

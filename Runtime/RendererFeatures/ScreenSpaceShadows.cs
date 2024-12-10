@@ -108,10 +108,6 @@ namespace UnityEngine.Rendering.Universal
 
         private class ScreenSpaceShadowsPass : ScriptableRenderPass
         {
-            // Profiling tag
-            private static string m_ProfilerTag = "ScreenSpaceShadows";
-            private static ProfilingSampler m_ProfilingSampler = new ProfilingSampler(m_ProfilerTag);
-
             // Private Variables
             private Material m_Material;
             private ScreenSpaceShadowsSettings m_CurrentSettings;
@@ -121,6 +117,7 @@ namespace UnityEngine.Rendering.Universal
 
             internal ScreenSpaceShadowsPass()
             {
+                profilingSampler = new ProfilingSampler("Blit Screen Space Shadows");
                 m_CurrentSettings = new ScreenSpaceShadowsSettings();
                 m_ScreenSpaceShadowmapTextureID = Shader.PropertyToID("_ScreenSpaceShadowmapTexture");
                 m_PassData = new PassData();
@@ -145,7 +142,7 @@ namespace UnityEngine.Rendering.Universal
             public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
             {
                 var desc = renderingData.cameraData.cameraTargetDescriptor;
-                desc.depthBufferBits = 0;
+                desc.depthStencilFormat = GraphicsFormat.None;
                 desc.msaaSamples = 1;
                 // UUM-41070: We require `Linear | Render` but with the deprecated FormatUsage this was checking `Blend`
                 // For now, we keep checking for `Blend` until the performance hit of doing the correct checks is evaluated
@@ -189,7 +186,7 @@ namespace UnityEngine.Rendering.Universal
                 }
                 UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
                 var desc = cameraData.cameraTargetDescriptor;
-                desc.depthBufferBits = 0;
+                desc.depthStencilFormat = GraphicsFormat.None;
                 desc.msaaSamples = 1;
                 // UUM-41070: We require `Linear | Render` but with the deprecated FormatUsage this was checking `Blend`
                 // For now, we keep checking for `Blend` until the performance hit of doing the correct checks is evaluated
@@ -200,7 +197,7 @@ namespace UnityEngine.Rendering.Universal
                 // Here is a bug, we need to clear with white color. Add by Danbaidong, 20240512.
                 TextureHandle color = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, "_ScreenSpaceShadowmapTexture", true, Color.white);
 
-                using (var builder = renderGraph.AddRasterRenderPass<PassData>("Screen Space Shadows Pass", out var passData, m_ProfilingSampler))
+                using (var builder = renderGraph.AddRasterRenderPass<PassData>(passName, out var passData, profilingSampler))
                 {
                     passData.target = color;
                     builder.SetRenderAttachment(color, 0, AccessFlags.Write);
@@ -238,7 +235,7 @@ namespace UnityEngine.Rendering.Universal
 
                 InitPassData(ref m_PassData);
                 var cmd = renderingData.commandBuffer;
-                using (new ProfilingScope(cmd, m_ProfilingSampler))
+                using (new ProfilingScope(cmd, profilingSampler))
                 {
                     ExecutePass(CommandBufferHelpers.GetRasterCommandBuffer(renderingData.commandBuffer), m_PassData, m_RenderTarget);
                 }
@@ -247,10 +244,12 @@ namespace UnityEngine.Rendering.Universal
 
         private class ScreenSpaceShadowsPostPass : ScriptableRenderPass
         {
-            // Profiling tag
-            private static string m_ProfilerTag = "ScreenSpaceShadows Post";
-            private static ProfilingSampler m_ProfilingSampler = new ProfilingSampler(m_ProfilerTag);
             private static readonly RTHandle k_CurrentActive = RTHandles.Alloc(BuiltinRenderTextureType.CurrentActive);
+
+            internal ScreenSpaceShadowsPostPass()
+            {
+                profilingSampler = new ProfilingSampler("Set Screen Space Shadow Keywords");
+            }
 
             [Obsolete(DeprecationMessage.CompatibilityScriptingAPIObsolete, false)]
             public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
@@ -282,7 +281,7 @@ namespace UnityEngine.Rendering.Universal
                 var cmd = renderingData.commandBuffer;
                 UniversalShadowData shadowData = renderingData.frameData.Get<UniversalShadowData>();
 
-                using (new ProfilingScope(cmd, m_ProfilingSampler))
+                using (new ProfilingScope(cmd, profilingSampler))
                 {
                     ExecutePass(CommandBufferHelpers.GetRasterCommandBuffer(renderingData.commandBuffer), shadowData);
                 }
@@ -295,7 +294,7 @@ namespace UnityEngine.Rendering.Universal
             }
             public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
             {
-                using (var builder = renderGraph.AddRasterRenderPass<PassData>("Screen Space Shadow Post Pass", out var passData, m_ProfilingSampler))
+                using (var builder = renderGraph.AddRasterRenderPass<PassData>(passName, out var passData, profilingSampler))
                 {
                     UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
 
