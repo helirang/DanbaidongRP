@@ -457,6 +457,7 @@ namespace UnityEngine.Rendering.Universal
 
                 builder.UseTexture(passData.input, AccessFlags.Read);
                 //builder.UseTexture(passData.intermediateTexture, AccessFlags.ReadWrite);
+                builder.AllowPassCulling(false);
 
                 builder.SetRenderFunc((SkyEnvironmentConvolutionPassData data, UnsafeGraphContext context) =>
                 {

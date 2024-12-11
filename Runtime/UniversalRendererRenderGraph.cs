@@ -1605,7 +1605,7 @@ namespace UnityEngine.Rendering.Universal
 
                 // We need to be sure there are no custom passes in between GBuffer/Deferred passes, if there are - we disable fb fetch just to be safe`
                 //m_DeferredLights.UseFramebufferFetch = renderGraph.nativeRenderPassesEnabled;
-                m_DeferredLights.UseFramebufferFetch = false;
+                m_DeferredLights.UseFramebufferFetch = false;               // DanbaidongRP use many features (in between GBuffer/Deferred passes) will break native render pass.
                 m_DeferredLights.HasNormalPrepass = isDepthNormalPrepass;
                 m_DeferredLights.HasDepthPrepass = requiresDepthPrepass;
                 m_DeferredLights.ResolveMixedLightingMode(lightData);
@@ -1620,6 +1620,24 @@ namespace UnityEngine.Rendering.Universal
                 // GBuffer
                 m_GBufferPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, setGlobalTextures);
 
+                // GPUCopy GBuffer Depth
+                m_GPUCopyPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.activeDepthTexture, true);
+
+                // DepthPyramid
+                {
+                    var depthpyramidDesc = GetCameraDepthPyramidDescriptor(cameraData.cameraTargetDescriptor);
+                    resourceData.cameraDepthPyramidTexture = m_GPUCopyPass.RenderDepthPyramidMip0(renderGraph, frameData, resourceData.cameraDepthTexture, depthpyramidDesc);
+                    m_DepthPyramidPass.Render(renderGraph, frameData, resourceData.cameraDepthPyramidTexture, m_DepthPyramidInfo);
+                }
+
+
+                //// MotionVectors
+                //// Depends on the camera (copy) depth texture. Depth is reprojected to calculate motion vectors.
+                //if (renderPassInputs.requiresMotionVectors)
+                //{
+                //    m_MotionVectorPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.motionVectorColor, resourceData.motionVectorDepth);
+                //}
+
                 // In addition to regularly scheduled depth copies here, we also need to copy depth when native render passes aren't available.
                 // This is required because deferred lighting must read depth as a texture, but it must also bind depth as a depth write attachment at the same time.
                 // When native render passes are available, we write depth into an internal gbuffer slice and read via framebuffer fetch so a depth copy is no longer required.
@@ -1628,9 +1646,64 @@ namespace UnityEngine.Rendering.Universal
                 else if (!renderGraph.nativeRenderPassesEnabled)
                     CopyDepthToDepthTexture(renderGraph, resourceData);
 
-                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingGbuffer, RenderPassEvent.BeforeRenderingDeferredLights);
 
-                m_DeferredPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, resourceData.gBuffer);
+                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingGbuffer);
+
+                // GPULightList
+                m_GPULights.Render(renderGraph, frameData);
+                m_GPULights.RenderSetGlobalSync(renderGraph, frameData);
+
+                // TODO: SSAO
+
+
+                // TODO: SSGI
+
+                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingShadows);
+
+
+
+                bool renderShadows = false;
+                // DirectionalLightsShadowCaster
+                if (m_DirectionalLightsShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))
+                {
+                    renderShadows = true;
+                    resourceData.directionalShadowsTexture = m_DirectionalLightsShadowCasterPass.Render(renderGraph, frameData);
+                }
+
+                // ScreenSpaceDirectionalShadows
+                // TODO: async
+                resourceData.screenSpaceShadowsTexture = m_ScreenSpaceDirectionalShadowsPass.Render(renderGraph, frameData);
+                if (m_ScreenSpaceShadowScatterPass.Setup(resourceData))
+                {
+                    resourceData.shadowScatterTexture = m_ScreenSpaceShadowScatterPass.Render(renderGraph, frameData);
+                }
+
+                // AdditionalShadowCaster
+                if (m_AdditionalLightsShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))
+                {
+                    renderShadows = true;
+                    resourceData.additionalShadowsTexture = m_AdditionalLightsShadowCasterPass.Render(renderGraph, frameData);
+                }
+
+
+                // The camera need to be setup again after the shadows since those passes override some settings
+                if (renderShadows)
+                    SetupRenderGraphCameraProperties(renderGraph, resourceData.isActiveTargetBackBuffer);
+
+                // SSR, RayTracing reflection needs mainlightshadowmap and camera properties.
+                if (m_ScreenSpaceReflectionPass.Setup())
+                {
+                    resourceData.ssrLightingTexture = m_ScreenSpaceReflectionPass.RenderSSR(renderGraph, frameData, colorPyramidHistoryMipCount);
+                }
+
+                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingShadows, RenderPassEvent.BeforeRenderingDeferredLights);
+
+
+                // DeferredLighting
+                m_DeferredLighting.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, resourceData.gBuffer);
+
+                // Character Forward Lighting
+                m_CharacterForwardLighting.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture);
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingDeferredLights, RenderPassEvent.BeforeRenderingOpaques);
 
