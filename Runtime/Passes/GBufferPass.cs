@@ -276,8 +276,6 @@ namespace UnityEngine.Rendering.Universal.Internal
                 builder.UseRendererList(passData.rendererListHdl);
                 builder.UseRendererList(passData.objectsWithErrorRendererListHdl);
 
-                // DanbaidongRP need set Global
-                setGlobalTextures = true;
                 if (setGlobalTextures)
                 {
                     builder.SetGlobalTextureAfterPass(resourceData.cameraNormalsTexture, s_CameraNormalsTextureID);

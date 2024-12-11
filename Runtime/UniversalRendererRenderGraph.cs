@@ -933,6 +933,7 @@ namespace UnityEngine.Rendering.Universal
 #endif
         private void OnBeforeDanbaidongRPRendering(RenderGraph renderGraph)
         {
+            UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
             UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
             UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
             UniversalLightData lightData = frameData.Get<UniversalLightData>();
@@ -1181,6 +1182,7 @@ namespace UnityEngine.Rendering.Universal
         }
 
 #if ORIGINAL_URP_RENDERING
+
         private void OnMainRendering(RenderGraph renderGraph, ScriptableRenderContext context)
         {
             UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
@@ -1473,7 +1475,6 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 #endif
-// TODO: rewrite
         private void OnMainDanbaidongRPRendering(RenderGraph renderGraph, ScriptableRenderContext context)
         {
             UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
@@ -1485,7 +1486,7 @@ namespace UnityEngine.Rendering.Universal
 
             if (!renderGraph.nativeRenderPassesEnabled)
             {
-                RTClearFlags clearFlags = (RTClearFlags)GetCameraClearFlag(cameraData);
+                RTClearFlags clearFlags = (RTClearFlags) GetCameraClearFlag(cameraData);
 
                 if (clearFlags != RTClearFlags.None)
                     ClearTargetsPass.Render(renderGraph, resourceData.activeColorTexture, resourceData.activeDepthTexture, clearFlags, cameraData.backgroundColor);
@@ -1496,37 +1497,49 @@ namespace UnityEngine.Rendering.Universal
 
             RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingPrePasses);
 
-            // If Camera's PostProcessing is enabled and if there any enabled PostProcessing requires depth texture as shader read resource (Motion Blur/DoF)
-            bool cameraHasPostProcessingWithDepth = CameraHasPostProcessingWithDepth(cameraData);
-
             RenderPassInputSummary renderPassInputs = GetRenderPassInputs(cameraData.IsTemporalAAEnabled(), postProcessingData.isEnabled);
 
             if (m_RenderingLayerProvidesByDepthNormalPass)
                 renderPassInputs.requiresNormalsTexture = true;
 
 #if UNITY_EDITOR
-            if (ProbeReferenceVolume.instance.IsProbeSamplingDebugEnabled())
+            if (ProbeReferenceVolume.instance.IsProbeSamplingDebugEnabled() && cameraData.isSceneViewCamera)
                 renderPassInputs.requiresNormalsTexture = true;
 #endif
 
-            bool requiresDepthPrepass = RequireDepthPrepass(cameraData, ref renderPassInputs);
-            bool requiresDepthCopyPass = !requiresDepthPrepass
-                                         && (cameraData.requiresDepthTexture || cameraHasPostProcessingWithDepth || renderPassInputs.requiresDepthTexture)
-                                         && m_CreateDepthTexture; // we create both intermediate textures if this is true, so instead of repeating the checks we reuse this
-
-            requiresDepthCopyPass |= !requiresDepthPrepass && DebugHandlerRequireDepthPass(frameData.Get<UniversalCameraData>());
-            bool requiresColorCopyPass = cameraData.requiresOpaqueTexture || renderPassInputs.requiresColorTexture;
-            requiresColorCopyPass &= !cameraData.isPreviewCamera;
-            bool requiredColorGradingLutPass = cameraData.postProcessEnabled && m_PostProcessPasses.isCreated;
-
             bool isDeferred = this.renderingModeActual == RenderingMode.Deferred;
 
+            bool requiresDepthPrepass = RequireDepthPrepass(cameraData, ref renderPassInputs);
+            bool isDepthOnlyPrepass = requiresDepthPrepass && !renderPassInputs.requiresNormalsTexture;
+            bool isDepthNormalPrepass = requiresDepthPrepass && renderPassInputs.requiresNormalsTexture;
+
+            // The depth prepass is considered "full" (renders the entire scene, not a partial subset), when we either:
+            // - Have a depth only prepass (URP always renders the full scene in depth only mode)
+            // - Have a depth normals prepass that does not allow the partial prepass optimization
+            bool hasFullPrepass = isDepthOnlyPrepass || (isDepthNormalPrepass && !AllowPartialDepthNormalsPrepass(isDeferred, renderPassInputs.requiresDepthNormalAtEvent));
+
+            TextureCopySchedules copySchedules = CalculateTextureCopySchedules(cameraData, renderPassInputs, isDeferred, requiresDepthPrepass, hasFullPrepass);
+
             bool needsOccluderUpdate = cameraData.useGPUOcclusionCulling;
+
+#if ENABLE_VR && ENABLE_XR_MODULE
+            if (cameraData.xr.enabled && cameraData.xr.hasMotionVectorPass)
+            {
+                // Update prevView and View matrices.
+                m_XRDepthMotionPass?.Update(ref cameraData);
+
+                // Record depthMotion pass and import XR resources into the rendergraph.
+                m_XRDepthMotionPass?.Render(renderGraph, frameData);
+            }
+#endif
+
             if (requiresDepthPrepass)
             {
-                // TODO RENDERGRAPH: is this always a valid assumption for deferred rendering?
-                TextureHandle depthTarget = (renderingModeActual == RenderingMode.Deferred) ? resourceData.activeDepthTexture : resourceData.cameraDepthTexture;
-                depthTarget = (useDepthPriming && (cameraData.renderType == CameraRenderType.Base || cameraData.clearDepth)) ? resourceData.activeDepthTexture : depthTarget;
+                // If we're in deferred mode, prepasses always render directly to the depth attachment rather than the camera depth texture.
+                // In non-deferred mode, we only render to the depth attachment directly when depth priming is enabled and we're starting with an empty depth buffer.
+                bool isDepthPrimingTarget = (useDepthPriming && (cameraData.renderType == CameraRenderType.Base || cameraData.clearDepth));
+                bool renderToAttachment = (isDeferred || isDepthPrimingTarget);
+                TextureHandle depthTarget = renderToAttachment ? resourceData.activeDepthTexture : resourceData.cameraDepthTexture;
 
                 var passCount = needsOccluderUpdate ? 2 : 1;
                 for (int passIndex = 0; passIndex < passCount; ++passIndex)
@@ -1541,15 +1554,22 @@ namespace UnityEngine.Rendering.Universal
                         batchLayerMask = occlusionTest.GetBatchLayerMask();
                     }
 
+                    // The prepasses are executed multiple times when GRD occlusion is active.
+                    // We only want to set global textures after all executions are complete.
                     bool isLastPass = (passIndex == (passCount - 1));
-                    if (renderPassInputs.requiresNormalsTexture)
-                        DepthNormalPrepassRender(renderGraph, renderPassInputs, depthTarget, batchLayerMask, isLastPass);
+
+                    // When we render to the depth attachment, a copy must happen later to populate the camera depth texture and the copy will handle setting globals.
+                    // If we're rendering to the camera depth texture, we can set the globals immediately.
+                    bool setGlobalDepth = isLastPass && !renderToAttachment;
+
+                    // There's no special copy logic for the camera normals texture, so we can set the global as long as we're not performing a partial prepass.
+                    // In the case of a partial prepass, the global will be set later by the gbuffer pass once it completes the data in the texture.
+                    bool setGlobalTextures = isLastPass && (!isDeferred || hasFullPrepass);
+
+                    if (isDepthNormalPrepass)
+                        DepthNormalPrepassRender(renderGraph, renderPassInputs, depthTarget, batchLayerMask, setGlobalDepth, setGlobalTextures);
                     else
-                    {
-                        m_DepthPrepass.Render(renderGraph, frameData, ref depthTarget, batchLayerMask);
-                        if (isLastPass && !useDepthPriming && depthTarget.IsValid())
-                            RenderGraphUtils.SetGlobalTexture(renderGraph, Shader.PropertyToID("_CameraDepthTexture"), depthTarget, "Set Global Depth Texture");
-                    }
+                        m_DepthPrepass.Render(renderGraph, frameData, ref depthTarget, batchLayerMask, setGlobalDepth);
 
                     if (needsOccluderUpdate)
                     {
@@ -1563,23 +1583,15 @@ namespace UnityEngine.Rendering.Universal
                 needsOccluderUpdate = false;
             }
 
-            // depth priming still needs to copy depth because the prepass doesn't target anymore CameraDepthTexture
-            // TODO: this is unoptimal, investigate optimizations
-            if (useDepthPriming)
-            {
-                TextureHandle depth = resourceData.cameraDepth;
-                TextureHandle cameraDepthTexture = resourceData.cameraDepthTexture;
-                m_PrimedDepthCopyPass.Render(renderGraph, frameData, cameraDepthTexture, depth, true);
-            }
+            // After the prepass completes, we should copy depth if necessary and also render motion vectors. (they're expected to be available whenever depth is)
+            // In the case where depth is rendered as part of the prepass and no copy is necessary, we still need to render motion vectors here to ensure they're available
+            // with depth before any user passes are executed.
+            if (copySchedules.depth == DepthCopySchedule.AfterPrepass)
+                ExecuteScheduledDepthCopyWithMotion(renderGraph, resourceData, renderPassInputs.requiresMotionVectors);
+            else if ((copySchedules.depth == DepthCopySchedule.DuringPrepass) && renderPassInputs.requiresMotionVectors)
+                RenderMotionVectors(renderGraph, resourceData);
 
             RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingPrePasses);
-
-            if (requiredColorGradingLutPass)
-            {
-                TextureHandle internalColorLut;
-                m_PostProcessPasses.colorGradingLutPass.Render(renderGraph, frameData, out internalColorLut);
-                resourceData.internalColorLut = internalColorLut;
-            }
 
 #if ENABLE_VR && ENABLE_XR_MODULE
             if (cameraData.xr.hasValidOcclusionMesh)
@@ -1590,94 +1602,35 @@ namespace UnityEngine.Rendering.Universal
             // Danbaidong RP only has Deferred path
             {
                 m_DeferredLights.Setup(m_AdditionalLightsShadowCasterPass);
-                if (m_DeferredLights != null)
-                {
-                    // We need to be sure there are no custom passes in between GBuffer/Deferred passes, if there are - we disable fb fetch just to be safe`
-                    //m_DeferredLights.UseFramebufferFetch = renderGraph.nativeRenderPassesEnabled;
-                    m_DeferredLights.UseFramebufferFetch = false;
-                    m_DeferredLights.HasNormalPrepass = renderPassInputs.requiresNormalsTexture;
-                    m_DeferredLights.HasDepthPrepass = requiresDepthPrepass;
-                    m_DeferredLights.ResolveMixedLightingMode(lightData);
-                    m_DeferredLights.IsOverlay = cameraData.renderType == CameraRenderType.Overlay;
-                }
 
+                // We need to be sure there are no custom passes in between GBuffer/Deferred passes, if there are - we disable fb fetch just to be safe`
+                //m_DeferredLights.UseFramebufferFetch = renderGraph.nativeRenderPassesEnabled;
+                m_DeferredLights.UseFramebufferFetch = false;
+                m_DeferredLights.HasNormalPrepass = isDepthNormalPrepass;
+                m_DeferredLights.HasDepthPrepass = requiresDepthPrepass;
+                m_DeferredLights.ResolveMixedLightingMode(lightData);
+                m_DeferredLights.IsOverlay = cameraData.renderType == CameraRenderType.Overlay;
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingGbuffer);
+
+                // When we have a partial depth normals prepass, we must wait until the gbuffer pass to set global textures.
+                // In this case, the incoming global texture data is incomplete and the gbuffer pass is required to complete it.
+                bool setGlobalTextures = isDepthNormalPrepass && !hasFullPrepass;
+
                 // GBuffer
-                m_GBufferPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture);
+                m_GBufferPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, setGlobalTextures);
 
-                // GPUCopy GBuffer Depth
-                m_GPUCopyPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.activeDepthTexture, true);
+                // In addition to regularly scheduled depth copies here, we also need to copy depth when native render passes aren't available.
+                // This is required because deferred lighting must read depth as a texture, but it must also bind depth as a depth write attachment at the same time.
+                // When native render passes are available, we write depth into an internal gbuffer slice and read via framebuffer fetch so a depth copy is no longer required.
+                if (copySchedules.depth == DepthCopySchedule.AfterGBuffer)
+                    ExecuteScheduledDepthCopyWithMotion(renderGraph, resourceData, renderPassInputs.requiresMotionVectors);
+                else if (!renderGraph.nativeRenderPassesEnabled)
+                    CopyDepthToDepthTexture(renderGraph, resourceData);
 
-                // DepthPyramid
-                {
-                    var depthpyramidDesc = GetCameraDepthPyramidDescriptor(cameraData.cameraTargetDescriptor);
-                    resourceData.cameraDepthPyramidTexture = m_GPUCopyPass.RenderDepthPyramidMip0(renderGraph, frameData, resourceData.cameraDepthTexture, depthpyramidDesc);
-                    m_DepthPyramidPass.Render(renderGraph, frameData, resourceData.cameraDepthPyramidTexture, m_DepthPyramidInfo);
-                }
+                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingGbuffer, RenderPassEvent.BeforeRenderingDeferredLights);
 
-                // MotionVectors
-                // Depends on the camera (copy) depth texture. Depth is reprojected to calculate motion vectors.
-                if (renderPassInputs.requiresMotionVectors)
-                {
-                    m_MotionVectorPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.motionVectorColor, resourceData.motionVectorDepth);
-                }
-
-                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingGbuffer);
-
-                // GPULightList
-                m_GPULights.Render(renderGraph, frameData);
-                m_GPULights.RenderSetGlobalSync(renderGraph, frameData);
-
-                // TODO: SSAO
-
-
-                // TODO: SSGI
-
-                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingShadows);
-
-                bool renderShadows = false;
-                // DirectionalLightsShadowCaster
-                if (m_DirectionalLightsShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))
-                {
-                    renderShadows = true;
-                    resourceData.directionalShadowsTexture = m_DirectionalLightsShadowCasterPass.Render(renderGraph, frameData);
-                }
-
-                // ScreenSpaceDirectionalShadows
-                // TODO: async
-                resourceData.screenSpaceShadowsTexture = m_ScreenSpaceDirectionalShadowsPass.Render(renderGraph, frameData);
-                if (m_ScreenSpaceShadowScatterPass.Setup(resourceData))
-                {
-                    resourceData.shadowScatterTexture = m_ScreenSpaceShadowScatterPass.Render(renderGraph, frameData);
-                }
-
-                // AdditionalShadowCaster
-                if (m_AdditionalLightsShadowCasterPass.Setup(renderingData, cameraData, lightData, shadowData))
-                {
-                    renderShadows = true;
-                    resourceData.additionalShadowsTexture = m_AdditionalLightsShadowCasterPass.Render(renderGraph, frameData);
-                }
-
-
-                // The camera need to be setup again after the shadows since those passes override some settings
-                if (renderShadows)
-                    SetupRenderGraphCameraProperties(renderGraph, resourceData.isActiveTargetBackBuffer);
-
-                // SSR, RayTracing reflection needs mainlightshadowmap and camera properties.
-                if (m_ScreenSpaceReflectionPass.Setup())
-                {
-                    resourceData.ssrLightingTexture = m_ScreenSpaceReflectionPass.RenderSSR(renderGraph, frameData, colorPyramidHistoryMipCount);
-                }
-
-                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingShadows, RenderPassEvent.BeforeRenderingDeferredLights);
-
-
-                // DeferredLighting
-                m_DeferredLighting.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, resourceData.gBuffer);
-
-                // Character Forward Lighting
-                m_CharacterForwardLighting.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture);
+                m_DeferredPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, resourceData.gBuffer);
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingDeferredLights, RenderPassEvent.BeforeRenderingOpaques);
 
@@ -1685,28 +1638,29 @@ namespace UnityEngine.Rendering.Universal
                 TextureHandle additionalShadowsTexture = resourceData.additionalShadowsTexture;
                 m_RenderOpaqueForwardOnlyPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, mainShadowsTexture, additionalShadowsTexture, uint.MaxValue);
             }
+            
 
-
-            // Custom passes come before built-in passes to keep parity with non-RG code path where custom passes are added before renderer Setup.
-            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingOpaques);
-
-            if (requiresDepthCopyPass && m_CopyDepthMode != CopyDepthMode.AfterTransparents)
-            {
-                TextureHandle cameraDepthTexture = resourceData.cameraDepthTexture;
-                m_CopyDepthPass.Render(renderGraph, frameData, cameraDepthTexture, resourceData.activeDepthTexture, true);
-            }
-
-
+            if (copySchedules.depth == DepthCopySchedule.AfterOpaques)
+                RecordCustomPassesWithDepthCopyAndMotion(renderGraph, resourceData, renderPassInputs.requiresDepthTextureEarliestEvent, RenderPassEvent.AfterRenderingOpaques, renderPassInputs.requiresMotionVectors);
+            else
+                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingOpaques);
 
             RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingSkybox);
 
             if (cameraData.camera.clearFlags == CameraClearFlags.Skybox && cameraData.renderType != CameraRenderType.Overlay)
             {
-                if (RenderSettings.skybox != null || (cameraData.camera.TryGetComponent(out Skybox cameraSkybox) && cameraSkybox.material != null))
+                cameraData.camera.TryGetComponent(out Skybox cameraSkybox);
+                Material skyboxMaterial = cameraSkybox != null ? cameraSkybox.material : RenderSettings.skybox;
+                if (skyboxMaterial != null)
                     m_DrawSkyboxPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture);
             }
 
-            if (requiresColorCopyPass)
+            if (copySchedules.depth == DepthCopySchedule.AfterSkybox)
+                ExecuteScheduledDepthCopyWithMotion(renderGraph, resourceData, renderPassInputs.requiresMotionVectors);
+
+            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingSkybox);
+
+            if (copySchedules.color == ColorCopySchedule.AfterSkybox)
             {
                 TextureHandle activeColor = resourceData.activeColorTexture;
                 Downsampling downsamplingMethod = UniversalRenderPipeline.asset.opaqueDownsampling;
@@ -1723,6 +1677,8 @@ namespace UnityEngine.Rendering.Universal
                 resourceData.cameraColorPyramidTexture = cameraColorPyramidTexture;
             }
 
+            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingTransparents);
+
 #if UNITY_EDITOR
             {
                 TextureHandle cameraDepthTexture = resourceData.cameraDepthTexture;
@@ -1730,8 +1686,6 @@ namespace UnityEngine.Rendering.Universal
                 m_ProbeVolumeDebugPass.Render(renderGraph, frameData, cameraDepthTexture, cameraNormalsTexture);
             }
 #endif
-
-            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingSkybox, RenderPassEvent.BeforeRenderingTransparents);
 
             // TODO RENDERGRAPH: bind _CameraOpaqueTexture, _CameraDepthTexture in transparent pass?
 #if ADAPTIVE_PERFORMANCE_2_1_0_OR_NEWER
@@ -1748,19 +1702,10 @@ namespace UnityEngine.Rendering.Universal
                     resourceData.additionalShadowsTexture);
             }
 
-            // Custom passes come before built-in passes to keep parity with non-RG code path where custom passes are added before renderer Setup.
-
-            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingTransparents);
-
-            if (requiresDepthCopyPass && m_CopyDepthMode == CopyDepthMode.AfterTransparents)
-                m_CopyDepthPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.activeDepthTexture, true);
-
-            // TODO: Postprocess pass should be able configure its render pass inputs per camera per frame (settings) BEFORE building any of the graph
-            // TODO: Alternatively we could always build the graph (a potential graph) and cull away unused passes if "record + cull" is fast enough.
-            // TODO: Currently we just override "requiresMotionVectors" for TAA in GetRenderPassInputs()
-            // Depends on camera (copy) depth texture
-            if (renderPassInputs.requiresMotionVectors && m_CopyDepthMode == CopyDepthMode.AfterTransparents)
-                m_MotionVectorPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.motionVectorColor, resourceData.motionVectorDepth);
+            if (copySchedules.depth == DepthCopySchedule.AfterTransparents)
+                RecordCustomPassesWithDepthCopyAndMotion(renderGraph, resourceData, renderPassInputs.requiresDepthTextureEarliestEvent, RenderPassEvent.AfterRenderingTransparents, renderPassInputs.requiresMotionVectors);
+            else
+                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingTransparents);
 
             if (context.HasInvokeOnRenderObjectCallbacks())
                 m_OnRenderObjectCallbackPass.Render(renderGraph, resourceData.activeColorTexture, resourceData.activeDepthTexture);
@@ -1781,7 +1726,7 @@ namespace UnityEngine.Rendering.Universal
             if (shouldRenderUI && outputToHDR)
             {
                 TextureHandle overlayUI;
-                m_DrawOffscreenUIPass.RenderOffscreen(renderGraph, frameData, k_DepthStencilFormat, out overlayUI);
+                m_DrawOffscreenUIPass.RenderOffscreen(renderGraph, frameData, cameraDepthAttachmentFormat, out overlayUI);
                 resourceData.overlayUITexture = overlayUI;
             }
         }
