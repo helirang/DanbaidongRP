@@ -1,4 +1,7 @@
 <div align="center">
+<img src="https://img.shields.io/badge/Unity ver-6000.0.30f1-red"/>
+<img src="https://img.shields.io/github/last-commit/danbaidong1111/DanbaidongRP" alt="last-commit" />
+<img src="https://img.shields.io/badge/Author-Danbaidong-pink"/>
 
 # **Danbaidong Render Pipeline**
 
@@ -6,7 +9,7 @@
 
 Just add something I need.
 
-`DanbaidongRP` is a custom render pipeline built based on Universal RP 17.0.3, Unity 6 (6000.0.0f1). This pipeline is optimized for both PBR and NPR Toon Rendering, offering enhanced flexibility for various rendering needs. Future updates will include additional features tailored to my specific requirements.
+`DanbaidongRP` is a custom render pipeline built based on `Universal RP 17.0.3`, `Unity 6 (6000.0.30f1)`. This pipeline is optimized for both PBR and NPR Toon Rendering, offering enhanced flexibility for various rendering needs. Future updates will include additional features tailored to my specific requirements.
 
 </div>
 
@@ -37,8 +40,7 @@ Roadmap & Features:
 - [ ] Idol Live アイドル!!!!!
 
 # Usage
-
-* Create a new Unity 6 URP project (6000.0.0f1).
+* Create a new Unity 6 URP project <span style="color: #FF8C00;">(6000.0.30f1)</span>.
 * *Window -> Package Manager*, remove *Universal RP* and delete the contents of the *Assets/Settings* folder.
 * Add *DanbaidongRP* through the *Package Manager*. It is recommended to use the "Install package from disk..." option to individually add the [Core](https://github.com/danbaidong1111/DanbaidongRPCore), [Config](https://github.com/danbaidong1111/DanbaidongRPConfig), and [DanbaidongRP](https://github.com/danbaidong1111/DanbaidongRP) packages (select the `package.json` file for each).
 * In the *Settings* directory, recreate the DanbaidongRP Asset by right-clicking and selecting *Create -> Rendering -> Danbaidong RP Asset and Renderer*. Then, in *Edit -> Project Settings -> Graphics*, set the *Default Renderer Pipeline* to the pipeline Asset you just created. The scene should now render correctly.
