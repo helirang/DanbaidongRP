@@ -379,6 +379,8 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
 
         }
         // Apply Shadows
+        if (!materialReceiveShadowsOff)
+        {
         #ifdef _RAYTRACING_SHADOWS
             float shadowAttenuation = LoadScreenSpaceShadowmap(posInput.positionSS);
             // Apply shadow strength
@@ -435,6 +437,7 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
                 directSpecular *= shadowAttenuation;
             }
         #endif /* _RAYTRACING_SHADOWS */
+        }
 
 
         // Punctual Lights
@@ -523,9 +526,15 @@ DeferredLightingOutput DeferredLit(PositionInputs posInput, ShadingData shadingD
     //  1. Screen Space Refraction / Reflection
     //  2. Environment Reflection / Refraction
     //  3. Sky Reflection / Refraction
+    bool materialUseBakedGI = (shadingData.materialFlags & kMaterialFlagUseBakedGI) != 0;
 
-    float3 SHColor = SampleSH9(_AmbientProbeData, normalWS);//EvaluateAmbientProbe(normalWS);
+    float3 SHColor = SampleSH9(_AmbientProbeData, normalWS);
     indirectDiffuse += diffuseFGD * SHColor * shadingData.diffuseColor;
+    if (materialUseBakedGI)
+    {
+        // GI is from geometry's lightmap, stores in lighting buffer.
+        indirectDiffuse = 0;
+    }
     // TODO: ModifyBakedDiffuseLighting Function
 
 

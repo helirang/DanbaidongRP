@@ -59,6 +59,8 @@
 #define kMaterialFlagSubtractiveMixedLighting 4 // The geometry uses subtractive mixed lighting
 #define kMaterialFlagSpecularSetup            8 // Lit material use specular setup instead of metallic setup
 
+#define kMaterialFlagUseBakedGI               16 // The geometry uses baked GlobalIllumination, so we don't need to add env ambient to result in DefferredLighting.
+
 // Light flags.
 #define kLightFlagSubtractiveMixedLighting    4 // The light uses subtractive mixed lighting.
 
@@ -133,6 +135,10 @@ FragmentOutput SurfaceDataToGbuffer(SurfaceData surfaceData, InputData inputData
     materialFlags |= kMaterialFlagSubtractiveMixedLighting;
     #endif
 
+    #if defined(LIGHTMAP_ON)
+    materialFlags |= kMaterialFlagUseBakedGI;
+    #endif
+
     FragmentOutput output;
     output.GBuffer0 = float4(surfaceData.albedo.rgb, PackMaterialFlags(materialFlags));   // albedo          albedo          albedo          materialFlags   (sRGB rendertarget)
     output.GBuffer1 = float4(surfaceData.specular.rgb, surfaceData.occlusion);            // specular        specular        specular        occlusion
@@ -204,6 +210,10 @@ FragmentOutput BRDFDataToGbuffer(BRDFData brdfData, InputData inputData, float s
 
     #if defined(LIGHTMAP_ON) && defined(_MIXED_LIGHTING_SUBTRACTIVE)
     materialFlags |= kMaterialFlagSubtractiveMixedLighting;
+    #endif
+
+    #if defined(LIGHTMAP_ON)
+    materialFlags |= kMaterialFlagUseBakedGI;
     #endif
 
     FragmentOutput output;

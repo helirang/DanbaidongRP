@@ -9,6 +9,9 @@
 #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/GPUCulledLights.hlsl"
 #include "Packages/com.unity.render-pipelines.danbaidong/ShaderLibrary/Material.hlsl"
 
+// DanbaidongRP GlobalIllumination only handles bakedGI(Lightmaps).
+#define USE_BAKED_GI_ONLY 1
+
 #define AMBIENT_PROBE_BUFFER 1
 TEXTURECUBE(_SkyTexture);
 StructuredBuffer<float4>    _AmbientProbeData;
@@ -488,6 +491,10 @@ half3 GlobalIllumination(BRDFData brdfData, BRDFData brdfDataClearCoat, float cl
     half3 bakedGI, half occlusion, float3 positionWS,
     half3 normalWS, half3 viewDirectionWS, float2 normalizedScreenSpaceUV)
 {
+#if USE_BAKED_GI_ONLY
+    return brdfData.diffuse * bakedGI * occlusion;
+#endif
+
     half3 reflectVector = reflect(-viewDirectionWS, normalWS);
     half NoV = saturate(dot(normalWS, viewDirectionWS));
     half fresnelTerm = Pow4(1.0 - NoV);
@@ -537,6 +544,10 @@ half3 GlobalIllumination(BRDFData brdfData, BRDFData brdfDataClearCoat, float cl
     half3 bakedGI, half occlusion,
     half3 normalWS, half3 viewDirectionWS)
 {
+#if USE_BAKED_GI_ONLY
+    return brdfData.diffuse * bakedGI * occlusion;
+#endif
+
     half3 reflectVector = reflect(-viewDirectionWS, normalWS);
     half NoV = saturate(dot(normalWS, viewDirectionWS));
     half fresnelTerm = Pow4(1.0 - NoV);
