@@ -1583,13 +1583,6 @@ namespace UnityEngine.Rendering.Universal
                 needsOccluderUpdate = false;
             }
 
-            // After the prepass completes, we should copy depth if necessary and also render motion vectors. (they're expected to be available whenever depth is)
-            // In the case where depth is rendered as part of the prepass and no copy is necessary, we still need to render motion vectors here to ensure they're available
-            // with depth before any user passes are executed.
-            if (copySchedules.depth == DepthCopySchedule.AfterPrepass)
-                ExecuteScheduledDepthCopyWithMotion(renderGraph, resourceData, renderPassInputs.requiresMotionVectors);
-            else if ((copySchedules.depth == DepthCopySchedule.DuringPrepass) && renderPassInputs.requiresMotionVectors)
-                RenderMotionVectors(renderGraph, resourceData);
 
             RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingPrePasses);
 
@@ -1631,20 +1624,12 @@ namespace UnityEngine.Rendering.Universal
                 }
 
 
-                //// MotionVectors
-                //// Depends on the camera (copy) depth texture. Depth is reprojected to calculate motion vectors.
-                //if (renderPassInputs.requiresMotionVectors)
-                //{
-                //    m_MotionVectorPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.motionVectorColor, resourceData.motionVectorDepth);
-                //}
-
-                // In addition to regularly scheduled depth copies here, we also need to copy depth when native render passes aren't available.
-                // This is required because deferred lighting must read depth as a texture, but it must also bind depth as a depth write attachment at the same time.
-                // When native render passes are available, we write depth into an internal gbuffer slice and read via framebuffer fetch so a depth copy is no longer required.
-                if (copySchedules.depth == DepthCopySchedule.AfterGBuffer)
-                    ExecuteScheduledDepthCopyWithMotion(renderGraph, resourceData, renderPassInputs.requiresMotionVectors);
-                else if (!renderGraph.nativeRenderPassesEnabled)
-                    CopyDepthToDepthTexture(renderGraph, resourceData);
+                // MotionVectors
+                // Depends on the camera (copy) depth texture. Depth is reprojected to calculate motion vectors.
+                if (renderPassInputs.requiresMotionVectors)
+                {
+                    m_MotionVectorPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.motionVectorColor, resourceData.motionVectorDepth);
+                }
 
 
                 RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingGbuffer);
@@ -1711,12 +1696,13 @@ namespace UnityEngine.Rendering.Universal
                 TextureHandle additionalShadowsTexture = resourceData.additionalShadowsTexture;
                 m_RenderOpaqueForwardOnlyPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture, mainShadowsTexture, additionalShadowsTexture, uint.MaxValue);
             }
-            
 
-            if (copySchedules.depth == DepthCopySchedule.AfterOpaques)
-                RecordCustomPassesWithDepthCopyAndMotion(renderGraph, resourceData, renderPassInputs.requiresDepthTextureEarliestEvent, RenderPassEvent.AfterRenderingOpaques, renderPassInputs.requiresMotionVectors);
-            else
-                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingOpaques);
+
+            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingOpaques);
+
+            // Copy Opaque Depth
+            m_CopyDepthPass.Render(renderGraph, frameData, resourceData.cameraDepthTexture, resourceData.activeDepthTexture, true);
+
 
             RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRenderingSkybox);
 
@@ -1727,9 +1713,6 @@ namespace UnityEngine.Rendering.Universal
                 if (skyboxMaterial != null)
                     m_DrawSkyboxPass.Render(renderGraph, frameData, resourceData.activeColorTexture, resourceData.activeDepthTexture);
             }
-
-            if (copySchedules.depth == DepthCopySchedule.AfterSkybox)
-                ExecuteScheduledDepthCopyWithMotion(renderGraph, resourceData, renderPassInputs.requiresMotionVectors);
 
             RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingSkybox);
 
@@ -1775,10 +1758,9 @@ namespace UnityEngine.Rendering.Universal
                     resourceData.additionalShadowsTexture);
             }
 
-            if (copySchedules.depth == DepthCopySchedule.AfterTransparents)
-                RecordCustomPassesWithDepthCopyAndMotion(renderGraph, resourceData, renderPassInputs.requiresDepthTextureEarliestEvent, RenderPassEvent.AfterRenderingTransparents, renderPassInputs.requiresMotionVectors);
-            else
-                RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingTransparents);
+
+            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingTransparents);
+
 
             if (context.HasInvokeOnRenderObjectCallbacks())
                 m_OnRenderObjectCallbackPass.Render(renderGraph, resourceData.activeColorTexture, resourceData.activeDepthTexture);

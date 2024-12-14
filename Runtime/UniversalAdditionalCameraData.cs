@@ -292,6 +292,8 @@ namespace UnityEngine.Rendering.Universal
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Camera))]
+    // DanbaidongRP: URP removed this (6000.0.0f1 -> 6000.0.30f1). But we need it for SceneViewCamera's AdditionalCameraData.
+    [ImageEffectAllowedInSceneView]
     [ExecuteAlways] // NOTE: This is required to get calls to OnDestroy() always. Graphics resources are released in OnDestroy().
     [URPHelpURL("universal-additional-camera-data")]
     public class UniversalAdditionalCameraData : MonoBehaviour, ISerializationCallbackReceiver, IAdditionalData
